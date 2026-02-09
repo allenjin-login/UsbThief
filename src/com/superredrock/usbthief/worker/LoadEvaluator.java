@@ -1,6 +1,7 @@
 package com.superredrock.usbthief.worker;
 
 import com.superredrock.usbthief.core.QueueManager;
+import com.superredrock.usbthief.core.RejectionAwarePolicy;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import java.util.logging.Level;
@@ -17,8 +18,10 @@ public class LoadEvaluator {
     private LoadScore cachedScore;
     private long lastEvaluateTime = 0;
 
+    private final RejectionAwarePolicy rejectionPolicy;
+
     public LoadEvaluator() {
-        // Constructor - uses static QueueManager methods
+        this.rejectionPolicy = QueueManager.getRejectionPolicy();
     }
 
     public LoadScore evaluateLoad() {
@@ -34,23 +37,27 @@ public class LoadEvaluator {
             int queueLength = safeGetQueueSize();
             double copySpeed = safeGetCopySpeed();
             double threadRatio = safeGetThreadRatio();
+            int recentRejections = safeGetRecentRejections();
 
             // Normalize to 0-100
             int queueScore = normalizeQueueLength(queueLength);
             int speedScore = normalizeSpeed(copySpeed);
             int threadScore = normalizeThreadRatio(threadRatio);
+            int rejectionScore = normalizeRejections(recentRejections);
 
             // Get weights from config (as percentages 0-100)
             ConfigManager config = ConfigManager.getInstance();
             int queueWeightPercent = config.get(ConfigSchema.LOAD_QUEUE_WEIGHT_PERCENT);
             int speedWeightPercent = config.get(ConfigSchema.LOAD_SPEED_WEIGHT_PERCENT);
             int threadWeightPercent = config.get(ConfigSchema.LOAD_THREAD_WEIGHT_PERCENT);
+            int rejectionWeightPercent = config.get(ConfigSchema.LOAD_REJECTION_WEIGHT_PERCENT);
 
             // Calculate weighted score
             int totalScore = (int) Math.round(
                 queueScore * queueWeightPercent / 100.0 +
                 speedScore * speedWeightPercent / 100.0 +
-                threadScore * threadWeightPercent / 100.0
+                threadScore * threadWeightPercent / 100.0 +
+                rejectionScore * rejectionWeightPercent / 100.0
             );
 
             // Determine load level
@@ -61,7 +68,7 @@ public class LoadEvaluator {
             return cachedScore;
 
         } catch (Exception e) {
-            logger.log(Level.WARNING, "负载评估失败，使用默认值", e);
+            logger.log(Level.WARNING, "Load evaluation failed, using default value", e);
             return new LoadScore(50, LoadLevel.MEDIUM); // Conservative fallback
         }
     }
@@ -70,7 +77,7 @@ public class LoadEvaluator {
         try {
             return QueueManager.getQueueSize();
         } catch (Exception e) {
-            logger.log(Level.FINE, "无法获取队列大小", e);
+            logger.log(Level.FINE, "Unable to get queue size", e);
             return 0; // Default: empty queue
         }
     }
@@ -88,7 +95,7 @@ public class LoadEvaluator {
 
             return speedMBps;
         } catch (Exception e) {
-            logger.log(Level.FINE, "无法获取复制速度", e);
+            logger.log(Level.FINE, "Unable to get copy speed", e);
             return 10.0; // Default: good speed (conservative fallback)
         }
     }
@@ -97,8 +104,17 @@ public class LoadEvaluator {
         try {
             return QueueManager.getActiveRatio();
         } catch (Exception e) {
-            logger.log(Level.FINE, "无法获取线程活跃度", e);
+            logger.log(Level.FINE, "Unable to get thread activity", e);
             return 0.5; // Default: 50% active
+        }
+    }
+
+    private int safeGetRecentRejections() {
+        try {
+            return rejectionPolicy.getRecentRejections();
+        } catch (Exception e) {
+            logger.log(Level.FINE, "Unable to get rejection count", e);
+            return 0; // Default: no rejections
         }
     }
 
@@ -117,6 +133,11 @@ public class LoadEvaluator {
     private int normalizeThreadRatio(double ratio) {
         // 0.0 active = 0 score, 1.0 active = 100 score
         return (int) Math.round(ratio * 100);
+    }
+
+    private int normalizeRejections(int rejectionCount) {
+        // 0 rejections = 0 score, 10+ rejections = 100 score
+        return Math.min(100, rejectionCount * 10);
     }
 
     private LoadLevel determineLoadLevel(int score) {

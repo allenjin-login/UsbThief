@@ -104,14 +104,32 @@ public class ConfigSchema {
     public static final ConfigEntry<String> PRIORITY_RULES =
             stringEntry("scheduler.priorityRules", "Priority rules configuration (JSON format) - reserved for future use", "{}", "Task Scheduler");
 
+    public static final ConfigEntry<Long> SCHEDULER_INITIAL_DELAY_MS =
+            longEntry("scheduler.initialDelayMs", "Initial delay before first scheduler tick (ms)", 1000L, "Task Scheduler");
+
+    public static final ConfigEntry<Long> SCHEDULER_TICK_INTERVAL_MS =
+            longEntry("scheduler.tickIntervalMs", "Interval between scheduler ticks (ms)", 500L, "Task Scheduler");
+
+    public static final ConfigEntry<Integer> SCHEDULER_ACCUMULATION_MAX_QUEUE =
+            intEntry("scheduler.accumulationMaxQueue", "Maximum queue size during high-load accumulation", 2000, "Task Scheduler");
+
+    public static final ConfigEntry<Integer> SCHEDULER_LOW_BATCH_SIZE =
+            intEntry("scheduler.lowBatchSize", "Number of tasks to submit per tick at LOW load", 30, "Task Scheduler");
+
+    public static final ConfigEntry<Integer> SCHEDULER_MEDIUM_BATCH_SIZE =
+            intEntry("scheduler.mediumBatchSize", "Number of tasks to submit per tick at MEDIUM load", 50, "Task Scheduler");
+
     public static final ConfigEntry<Integer> LOAD_QUEUE_WEIGHT_PERCENT =
-            intEntry("scheduler.load.queueWeightPercent", "Queue length weight percentage (0-100)", 40, "Task Scheduler");
+            intEntry("scheduler.load.queueWeightPercent", "Queue length weight percentage (0-100)", 35, "Task Scheduler");
 
     public static final ConfigEntry<Integer> LOAD_SPEED_WEIGHT_PERCENT =
-            intEntry("scheduler.load.speedWeightPercent", "Copy speed weight percentage (0-100)", 40, "Task Scheduler");
+            intEntry("scheduler.load.speedWeightPercent", "Copy speed weight percentage (0-100)", 35, "Task Scheduler");
 
     public static final ConfigEntry<Integer> LOAD_THREAD_WEIGHT_PERCENT =
-            intEntry("scheduler.load.threadWeightPercent", "Thread activity weight percentage (0-100)", 20, "Task Scheduler");
+            intEntry("scheduler.load.threadWeightPercent", "Thread activity weight percentage (0-100)", 15, "Task Scheduler");
+
+    public static final ConfigEntry<Integer> LOAD_REJECTION_WEIGHT_PERCENT =
+            intEntry("scheduler.load.rejectionWeightPercent", "Rejection rate weight percentage (0-100)", 15, "Task Scheduler");
 
     public static final ConfigEntry<Integer> LOAD_HIGH_THRESHOLD =
             intEntry("scheduler.load.highThreshold", "High load threshold (0-100)", 70, "Task Scheduler");
@@ -159,9 +177,15 @@ public class ConfigSchema {
         registerEntry(SHOW_IN_TASKBAR);
         registerEntry(ALWAYS_HIDDEN);
         registerEntry(PRIORITY_RULES);
+        registerEntry(SCHEDULER_INITIAL_DELAY_MS);
+        registerEntry(SCHEDULER_TICK_INTERVAL_MS);
+        registerEntry(SCHEDULER_ACCUMULATION_MAX_QUEUE);
+        registerEntry(SCHEDULER_LOW_BATCH_SIZE);
+        registerEntry(SCHEDULER_MEDIUM_BATCH_SIZE);
         registerEntry(LOAD_QUEUE_WEIGHT_PERCENT);
         registerEntry(LOAD_SPEED_WEIGHT_PERCENT);
         registerEntry(LOAD_THREAD_WEIGHT_PERCENT);
+        registerEntry(LOAD_REJECTION_WEIGHT_PERCENT);
         registerEntry(LOAD_HIGH_THRESHOLD);
         registerEntry(LOAD_LOW_THRESHOLD);
         registerEntry(SCHEDULER_MEDIUM_BATCH);

@@ -15,9 +15,11 @@ module UsbThief {
     exports com.superredrock.usbthief.core.event.worker;
     exports com.superredrock.usbthief.gui;
 
-    // 使用 Java 模块系统注册 AbstractService 实现
-    // 注意：Index 需要构造参数，不通过 ServiceLoader 加载
-    // Index 由 QueueManager 创建并手动注册到 ServiceManager
+    // Register Service implementations using Java module system
+    // Note: Index requires constructor parameters, not loaded via ServiceLoader
+    // Index is created by QueueManager and manually registered to ServiceManager
     provides Service
-            with com.superredrock.usbthief.index.Index , com.superredrock.usbthief.core.DeviceManager;
+            with com.superredrock.usbthief.index.Index,
+                com.superredrock.usbthief.core.DeviceManager,
+                com.superredrock.usbthief.worker.TaskScheduler;
 }

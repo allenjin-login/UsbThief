@@ -3,8 +3,6 @@ package com.superredrock.usbthief;
 
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.ServiceManager;
-import com.superredrock.usbthief.core.event.EventBus;
-import com.superredrock.usbthief.core.event.device.DeviceStateChangedEvent;
 import com.superredrock.usbthief.gui.MainFrame;
 
 import java.util.logging.Logger;
@@ -20,7 +18,7 @@ public class Main {
         logger.info("Initializing");
     }
 
-    static void main(String[] args) {
+    static void main() {
         ServiceManager serviceManager = ServiceManager.getInstance();
         serviceManager.loadServices();
 

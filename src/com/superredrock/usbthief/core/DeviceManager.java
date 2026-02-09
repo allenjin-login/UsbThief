@@ -11,19 +11,18 @@ import java.nio.file.*;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 /**
- * 设备管理服务
+ * Device Management Service
  * <p>
- * 负责设备检测、监控和生命周期事件管理。
- * 使用轮询方式检测设备变化，间隔时间可配置。
+ * Responsible for device detection, monitoring, and lifecycle event management.
+ * Uses polling to detect device changes with configurable interval.
  * <p>
- * 继承 AbstractService，由 ServiceManager 统一管理生命周期。
+ * Extends Service, lifecycle managed by ServiceManager.
  *
  */
 public class DeviceManager extends Service {
@@ -57,14 +56,13 @@ public class DeviceManager extends Service {
             devices.add(new Device(path));
         }
 
-        // 设置单例实例
+        // Set singleton instance
     }
 
 
 
 
-
-    // ========== AbstractService 抽象方法实现 ==========
+    // ========== AbstractService method implementations ==========
 
     @Override
     protected ScheduledFuture<?> scheduleTask(ScheduledThreadPoolExecutor scheduler) {
@@ -83,7 +81,7 @@ public class DeviceManager extends Service {
 
     @Override
     public String getDescription() {
-        return "设备检测和监控服务";
+        return "Device detection and monitoring service";
     }
 
     @Override
@@ -98,16 +96,16 @@ public class DeviceManager extends Service {
 
     @Override
     protected void cleanup() {
-        // 清理设备集合
+        // Clear device collection
         devices.clear();
     }
 
     @Override
     public String getStatus() {
-        return String.format("DeviceManager[%s] - 管理设备: %d个", state, devices.size());
+        return String.format("DeviceManager[%s] - Managing devices: %d", state, devices.size());
     }
 
-    // ========== AbstractService 抽象方法实现结束 ==========
+    // ========== End of AbstractService method implementations ==========
 
     /**
      * Detects and adds new devices that have been inserted since last update.

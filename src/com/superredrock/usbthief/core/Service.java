@@ -6,41 +6,41 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.logging.Logger;
 
 /**
- * 服务抽象基类
+ * Service abstract base class
  * <p>
- * 统一管理服务的生命周期、状态转换和任务调度。
- * 子类只需实现调度逻辑和具体的 tick 任务。
+ * Uniformly manages service lifecycle, state transitions, and task scheduling.
+ * Subclasses only need to implement scheduling logic and specific tick tasks.
  * <p>
- * 自动管理的功能：
- * - 状态转换（STOPPED → STARTING → RUNNING → STOPPING → STOPPED）
- * - ScheduledFuture 的创建和取消
- * - 错误状态处理
+ * Automatically managed features:
+ * - State transitions (STOPPED → STARTING → RUNNING → STOPPING → STOPPED)
+ * - Creation and cancellation of ScheduledFuture
+ * - Error state handling
  * <p>
- * 子类需要实现：
- * - {@link #scheduleTask(ScheduledThreadPoolExecutor)} - 定义如何调度任务
- * - {@link #run()} - 实现具体的 tick 逻辑
- * - {@link #getName()} - 返回服务名称
- * - {@link #getDescription()} - 返回服务描述
- * - {@link #cleanup()} - （可选）清理资源
+ * Subclasses need to implement:
+ * - {@link #scheduleTask(ScheduledThreadPoolExecutor)} - define how to schedule tasks
+ * - {@link #run()} - implement specific tick logic
+ * - {@link #getName()} - return service name
+ * - {@link #getDescription()} - return service description
+ * - {@link #cleanup()} - (optional) clean up resources
  */
 public abstract class Service implements Runnable , Closeable {
 
     protected final Logger logger = Logger.getLogger(getClass().getName());
 
-    // 服务状态管理
+    // Service state management
     protected volatile ServiceState state = ServiceState.STOPPED;
 
-    // 调度任务
+    // Scheduled task
     protected ScheduledFuture<?> scheduledTask;
 
-    // ========== 生命周期控制方法 ==========
+    // ========== Lifecycle control methods ==========
 
     /**
-     * 启动服务
+     * Start service
      * <p>
-     * 自动管理状态转换，创建调度任务。
+     * Automatically manages state transitions and creates scheduled tasks.
      *
-     * @param scheduler 调度器
+     * @param scheduler scheduler
      */
     public void start(ScheduledThreadPoolExecutor scheduler) {
         if (scheduler == null) {
@@ -48,33 +48,33 @@ public abstract class Service implements Runnable , Closeable {
         }
 
         if (state == ServiceState.RUNNING) {
-            logger.warning(getName() + " 服务已在运行");
+            logger.warning(getName() + " service is already running");
             return;
         }
 
         state = ServiceState.STARTING;
 
         try {
-            // 取消旧任务
+            // Cancel old task
             if (scheduledTask != null && !scheduledTask.isDone()) {
                 scheduledTask.cancel(false);
             }
 
-            // 子类定义调度逻辑
+            // Subclass defines scheduling logic
             scheduledTask = scheduleTask(scheduler);
             state = ServiceState.RUNNING;
-            logger.info(getName() + " 服务已启动");
+            logger.info(getName() + " service started");
 
         } catch (Exception e) {
-            logger.severe(getName() + " 启动失败: " + e.getMessage());
+            logger.severe(getName() + " start failed: " + e.getMessage());
             state = ServiceState.FAILED;
         }
     }
 
     /**
-     * 停止服务
+     * Stop service
      * <p>
-     * 取消调度任务，调用清理钩子，重置状态。
+     * Cancel scheduled task, call cleanup hook, and reset state.
      */
     public void stop() {
         if (state == ServiceState.STOPPED) {
@@ -84,32 +84,32 @@ public abstract class Service implements Runnable , Closeable {
         state = ServiceState.STOPPING;
 
         try {
-            // 取消调度任务
+            // Cancel scheduled task
             if (scheduledTask != null) {
                 scheduledTask.cancel(true);
                 scheduledTask = null;
             }
 
-            // 调用清理钩子
+            // Call cleanup hook
             cleanup();
 
             state = ServiceState.STOPPED;
-            logger.info(getName() + " 服务已停止");
+            logger.info(getName() + " service stopped");
 
         } catch (Exception e) {
-            logger.severe(getName() + " 停止失败: " + e.getMessage());
+            logger.severe(getName() + " stop failed: " + e.getMessage());
             state = ServiceState.FAILED;
         }
     }
 
     /**
-     * 暂停服务
+     * Pause service
      * <p>
-     * 暂停定期执行，但不释放资源。
+     * Pause periodic execution without releasing resources.
      */
     public void pause() {
         if (state != ServiceState.RUNNING) {
-            logger.warning(getName() + " 服务未运行，无法暂停");
+            logger.warning(getName() + " service is not running, cannot pause");
             return;
         }
 
@@ -120,24 +120,24 @@ public abstract class Service implements Runnable , Closeable {
             }
 
             state = ServiceState.PAUSED;
-            logger.info(getName() + " 服务已暂停");
+            logger.info(getName() + " service paused");
 
         } catch (Exception e) {
-            logger.severe(getName() + " 暂停失败: " + e.getMessage());
+            logger.severe(getName() + " pause failed: " + e.getMessage());
             state = ServiceState.FAILED;
         }
     }
 
     /**
-     * 恢复服务
+     * Resume service
      * <p>
-     * 从暂停状态恢复执行。需要传入调度器重新创建任务。
+     * Resume execution from paused state. Requires scheduler to recreate task.
      *
-     * @param scheduler 调度器
+     * @param scheduler scheduler
      */
     public void resume(ScheduledThreadPoolExecutor scheduler) {
         if (state != ServiceState.PAUSED) {
-            logger.warning(getName() + " 服务未暂停，无法恢复");
+            logger.warning(getName() + " service is not paused, cannot resume");
             return;
         }
 
@@ -148,49 +148,49 @@ public abstract class Service implements Runnable , Closeable {
         try {
             scheduledTask = scheduleTask(scheduler);
             state = ServiceState.RUNNING;
-            logger.info(getName() + " 服务已恢复");
+            logger.info(getName() + " service resumed");
 
         } catch (Exception e) {
-            logger.severe(getName() + " 恢复失败: " + e.getMessage());
+            logger.severe(getName() + " resume failed: " + e.getMessage());
             state = ServiceState.FAILED;
         }
     }
 
-    // ========== 状态查询方法 ==========
+    // ========== State query methods ==========
 
     /**
-     * 获取当前服务状态
+     * Get current service state
      *
-     * @return 当前状态
+     * @return current state
      */
     public ServiceState getState() {
         return state;
     }
 
     /**
-     * 检查服务是否正在运行
+     * Check if service is running
      *
-     * @return 如果服务正在运行，返回 true
+     * @return true if service is running
      */
     public boolean isRunning() {
         return state == ServiceState.RUNNING;
     }
 
     /**
-     * 检查服务是否处于失败状态
+     * Check if service is in failed state
      *
-     * @return 如果服务失败，返回 true
+     * @return true if service failed
      */
     public boolean isFailed() {
         return state == ServiceState.FAILED;
     }
 
     /**
-     * 获取服务的详细状态描述
+     * Get detailed service status description
      * <p>
-     * 子类可以覆盖此方法提供更多信息。
+     * Subclasses can override this method to provide more information.
      *
-     * @return 状态描述字符串
+     * @return status description string
      */
     public String getStatus() {
         return String.format("%s[%s]", getName(), state);
@@ -200,52 +200,52 @@ public abstract class Service implements Runnable , Closeable {
         stop();
     }
 
-    // ========== 子类必须实现的方法 ==========
+    // ========== Methods subclasses must implement ==========
 
     /**
-     * 定义任务调度逻辑
+     * Define task scheduling logic
      * <p>
-     * 子类使用 scheduler.scheduleAtFixedRate() 或 scheduler.scheduleWithFixedDelay()
-     * 创建调度任务，并返回 ScheduledFuture。
+     * Subclasses use scheduler.scheduleAtFixedRate() or scheduler.scheduleWithFixedDelay()
+     * to create scheduled tasks and return ScheduledFuture.
      *
-     * @param scheduler 调度器
-     * @return 调度任务的 Future
+     * @param scheduler scheduler
+     * @return Future of scheduled task
      */
     protected abstract ScheduledFuture<?> scheduleTask(ScheduledThreadPoolExecutor scheduler);
 
     /**
-     * 获取服务名称
+     * Get service name
      * <p>
-     * 服务名称必须唯一，用于服务注册和识别。
+     * Service name must be unique, used for service registration and identification.
      *
-     * @return 服务名称
+     * @return service name
      */
     public abstract String getName();
 
     /**
-     * 获取服务描述
+     * Get service description
      *
-     * @return 服务描述
+     * @return service description
      */
     public abstract String getDescription();
 
     /**
-     * 执行一次 tick 任务
+     * Execute one tick task
      * <p>
-     * 由调度器定期调用。子类实现具体的业务逻辑。
+     * Called periodically by scheduler. Subclasses implement specific business logic.
      */
     public abstract void run();
 
-    // ========== 子类可选覆盖的钩子方法 ==========
+    // ========== Optional hook methods subclasses can override ==========
 
     /**
-     * 清理资源钩子
+     * Cleanup resource hook
      * <p>
-     * 在服务停止时调用。子类可以覆盖此方法释放资源。
-     * 默认实现为空。
+     * Called when service stops. Subclasses can override this method to release resources.
+     * Default implementation does nothing.
      */
     protected void cleanup() {
-        // 默认不做任何事，子类可以选择覆盖
+        // Default does nothing, subclasses can choose to override
     }
 
 

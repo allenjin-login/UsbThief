@@ -1,8 +1,8 @@
 # UsbThief - Project Knowledge Base
 
 **Generated:** 2026-02-03
-**Last Updated:** 2026-02-03
-**Java Version:** 17+ (modular)
+**Last Updated:** 2026-02-09
+**Java Version:** 24 (modular, with --enable-preview)
 **Module:** UsbThief
 
 ## OVERVIEW
@@ -21,102 +21,174 @@ UsbThief/
 │   │   ├── worker/             # Device scanning, file copying, task execution (14 files)
 │   │   ├── index/              # File indexing, checksum verification (4 files)
 │   │   └── gui/                # Swing UI components (6 files)
-│   └── com.superredrock.usbthief.test/    # Manual test stubs (9 files)
+│   
+├── pom.xml                     # Maven build config (Java 24, --enable-preview)
 ├── AGENTS.md                   # Root - this file
 ├── CONFIG.md                   # Configuration documentation
-├── TASKSCHEDULER.md            # TaskScheduler system documentation
-└── out/production/UsbThief/    # Compiled output directory
+└── TASKSCHEDULER.md            # TaskScheduler system documentation
 ```
 
-## WHERE TO LOOK
-| Task | Location | Notes |
-|------|----------|-------|
-| Application startup | `Main.java` | Initializes Index, QueueManager, installs ticker |
-| Configuration | `core/config/ConfigManager.java` | Type-safe config via Preferences API |
-| Device detection | `core/DeviceManager.java` | Polls FileStores, manages Device instances, dispatches events |
-| Thread pools | `core/QueueManager.java` | Singleton with CallerRunsPolicy |
-| Priority scheduling | `worker/TaskScheduler.java` | Priority-based dispatcher with adaptive load control |
-| Retry logic | `core/DelayedPath.java` | DelayQueue for failed operations |
-| Event system | `core/event/EventBus.java` | Thread-safe event bus |
-| Device scanning | `worker/DeviceScanner.java` | WatchService-based monitoring |
-| File copying | `worker/CopyTask.java` | ThreadPoolExecutor + ThreadLocal buffers |
-| Speed monitoring | `worker/SpeedMonitor.java` | Real-time copy speed tracking |
-| Rate limiting | `worker/RateLimiter.java` | Token bucket algorithm |
-| Index management | `index/Index.java` | ConcurrentHashMap.newKeySet for deduplication |
-| Main window | `gui/MainFrame.java` | Swing UI container |
-| Tests | `com.superredrock.usbthief.test/*.java` | Manual test stubs (main() methods only) |
-
-## CODE MAP
-| Symbol | Type | Location | Role |
-|--------|------|----------|------|
-| ConfigManager | class | core/config/ConfigManager.java | Type-safe configuration singleton |
-| ConfigSchema | class | core/config/ConfigSchema.java | Registry of ConfigEntry definitions |
-| QueueManager | class | core/QueueManager.java | Singleton: manages thread pools, delay queue, device manager |
-| DeviceManager | class | core/DeviceManager.java | Manages device collection (synchronizedSet), dispatches device events |
-| Device | class | core/Device.java | Device model with state machine (DeviceState enum) |
-| TaskScheduler | class | worker/TaskScheduler.java | Priority-based task dispatcher with adaptive load control |
-| PriorityCopyTask | class | worker/PriorityCopyTask.java | Wrapper adding priority metadata to CopyTask |
-| PriorityRule | class | worker/PriorityRule.java | Calculates task priority from file characteristics |
-| LoadEvaluator | class | worker/LoadEvaluator.java | Evaluates system load from queue/speed/threads |
-| Index | class | index/Index.java | File index with checksum deduplication |
-| CheckSum | record | index/CheckSum.java | Immutable checksum data holder |
-| CopyTask | class | worker/CopyTask.java | Callable file copy task with checksum verification |
-| DeviceScanner | class | worker/DeviceScanner.java | WatchService-based file change monitoring |
-| EventBus | class | core/event/EventBus.java | Thread-safe event bus (singleton) |
-| EventListener | interface | core/event/EventListener.java | Functional interface for event handlers |
-| MainFrame | class | gui/MainFrame.java | Main Swing window |
-
-## CONVENTIONS
-**Java-Specific Patterns:**
-- **Package structure**: Flat under `src/` (not `src/main/java/`), tests in `src/com.superredrock.usbthief.test/`
-- **Import ordering**: Project imports first, then stdlib grouped by category
-- **Logging**: `protected static final Logger logger = Logger.getLogger(ClassName.class.getName());`
-- **Field order**: Public static constants → Protected static constants → Private/protected instance fields
-- **Switch expressions**: Arrow notation with pattern matching: `case NoSuchFileException _ -> ...`
-- **ThreadLocal buffers**: Always call `clear()` after use (thread-pool environment)
-- **Configuration**: ALWAYS use `Config` class - no hard-coded constants
-
-## ANTI-PATTERNS (THIS PROJECT)
-- **DO NOT hard-code constants** - always use `Config` class for all settings
-- **DO NOT skip ThreadLocal.clear()** - buffers must be reset after use in thread pools
-- **DO NOT use JUnit/TestNG** - no testing framework configured (manual test stubs only)
-
-## UNIQUE STYLES
-- **Priority-based scheduling**: Extension-based priority (PDF=10, TMP=1) + size adjustment (+2/-2), adaptive dispatch by load level
-- **Adaptive load control**: Queue depth (40%) + copy speed (40%) + thread activity (20%) → batch size (LOW/MEDIUM/HIGH)
-- **Two-phase device scanning**: Initial scan followed by WatchService-based monitoring with threshold-based triggering
-- **Checksum deduplication**: `ConcurrentHashMap.newKeySet()` in Index.digest for O(1) add operations
-- **ThreadLocal pattern**: Reusable `ByteBuffer` in `CopyTask` and `CheckSum.verify()` to reduce allocation overhead
-- **Event-driven architecture**: DeviceManager publishes events via EventBus; listeners subscribe to specific event types
-- **WatchService threshold**: Batches file changes before triggering copy (configurable via `watchThreshold`)
-- **Token bucket rate limiting**: `RateLimiter` class implements token bucket algorithm for copy speed control
-
-## COMMANDS
+## BUILD & TEST COMMANDS
 ```bash
-# Build with Maven
+# Maven build (recommended)
 mvn clean compile              # Clean and compile all sources
 mvn compile                    # Compile only (incremental)
 
-# Build with IntelliJ IDEA
-# Open project in IDE and use Build > Build Project
-
-# Compile Java files manually (modular build)
+# Manual modular build
 javac -d out --module-source-path src -m UsbThief
 
-# Run the application
+# Run application
 java -p out -m UsbThief/com.superredrock.usbthief.Main
 
-# Run test stubs (manual execution - no testing framework)
-# Compile single test
-javac -d out src/com.superredrock.usbthief.test/FileSystemTest.java --module-source-path src
-# Run single test
-java -p out -m com.superredrock.usbthief.test/com.superredrock.usbthief.test.FileSystemTest
+
+## CODE STYLE GUIDELINES
+
+### Import Ordering
+Project imports first (grouped by subpackage), then stdlib grouped by category:
+```java
+import com.superredrock.usbthief.core.QueueManager;
+import com.superredrock.usbthief.core.config.ConfigManager;
+import com.superredrock.usbthief.worker.*;
+
+import java.io.IOException;
+import java.nio.file.*;
+import java.util.concurrent.*;
+
+import static com.superredrock.usbthief.core.DeviceUtils.getHardDiskSN;
 ```
 
+### Naming Conventions
+- **Classes**: PascalCase (e.g., `TaskScheduler`, `LoadEvaluator`)
+- **Methods**: camelCase (e.g., `evaluateLoad()`, `checkDuplicate()`)
+- **Constants**: UPPER_SNAKE_CASE (e.g., `LOG_INTERVAL_MS`, `BUFFER_SIZE`)
+- **Private fields**: camelCase (e.g., `priorityQueue`, `loadEvaluator`)
+- **Records**: PascalCase (e.g., `CheckSum`, `LoadScore`)
+- **Enums**: PascalCase with UPPERCASE values (e.g., `DeviceState.IDLE`, `LoadLevel.HIGH`)
+
+### Field Declaration Order
+```java
+public static final Logger logger = Logger.getLogger(ClassName.class.getName());
+
+private static volatile Singleton INSTANCE;
+
+private final Type finalField;
+private Type mutableField;
+```
+
+### Logging Pattern
+```java
+protected static final Logger logger = Logger.getLogger(ClassName.class.getName());
+
+// Usage
+logger.fine("Detailed debug info");
+logger.info("Normal operation info");
+logger.warning("Warning message");
+logger.severe("Error message");
+logger.throwing("ClassName", "methodName", exception);
+```
+
+### Error Handling
+- Use specific exception types (NoSuchFileException, AccessDeniedException)
+- Switch expressions with pattern matching for exception handling:
+```java
+switch (state) {
+    case IDLE -> { /* action */ }
+    case SCANNING -> { /* action */ }
+    default -> {} // No action
+}
+
+// Exception handling
+try {
+    // operation
+} catch (IOException | InterruptedException e) {
+    result = CopyResult.FAIL;
+} finally {
+    buffer.clear(); // Always cleanup
+}
+```
+
+### Switch Expressions
+Use arrow notation with pattern matching:
+```java
+return switch (obj) {
+    case CheckSum cs -> Arrays.equals(context, cs.context);
+    case null, default -> false;
+};
+
+switch (loadLevel) {
+    case LOW -> executor.submit(task);
+    case MEDIUM -> priorityQueue.offer(task);
+    case HIGH -> submitBatch(batchSize);
+}
+```
+
+### Thread-Safety Patterns
+- `Collections.synchronizedSet()` for device collections
+- `ConcurrentHashMap.newKeySet()` for O(1) index lookups
+- `CopyOnWriteArrayList` for event listener lists
+- `volatile` for singleton instance flags
+- `synchronized` methods for queue depth queries
+- **ThreadLocal buffers**: Always call `clear()` in finally block for thread-pool reuse
+
+### Singleton Pattern
+```java
+private static volatile Singleton INSTANCE;
+
+public static synchronized Singleton getInstance() {
+    if (INSTANCE == null) {
+        INSTANCE = new Singleton();
+    }
+    return INSTANCE;
+}
+```
+
+### Configuration Access
+ALWAYS use ConfigManager - never hard-code constants:
+```java
+ConfigManager config = ConfigManager.getInstance();
+int bufferSize = config.get(ConfigSchema.BUFFER_SIZE);
+String workPath = config.get(ConfigSchema.WORK_PATH);
+```
+
+### Try-with-Resources
+Required for FileChannel, WatchService, and any AutoCloseable:
+```java
+try (FileChannel readChannel = FileChannel.open(path, StandardOpenOption.READ);
+     FileChannel writeChannel = FileChannel.open(dest, StandardOpenOption.WRITE, StandardOpenOption.CREATE)) {
+    // operations
+} // Auto-closed
+```
+
+### JavaDoc Style
+```java
+/**
+ * Brief description.
+ *
+ * <p>Additional details with {@code inlineCode}.
+ *
+ * @param param description
+ * @return description
+ * @throws Exception description
+ */
+```
+
+## ANTI-PATTERNS
+- **DO NOT hard-code constants** - always use ConfigManager
+- **DO NOT skip ThreadLocal.clear()** - buffers must be reset after use in thread pools
+- **DO NOT use JUnit/TestNG** - manual test stubs only (main() methods)
+- **DO NOT block EDT** - all Swing updates use SwingUtilities.invokeLater()
+- **DO NOT mutate events after creation** - all events are immutable
+- **DO NOT throw exceptions from event listeners** - suppresses dispatch to other listeners
+
+## UNIQUE STYLES
+- **Priority scheduling**: Extension-based (PDF=10, TMP=1) + size adjustment (+2/-2)
+- **Adaptive load control**: Queue depth (40%) + copy speed (40%) + thread activity (20%)
+- **Two-phase scanning**: Initial scan → WatchService with threshold triggering
+- **Checksum deduplication**: ConcurrentHashMap.newKeySet() for O(1) add operations
+- **Graceful degradation**: TaskScheduler falls back to FIFO on errors
+- **Token bucket rate limiting**: RateLimiter for copy speed control
+
 ## NOTES
-- **Build system**: Maven + IntelliJ IDEA (pom.xml present)
-- **Java version**: 17+ (modular)
-- **Testing**: Manual test stubs in `src/com.superredrock.usbthief.test/` with main() methods - no JUnit/TestNG
-- **Linting**: No formal linting configured - manual code review
-- **Thread-safety**: `DeviceManager` uses `Collections.synchronizedSet()`, `Index` uses `ConcurrentHashMap.newKeySet()`
-- **Module exports**: Exports `index`, `core`, `core.config`, `core.event`, `gui` packages
+- **Build**: Maven + IntelliJ IDEA
+- **Linting**: No formal linting - manual code review
+- **Module exports**: `index`, `core`, `core.config`, `core.event`, `gui`

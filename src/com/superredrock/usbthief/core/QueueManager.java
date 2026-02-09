@@ -8,63 +8,72 @@ import java.util.concurrent.*;
 import java.util.logging.Logger;
 
 /**
- * 队列和线程池管理器
+ * Queue and thread pool manager
  * <p>
- * 管理任务队列、复制线程池和磁盘扫描器线程组。
- * 服务生命周期管理已移至 ServiceManager。
+ * Manages task queue, copy thread pool, and disk scanner thread group.
+ * Service lifecycle management has been moved to ServiceManager.
  */
 public class QueueManager {
 
-    public static final DelayQueue<DelayedPath> RetryQueue = new DelayQueue<>();
-
-    // 设备管理器现在由 ServiceManager 管理
+    // Device manager is now managed by ServiceManager
     public static DeviceManager deviceManager;
     public static Index index;
 
 
     public static void init(){
-        deviceManager = ServiceManager.getInstance().findService(DeviceManager.class);
-        index = ServiceManager.getInstance().findService(Index.class);
+        deviceManager = ServiceManager.getInstance().findService(DeviceManager.class)
+                .orElseGet(() -> {
+                    DeviceManager dm = new DeviceManager();
+                    ServiceManager.getInstance().registerService(dm);
+                    return dm;
+                });
+        index = ServiceManager.getInstance().findService(Index.class)
+                .orElseGet(() -> {
+                    Index idx = new Index();
+                    ServiceManager.getInstance().registerService(idx);
+                    return idx;
+                });
     }
 
 
 
     public static final ThreadGroup DiskScanners = new ThreadGroup("DiskScanner");
     public static final ArrayBlockingQueue<Runnable> taskQueue = new ArrayBlockingQueue<>(ConfigManager.getInstance().get(ConfigSchema.TASK_QUEUE_CAPACITY));
+    public static final RejectionAwarePolicy rejectionPolicy = new RejectionAwarePolicy();
     public static final ThreadPoolExecutor pool = new ThreadPoolExecutor(
             ConfigManager.getInstance().get(ConfigSchema.CORE_POOL_SIZE),
             ConfigManager.getInstance().get(ConfigSchema.MAX_POOL_SIZE),
             ConfigManager.getInstance().get(ConfigSchema.KEEP_ALIVE_TIME_SECONDS),
             TimeUnit.SECONDS,
             taskQueue,
-            new ThreadPoolExecutor.CallerRunsPolicy()
+            rejectionPolicy
     );
 
     protected static final Logger logger = Logger.getLogger(QueueManager.class.getName());
 
     /**
-     * 应用程序退出清理
+     * Application exit cleanup
      * <p>
-     * 清理 QueueManager 管理的资源（线程池、磁盘扫描器等）。
-     * 服务生命周期管理已移至 ServiceManager.shutdown()。
+     * Clean up resources managed by QueueManager (thread pools, disk scanners, etc.).
+     * Service lifecycle management has been moved to ServiceManager.shutdown().
      */
     public static void quit() {
         logger.info("Quitting application");
 
         try {
-            // 1. 停止索引的定时保存服务
+            // 1. Stop index periodic save service
             index.stop();
             logger.info("Index ticker stopped");
 
-            // 2. 保存索引
+            // 2. Save index
             index.save();
             logger.info("Index saved");
 
-            // 3. 中断所有磁盘扫描器线程
+            // 3. Interrupt all disk scanner threads
             DiskScanners.interrupt();
             logger.info("DiskScanners interrupted");
 
-            // 4. 优雅关闭线程池
+            // 4. Gracefully shutdown thread pool
             pool.shutdown();
             if (!pool.awaitTermination(5, TimeUnit.SECONDS)) {
                 logger.warning("Thread pool did not terminate in time, forcing shutdown");
@@ -103,5 +112,9 @@ public class QueueManager {
 
     public static ThreadPoolExecutor getCopyExecutor() {
         return pool;
+    }
+
+    public static RejectionAwarePolicy getRejectionPolicy() {
+        return rejectionPolicy;
     }
 }

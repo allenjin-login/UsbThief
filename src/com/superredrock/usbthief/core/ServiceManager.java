@@ -6,44 +6,45 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 /**
- * 服务管理器
+ * Service Manager
  * <p>
- * 负责加载、管理和协调所有服务。使用 ServiceLoader 自动发现服务实现，
- * 内部管理 ScheduledThreadPoolExecutor 进行任务调度。
+ * Responsible for loading, managing, and coordinating all services.
+ * Uses ServiceLoader to automatically discover service implementations
+ * and internally manages ScheduledThreadPoolExecutor for task scheduling.
  * <p>
- * 提供类似 systemctl 的批量管理功能：启动、停止、状态查询。
+ * Provides systemctl-like batch management functionality: start, stop, and status queries.
  * <p>
- * 使用单例模式，与 QueueManager 和 ConfigManager 保持一致。
+ * Uses singleton pattern, consistent with QueueManager and ConfigManager.
  */
 public class ServiceManager {
 
     protected static final Logger logger = Logger.getLogger(ServiceManager.class.getName());
 
-    // 单例实例
+    // Singleton instance
     private static volatile ServiceManager instance;
 
-    // 服务注册表：name -> AbstractService
+    // Service registry: name -> Service
     private final Map<String, Service> services = new LinkedHashMap<>();
 
-    // 调度器 - 直接管理
+    // Scheduler - directly managed
     private final ScheduledThreadPoolExecutor scheduler;
 
-    // 默认线程池大小
+    // Default thread pool size
     private static final int DEFAULT_POOL_SIZE = 2;
 
-    // 私有构造器
+    // Private constructor
     private ServiceManager() {
         this.scheduler = new ScheduledThreadPoolExecutor(DEFAULT_POOL_SIZE);
-        // 配置调度器
+        // Configure scheduler
         this.scheduler.setRemoveOnCancelPolicy(true);
         this.scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
         this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
     }
 
     /**
-     * 获取 ServiceManager 单例
+     * Get ServiceManager singleton instance
      *
-     * @return ServiceManager 实例
+     * @return ServiceManager instance
      */
     public static ServiceManager getInstance() {
         if (instance == null) {
@@ -57,95 +58,96 @@ public class ServiceManager {
     }
 
     /**
-     * 使用 ServiceLoader 加载所有服务
+     * Load all services using ServiceLoader
      * <p>
-     * 通过 Java 模块系统或 META-INF/services 自动发现服务实现。
+     * Automatically discover service implementations through Java module system
+     * or META-INF/services.
      */
     public void loadServices() {
-        logger.info("正在加载服务...");
+        logger.info("Loading services...");
         ServiceLoader<Service> loader = ServiceLoader.load(Service.class);
 
         for (Service service : loader) {
             registerService(service);
-            logger.info("已加载服务: " + service.getName() + " - " + service.getDescription());
+            logger.info("Loaded service: " + service.getName() + " - " + service.getDescription());
         }
 
-        logger.info("服务加载完成，共 " + services.size() + " 个服务");
+        logger.info("Service loading completed, total " + services.size() + " services");
     }
 
     /**
-     * 注册服务到管理器
+     * Register service to manager
      * <p>
-     * 手动注册服务实现，用于需要构造参数的服务（如 Index）。
+     * Manually register service implementation, used for services requiring constructor parameters (e.g., Index).
      *
-     * @param service 要注册的服务
+     * @param service service to register
      */
     public void registerService(Service service) {
         if (services.containsKey(service.getName())) {
-            logger.warning("服务 " + service.getName() + " 已存在，将被覆盖");
+            logger.warning("Service " + service.getName() + " already exists, will be overwritten");
         }
         services.put(service.getName(), service);
-        logger.info("手动注册服务: " + service.getName() + " - " + service.getDescription());
+        logger.info("Manually registered service: " + service.getName() + " - " + service.getDescription());
     }
 
     /**
-     * 启动所有服务
+     * Start all services
      * <p>
-     * 依次启动所有已加载的服务。
+     * Start all loaded services sequentially.
      */
     public void startAll() {
-        logger.info("正在启动所有服务...");
+        logger.info("Starting all services...");
         for (Service service : services.values()) {
             try {
                 service.start(scheduler);
-                logger.info("服务 " + service.getName() + " 已启动");
+                logger.info("Service " + service.getName() + " started");
             } catch (Exception e) {
-                logger.severe("启动服务 " + service.getName() + " 失败: " + e.getMessage());
+                logger.severe("Failed to start service " + service.getName() + ": " + e.getMessage());
             }
         }
     }
 
     /**
-     * 停止所有服务并关闭调度器
+     * Stop all services and shutdown scheduler
      * <p>
-     * 先停止所有服务，然后优雅地关闭调度器。
+     * Stop all services first, then gracefully shutdown the scheduler.
      */
     public void shutdown() {
-        logger.info("正在停止所有服务...");
+        logger.info("Stopping all services...");
 
-        // 先停止所有服务
+        // Stop all services first
         for (Service service : services.values()) {
             try {
                 service.stop();
-                logger.info("服务 " + service.getName() + " 已停止");
+                logger.info("Service " + service.getName() + " stopped");
             } catch (Exception e) {
-                logger.severe("停止服务 " + service.getName() + " 失败: " + e.getMessage());
+                logger.severe("Failed to stop service " + service.getName() + ": " + e.getMessage());
             }
         }
 
-        // 关闭调度器
+        // Shutdown scheduler
         scheduler.shutdown();
         try {
             if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
                 scheduler.shutdownNow();
-                logger.warning("调度器强制关闭");
+                logger.warning("Scheduler forced shutdown");
             }
         } catch (InterruptedException e) {
             scheduler.shutdownNow();
             Thread.currentThread().interrupt();
         }
 
-        logger.info("服务管理器已关闭");
+        logger.info("Service manager shutdown completed");
     }
 
     /**
-     * systemctl status 风格 - 显示所有服务状态
+     * systemctl status style - display all service status
      * <p>
-     * 打印所有服务的名称、状态和描述。
+     * Print name, state, and description of all services.
      */
     public void listStatus() {
-        System.out.println("\n=== 服务状态 ===");
-        System.out.printf("%-20s %-15s %-30s%n", "名称", "状态", "描述");
+        System.out.println("\n=== Service Status ===");
+        System.out.printf("%-20s %-15s %-30s%n", "Name", "State", "Description");
         System.out.println("────────────────────────────────────────────────────────────────");
 
         for (Service service : services.values()) {
@@ -161,75 +163,75 @@ public class ServiceManager {
     }
 
     /**
-     * 根据名称获取服务
+     * Get service by name
      *
-     * @param name 服务名称
-     * @return 包含服务的 Optional，如果不存在则返回空
+     * @param name service name
+     * @return Optional containing the service, or empty if not found
      */
     public Optional<Service> getService(String name) {
         return Optional.ofNullable(services.get(name));
     }
 
     /**
-     * 根据类型查找服务
+     * Find service by type
      * <p>
-     * 按注册顺序查找第一个匹配指定类型的服务。
-     * 使用类型安全的检查和转换。
+     * Find the first service matching the specified type in registration order.
+     * Uses type-safe checking and casting.
      *
-     * @param <T> 服务类型
-     * @param type 要查找的服务类型（Class 对象）
-     * @return 第一个匹配的服务实例，找不到返回 null
+     * @param <T> service type
+     * @param type service type to find (Class object)
+     * @return Optional containing the first matching service instance, or empty if not found
      * <p>
      * &#064;example
      * <pre>{@code
-     * // 查找 DeviceManager 服务
-     * DeviceManager deviceManager = serviceManager.findService(DeviceManager.class);
-     * if (deviceManager != null) {
-     *     deviceManager.pause();
-     * }
+     * // Find DeviceManager service
+     * serviceManager.findService(DeviceManager.class)
+     *     .ifPresent(DeviceManager::pause);
      *
-     * // 查找 Index 服务
-     * Index index = serviceManager.findService(Index.class);
-     * if (index != null) {
-     *     index.save();
-     * }
+     * // Find Index service
+     * serviceManager.findService(Index.class)
+     *     .ifPresent(Index::save);
+     *
+     * // Find service with custom action
+     * Optional<DeviceManager> deviceManager = serviceManager.findService(DeviceManager.class);
+     * deviceManager.ifPresent(dm -> dm.pause());
      * }</pre>
      */
-    public <T extends Service> T findService(Class<T> type) {
+    public <T extends Service> Optional<T> findService(Class<T> type) {
         if (type == null) {
             throw new IllegalArgumentException("type cannot be null");
         }
-        // 遍历所有注册的服务，按注册顺序查找第一个匹配的
+        // Iterate through all registered services, find first matching in registration order
         for (Service service : services.values()) {
-            // 使用 Class.isInstance() 进行类型安全检查
+            // Use Class.isInstance() for type-safe checking
             if (type.isInstance(service)) {
-                // 使用 Class.cast() 进行类型安全转换
-                return type.cast(service);
+                // Use Class.cast() for type-safe casting
+                return Optional.of(type.cast(service));
             }
         }
 
-        // 找不到返回 null
-        return null;
+        // Return empty if not found
+        return Optional.empty();
     }
 
 
 
 
     /**
-     * 获取所有服务
+     * Get all services
      *
-     * @return 所有服务的不可修改集合
+     * @return unmodifiable collection of all services
      */
     public Collection<Service> getAllServices() {
         return Collections.unmodifiableCollection(services.values());
     }
 
     /**
-     * 检查所有服务是否健康
+     * Check if all services are healthy
      * <p>
-     * 相当于 systemctl is-active 检查所有服务
+     * Equivalent to systemctl is-active check for all services
      *
-     * @return 如果所有服务都在运行，返回 true
+     * @return true if all services are running
      */
     public boolean isSystemHealthy() {
         return services.values().stream()
@@ -237,9 +239,9 @@ public class ServiceManager {
     }
 
     /**
-     * 获取失败的服务列表
+     * Get list of failed services
      *
-     * @return 所有处于失败状态的服务
+     * @return all services in failed state
      */
     public List<Service> getFailedServices() {
         return services.values().stream()
@@ -248,11 +250,11 @@ public class ServiceManager {
     }
 
     /**
-     * 获取调度器
+     * Get scheduler
      * <p>
-     * 供需要访问调度器的组件使用
+     * For components that need access to the scheduler
      *
-     * @return 调度器实例
+     * @return scheduler instance
      */
     public ScheduledThreadPoolExecutor getScheduler() {
         return scheduler;

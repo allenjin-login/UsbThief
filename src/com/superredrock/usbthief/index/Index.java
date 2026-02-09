@@ -29,11 +29,11 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * 文件索引服务
+ * File Index Service
  * <p>
- * 提供基于校验和的文件去重和文件历史跟踪功能。
- * 继承 AbstractService，由 ServiceManager 统一管理生命周期。
- * 支持持久化存储，当索引被修改时会自动定期保存。
+ * Provides checksum-based file deduplication and file history tracking.
+ * Extends Service, lifecycle managed by ServiceManager.
+ * Supports persistent storage, automatically saves periodically when modified.
  */
 public class Index extends Service {
     private static final Logger logger = Logger.getLogger(Index.class.getName());
@@ -222,7 +222,7 @@ public class Index extends Service {
 
     /**
      * Start auto-save scheduler.
-     * @deprecated 使用 {@link #start(ScheduledThreadPoolExecutor)} 代替
+     * @deprecated Use {@link #start(ScheduledThreadPoolExecutor)} instead
      */
     @Deprecated
     public void installTicker() {
@@ -244,7 +244,7 @@ public class Index extends Service {
 
     /**
      * Stop auto-save scheduler.
-     * @deprecated 使用 {@link #stop()} 代替
+     * @deprecated Use {@link #stop()} instead
      */
     @Deprecated
     public void quitTicker() {
@@ -256,7 +256,7 @@ public class Index extends Service {
         }
     }
 
-    // ========== AbstractService 抽象方法实现 ==========
+    // ========== AbstractService method implementations ==========
 
     @Override
     protected ScheduledFuture<?> scheduleTask(ScheduledThreadPoolExecutor scheduler) {
@@ -275,37 +275,37 @@ public class Index extends Service {
 
     @Override
     public String getDescription() {
-        return "文件索引和定期保存服务";
+        return "File index and periodic save service";
     }
 
     @Override
     public void run() {
         try {
             if (dirty) {
-                logger.fine("执行索引的定期保存");
+                logger.fine("Executing periodic index save");
                 save();
             } else {
-                logger.fine("索引未修改，跳过定期保存");
+                logger.fine("Index not modified, skipping periodic save");
             }
         } catch (Exception e) {
-            logger.severe("索引保存失败: " + e.getMessage());
+            logger.severe("Index save failed: " + e.getMessage());
             state = ServiceState.FAILED;
         }
     }
 
     @Override
     protected void cleanup() {
-        // 保存索引数据
+        // Save index data
         save();
     }
 
     @Override
     public String getStatus() {
-        return String.format("Index[%s] - 校验和: %d个, 历史: %d条, 状态: %s",
-                state, digest.size(), history.size(), dirty ? "脏" : "干净");
+        return String.format("Index[%s] - Checksums: %d, History: %d, State: %s",
+                state, digest.size(), history.size(), dirty ? "dirty" : "clean");
     }
 
-    // ========== AbstractService 抽象方法实现结束 ==========
+    // ========== End of AbstractService method implementations ==========
 
     /**
      * Check if a file with given checksum exists in index.
