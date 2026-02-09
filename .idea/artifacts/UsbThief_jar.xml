@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="UsbThief:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/UsbThief_jar</output-path>
+    <root id="archive" name="UsbThief.jar">
+      <element id="module-output" name="UsbThief" />
+    </root>
+  </artifact>
+</component>
