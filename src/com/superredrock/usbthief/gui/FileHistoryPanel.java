@@ -1,11 +1,9 @@
 package com.superredrock.usbthief.gui;
 
-import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.event.EventBus;
-import com.superredrock.usbthief.core.event.index.FileIndexedEvent;
-import com.superredrock.usbthief.core.event.index.IndexLoadedEvent;
+import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
 import com.superredrock.usbthief.index.FileHistoryRecord;
 
 import javax.swing.*;
@@ -24,13 +22,12 @@ public class FileHistoryPanel extends JPanel {
     private final TableRowSorter<HistoryTableModel> sorter;
     private final JTextField searchField;
     private final JLabel countLabel;
-    private final int maxEntries;
 
     public FileHistoryPanel() {
         setLayout(new BorderLayout());
 
         // Read max entries configuration
-        this.maxEntries = ConfigManager.getInstance().get(ConfigSchema.FILE_HISTORY_MAX_ENTRIES);
+        int maxEntries = ConfigManager.getInstance().get(ConfigSchema.FILE_HISTORY_MAX_ENTRIES);
 
         // Table model
         tableModel = new HistoryTableModel(maxEntries);
@@ -85,7 +82,7 @@ public class FileHistoryPanel extends JPanel {
         JScrollPane scrollPane = new JScrollPane(historyTable);
         scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        scrollPane.setBorder(new TitledBorder("文件历史"));
+        scrollPane.setBorder(new TitledBorder("失败复制记录"));
 
         // Count label
         countLabel = new JLabel("总计: 0 文件");
@@ -97,52 +94,29 @@ public class FileHistoryPanel extends JPanel {
 
         // Register event listeners
         registerEventListeners();
-
-        // Initialize with existing files from index
-        initializeFromIndex();
     }
 
     private void registerEventListeners() {
         EventBus eventBus = EventBus.getInstance();
-        eventBus.register(FileIndexedEvent.class, this::onFileIndexed);
-        eventBus.register(IndexLoadedEvent.class, this::onIndexLoaded);
+        eventBus.register(CopyCompletedEvent.class, this::onCopyCompleted);
     }
 
-    private void initializeFromIndex() {
-        SwingUtilities.invokeLater(() -> {
-            tableModel.clear();
-            // Load history from index (apply max entries limit)
-            List<FileHistoryRecord> history = QueueManager.index.getHistory();
-            int startIndex = Math.max(0, history.size() - maxEntries);
-            for (int i = startIndex; i < history.size(); i++) {
-                tableModel.addRecord(history.get(i));
-            }
-            updateCountLabel();
-        });
-    }
+    private void onCopyCompleted(CopyCompletedEvent event) {
+        if (event.isFailure()) {
+            SwingUtilities.invokeLater(() -> {
+                String fileName = event.sourcePath().getFileName() != null
+                        ? event.sourcePath().getFileName().toString()
+                        : event.sourcePath().toString();
+                String sourcePath = event.sourcePath().toString();
+                String destPath = event.destinationPath() != null ? event.destinationPath().toString() : "N/A";
 
-    private void onFileIndexed(FileIndexedEvent event) {
-        SwingUtilities.invokeLater(() -> {
-            // Find the corresponding history record from index
-            List<FileHistoryRecord> history = QueueManager.index.getHistory();
-            if (!history.isEmpty()) {
-                // Get the last record (most recently added)
-                FileHistoryRecord lastRecord = history.getLast();
-                // Check if this record matches the event
-                if (lastRecord.fileName().equals(event.filePath().getFileName().toString()) &&
-                        lastRecord.fileSize() == event.fileSize()) {
-                    // Only add if not already in table
-                    tableModel.addRecordIfNotExists(lastRecord);
-                    updateCountLabel();
-                }
-            }
-        });
-    }
-
-
-    private void onIndexLoaded(IndexLoadedEvent event) {
-        // Reload history when index is loaded
-        SwingUtilities.invokeLater(this::initializeFromIndex);
+                FileHistoryRecord record = new FileHistoryRecord(
+                        fileName, sourcePath, destPath,
+                        event.fileSize(), event.bytesCopied());
+                tableModel.addRecordIfNotExists(record);
+                updateCountLabel();
+            });
+        }
     }
 
     private void applyFilter() {
@@ -166,8 +140,8 @@ public class FileHistoryPanel extends JPanel {
         private final List<FileHistoryRecord> records = new ArrayList<>();
         private final int maxEntries;
 
-        private final String[] columnNames = {"文件名", "路径", "大小", "复制时间"};
-        private final Class<?>[] columnTypes = {String.class, String.class, Long.class, String.class};
+        private final String[] columnNames = {"文件名", "源路径", "目标路径", "文件大小", "已复制", "失败时间"};
+        private final Class<?>[] columnTypes = {String.class, String.class, String.class, Long.class, Long.class, String.class};
 
         public HistoryTableModel(int maxEntries) {
             this.maxEntries = maxEntries;
@@ -182,17 +156,14 @@ public class FileHistoryPanel extends JPanel {
         public void addRecordIfNotExists(FileHistoryRecord record) {
             for (FileHistoryRecord existing : records) {
                 if (existing.fileName().equals(record.fileName()) &&
-                        existing.filePath().equals(record.filePath())) {
-                    return; // Already exists
+                        existing.sourcePath().equals(record.sourcePath()) &&
+                        existing.timestamp().equals(record.timestamp())) {
+                    return;
                 }
             }
             addRecord(record);
         }
 
-        /**
-         * Evict the oldest entries if the record count exceeds maxEntries.
-         * Uses FIFO strategy - removes entries from the beginning of the list.
-         */
         private void evictIfNeeded() {
             while (records.size() > maxEntries) {
                 records.removeFirst();
@@ -237,9 +208,11 @@ public class FileHistoryPanel extends JPanel {
             FileHistoryRecord record = records.get(rowIndex);
             return switch (columnIndex) {
                 case 0 -> record.fileName();
-                case 1 -> record.filePath();
-                case 2 -> record.fileSize();
-                case 3 -> record.timestamp();
+                case 1 -> record.sourcePath();
+                case 2 -> record.destPath();
+                case 3 -> record.fileSize();
+                case 4 -> record.bytesCopied();
+                case 5 -> record.timestamp();
                 default -> null;
             };
         }

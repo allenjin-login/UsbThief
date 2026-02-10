@@ -74,9 +74,21 @@ public class ConfigSchema {
     public static final ConfigEntry<Long> COPY_RATE_BURST_SIZE =
             longEntry("copyRateBurstSize", "Copy rate burst size in bytes", 16L * 1024 * 1024, "Rate Limiting");
 
+    public static final ConfigEntry<Boolean> RATE_LIMITER_LOAD_ADJUSTMENT_ENABLED =
+            booleanEntry("rateLimiter.loadAdjustmentEnabled", "Enable load-aware rate limit adjustment", true, "Rate Limiting");
+
+    public static final ConfigEntry<Long> COPY_RATE_LIMIT_BASE =
+            longEntry("copyRateLimitBase", "Base copy rate limit in bytes per second (0 = no limit)", 0L, "Rate Limiting");
+
+    public static final ConfigEntry<Integer> RATE_LIMITER_MEDIUM_MULTIPLIER =
+            intEntry("rateLimiter.mediumMultiplier", "Rate limit multiplier at MEDIUM load (percentage)", 70, "Rate Limiting");
+
+    public static final ConfigEntry<Integer> RATE_LIMITER_HIGH_MULTIPLIER =
+            intEntry("rateLimiter.highMultiplier", "Rate limit multiplier at HIGH load (percentage)", 40, "Rate Limiting");
+
     // Path configuration
     public static final ConfigEntry<String> WORK_PATH =
-            stringEntry("workPath", "Working directory for storing copied files (empty = current directory)", "", "Paths");
+            stringEntry("workPath", "Working directory for storing copied files", "devices", "Paths");
 
     // UI configuration
     public static final ConfigEntry<Integer> FILE_HISTORY_MAX_ENTRIES =
@@ -169,6 +181,10 @@ public class ConfigSchema {
         registerEntry(WATCH_RESET_INTERVAL_SECONDS);
         registerEntry(COPY_RATE_LIMIT);
         registerEntry(COPY_RATE_BURST_SIZE);
+        registerEntry(RATE_LIMITER_LOAD_ADJUSTMENT_ENABLED);
+        registerEntry(COPY_RATE_LIMIT_BASE);
+        registerEntry(RATE_LIMITER_MEDIUM_MULTIPLIER);
+        registerEntry(RATE_LIMITER_HIGH_MULTIPLIER);
         registerEntry(WORK_PATH);
         registerEntry(FILE_HISTORY_MAX_ENTRIES);
         registerEntry(DEVICE_BLACKLIST);

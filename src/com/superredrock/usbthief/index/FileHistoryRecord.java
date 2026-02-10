@@ -5,23 +5,24 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
- * Record representing a file copy history entry.
- * Stores information about copied files including path, size, and timestamp.
+ * Record representing a failed file copy entry.
+ * Stores information about failed file copies including path, size, bytes copied, and timestamp.
  */
-public record FileHistoryRecord(String fileName, String filePath, long fileSize, String timestamp) implements Serializable {
+public record FileHistoryRecord(String fileName, String sourcePath, String destPath, long fileSize,
+                                long bytesCopied, String timestamp) implements Serializable {
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /**
      * Create a new record with current timestamp.
      */
-    public FileHistoryRecord(String fileName, String filePath, long fileSize) {
-        this(fileName, filePath, fileSize, LocalDateTime.now().format(TIME_FORMATTER));
+    public FileHistoryRecord(String fileName, String sourcePath, String destPath, long fileSize, long bytesCopied) {
+        this(fileName, sourcePath, destPath, fileSize, bytesCopied, LocalDateTime.now().format(TIME_FORMATTER));
     }
 
     @Override
     public String toString() {
-        return String.format("FileHistoryRecord{fileName='%s', filePath='%s', size=%d, time='%s'}",
-                fileName, filePath, fileSize, timestamp);
+        return String.format("FileHistoryRecord{fileName='%s', source='%s', dest='%s', size=%d, copied=%d, time='%s'}",
+                fileName, sourcePath, destPath, fileSize, bytesCopied, timestamp);
     }
 }

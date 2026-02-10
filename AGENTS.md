@@ -6,7 +6,7 @@
 **Module:** UsbThief
 
 ## OVERVIEW
-USB device monitoring and file copying utility for Windows. Detects USB drives, monitors file changes in real-time, and copies files using checksum-based deduplication. Features an extensible event system for device lifecycle notifications. **Priority-based task scheduling with adaptive load control.**
+USB device monitoring and file copying utility for Windows. Detects USB drives, monitors file changes in real-time, and copies files using checksum-based deduplication. Features an extensible event system for device lifecycle notifications. **Priority-based task scheduling with adaptive load control and load-aware rate limiting.**
 
 ## STRUCTURE
 ```
@@ -182,7 +182,8 @@ try (FileChannel readChannel = FileChannel.open(path, StandardOpenOption.READ);
 
 ## UNIQUE STYLES
 - **Priority scheduling**: Extension-based (PDF=10, TMP=1) + size adjustment (+2/-2)
-- **Adaptive load control**: Queue depth (40%) + copy speed (40%) + thread activity (20%)
+- **Adaptive load control**: Queue depth (35%) + copy speed (35%) + thread activity (15%) + rejection rate (15%)
+- **Load-aware rate limiting**: RateLimiter automatically adjusts based on LoadLevel (LOW 100%, MEDIUM 70%, HIGH 40%)
 - **Two-phase scanning**: Initial scan → WatchService with threshold triggering
 - **Checksum deduplication**: ConcurrentHashMap.newKeySet() for O(1) add operations
 - **Graceful degradation**: TaskScheduler falls back to FIFO on errors

@@ -84,8 +84,10 @@ public class TaskScheduler extends Service {
         switch (score.level()) {
             case HIGH -> handleHighLoad();
             case MEDIUM -> dispatchBatch(ConfigManager.getInstance().get(ConfigSchema.SCHEDULER_MEDIUM_BATCH_SIZE));
-            case LOW -> dispatchBatch(ConfigManager.getInstance().get(ConfigSchema.SCHEDULER_LOW_BATCH_SIZE));
+            case LOW -> dispatchAll(); // 在 LOW 负载时尽可能推出所有任务
         }
+
+        adjustRateLimit(score.level());
     }
 
     /**
@@ -98,13 +100,6 @@ public class TaskScheduler extends Service {
         }
 
         synchronized (priorityQueue) {
-            int maxQueue = ConfigManager.getInstance().get(ConfigSchema.SCHEDULER_ACCUMULATION_MAX_QUEUE);
-
-            if (priorityQueue.size() >= maxQueue) {
-                logger.warning("Task queue full (" + maxQueue + "), rejecting task");
-                throw new IllegalStateException("Task queue is full");
-            }
-
             priorityQueue.offer(task);
         }
     }
@@ -140,7 +135,39 @@ public class TaskScheduler extends Service {
 
         logger.fine("Dispatching batch of " + batch.size() + " tasks");
 
-        for (PriorityCopyTask task : batch) {
+        dispatchTask(batch);
+    }
+
+    /**
+     * Dispatch all pending tasks without limit.
+     * Used during LOW load to maximize throughput.
+     */
+    private void dispatchAll() {
+        if (accumulating) {
+            accumulating = false;
+            int queueDepth = getQueueDepth();
+            logger.info("Load decreased - resuming submissions, accumulated tasks: " + queueDepth);
+        }
+
+        List<PriorityCopyTask> allTasks = new ArrayList<>();
+
+        synchronized (priorityQueue) {
+            while (!priorityQueue.isEmpty()) {
+                allTasks.add(priorityQueue.poll());
+            }
+        }
+
+        if (allTasks.isEmpty()) {
+            return;
+        }
+
+        logger.fine("Dispatching all " + allTasks.size() + " tasks (LOW load mode)");
+
+        dispatchTask(allTasks);
+    }
+
+    private void dispatchTask(List<PriorityCopyTask> allTasks) {
+        for (PriorityCopyTask task : allTasks) {
             try {
                 executor.submit(task.unwrap());
             } catch (RejectedExecutionException e) {
@@ -161,6 +188,40 @@ public class TaskScheduler extends Service {
      */
     public synchronized int getQueueDepth() {
         return priorityQueue.size();
+    }
+
+    /**
+     * Adjust rate limit based on current load level.
+     * Only decreases rate under HIGH/MEDIUM load, never increases above base.
+     */
+    private void adjustRateLimit(LoadLevel level) {
+        ConfigManager config = ConfigManager.getInstance();
+
+        boolean enabled = config.get(ConfigSchema.RATE_LIMITER_LOAD_ADJUSTMENT_ENABLED);
+        if (!enabled) {
+            return;
+        }
+
+        long baseLimit = config.get(ConfigSchema.COPY_RATE_LIMIT_BASE);
+
+        if (baseLimit <= 0) {
+            return;
+        }
+
+        int multiplierPercent = switch (level) {
+            case LOW -> 100;
+            case MEDIUM -> config.get(ConfigSchema.RATE_LIMITER_MEDIUM_MULTIPLIER);
+            case HIGH -> config.get(ConfigSchema.RATE_LIMITER_HIGH_MULTIPLIER);
+        };
+
+        long newLimit = baseLimit * multiplierPercent / 100;
+        long currentLimit = config.get(ConfigSchema.COPY_RATE_LIMIT);
+
+        if (newLimit < currentLimit || currentLimit <= 0) {
+            config.set(ConfigSchema.COPY_RATE_LIMIT, newLimit);
+            logger.fine("Adjusted rate limit to " + (newLimit / 1024 / 1024) +
+                       " MB/s based on " + level + " load");
+        }
     }
 
     @Override

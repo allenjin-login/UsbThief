@@ -18,8 +18,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
@@ -40,11 +38,9 @@ public class Index extends Service {
 
     // Index data
     private final Set<CheckSum> digest;
-    private final List<FileHistoryRecord> history;
 
     // Persistence
     private final Path indexPath;
-    private final Path historyPath;
     private volatile boolean dirty;
 
     // Configuration
@@ -80,9 +76,7 @@ public class Index extends Service {
      */
     public Index(Path basePath, long saveInitialDelaySeconds, long saveDelaySeconds) {
         this.digest = ConcurrentHashMap.newKeySet();
-        this.history = new ArrayList<>();
         this.indexPath = basePath.resolve("index.obj");
-        this.historyPath = basePath.resolve("history.obj");
         this.dirty = false;
         this.saveInitialDelaySeconds = saveInitialDelaySeconds;
         this.saveDelaySeconds = saveDelaySeconds;
@@ -108,11 +102,9 @@ public class Index extends Service {
      */
     public void load() {
         loadDigest();
-        loadHistory();
         dirty = false;
 
-        logger.info(String.format("Index loaded: %d checksums, %d history records",
-                digest.size(), history.size()));
+        logger.info(String.format("Index loaded: %d checksums", digest.size()));
 
         // Dispatch IndexLoadedEvent
         EventBus.getInstance().dispatch(new IndexLoadedEvent(digest.size()));
@@ -144,31 +136,7 @@ public class Index extends Service {
         }
     }
 
-    /**
-     * Load file history from disk.
-     */
-    private void loadHistory() {
-        if (!Files.exists(historyPath)) {
-            logger.info("History file not found, starting with empty history");
-            return;
-        }
 
-        try (ObjectInputStream objectInput = new ObjectInputStream(Files.newInputStream(historyPath))) {
-            while (true) {
-                FileHistoryRecord record = (FileHistoryRecord) objectInput.readObject();
-                if (record != null) {
-                    history.add(record);
-                } else {
-                    break;
-                }
-            }
-        } catch (EOFException _) {
-            // End of file, normal
-        } catch (IOException | ClassNotFoundException e) {
-            logger.log(Level.WARNING, "Failed to load history", e);
-            history.clear();
-        }
-    }
 
     /**
      * Save index data to disk if dirty.
@@ -180,11 +148,9 @@ public class Index extends Service {
         }
 
         saveDigest();
-        saveHistory();
         dirty = false;
 
-        logger.info(String.format("Index saved: %d checksums, %d history records",
-                digest.size(), history.size()));
+        logger.info(String.format("Index saved: %d checksums", digest.size()));
 
         // Dispatch IndexSavedEvent
         EventBus.getInstance().dispatch(new IndexSavedEvent(digest.size()));
@@ -205,20 +171,7 @@ public class Index extends Service {
         }
     }
 
-    /**
-     * Save file history to disk.
-     */
-    private void saveHistory() {
-        try (ObjectOutputStream objectOutput = new ObjectOutputStream(
-                Files.newOutputStream(historyPath, StandardOpenOption.CREATE))) {
-            for (FileHistoryRecord record : history) {
-                objectOutput.writeObject(record);
-            }
-            objectOutput.flush();
-        } catch (IOException e) {
-            logger.log(Level.SEVERE, "Failed to save history", e);
-        }
-    }
+
 
     /**
      * Start auto-save scheduler.
@@ -301,8 +254,8 @@ public class Index extends Service {
 
     @Override
     public String getStatus() {
-        return String.format("Index[%s] - Checksums: %d, History: %d, State: %s",
-                state, digest.size(), history.size(), dirty ? "dirty" : "clean");
+        return String.format("Index[%s] - Checksums: %d, State: %s",
+                state, digest.size(), dirty ? "dirty" : "clean");
     }
 
     // ========== End of AbstractService method implementations ==========
@@ -348,17 +301,7 @@ public class Index extends Service {
     }
 
     /**
-     * Add a file history record and mark index as dirty.
-     *
-     * @param record history record to add
-     */
-    public void addHistory(FileHistoryRecord record) {
-        history.add(record);
-        markDirty();
-    }
-
-    /**
-     * Add a complete file record (checksum + history).
+     * Add a checksum to the digest and mark index as dirty.
      * Dispatches FileIndexedEvent if file was newly added.
      *
      * @param checksum file checksum
@@ -366,15 +309,8 @@ public class Index extends Service {
      * @param fileSize file size in bytes
      */
     public void addFile(CheckSum checksum, Path filePath, long fileSize) {
-        String fileName = filePath.getFileName() != null
-                ? filePath.getFileName().toString()
-                : filePath.toString();
-
         boolean added = addChecksum(checksum);
         if (added) {
-            FileHistoryRecord record = new FileHistoryRecord(fileName, filePath.toString(), fileSize);
-            addHistory(record);
-
             // Dispatch FileIndexedEvent
             EventBus.getInstance().dispatch(new FileIndexedEvent(checksum, filePath, fileSize, getDigestSize()));
         }
@@ -401,14 +337,11 @@ public class Index extends Service {
      */
     public void clear() {
         int oldDigestSize = digest.size();
-        int oldHistorySize = history.size();
 
         digest.clear();
-        history.clear();
         markDirty();
 
-        logger.info(String.format("Index cleared: %d checksums, %d history records removed",
-                oldDigestSize, oldHistorySize));
+        logger.info(String.format("Index cleared: %d checksums removed", oldDigestSize));
     }
 
     // Getters
@@ -423,15 +356,6 @@ public class Index extends Service {
     }
 
     /**
-     * Get the file history list.
-     *
-     * @return unmodifiable view of the history
-     */
-    public List<FileHistoryRecord> getHistory() {
-        return List.copyOf(history);
-    }
-
-    /**
      * Get the index file path.
      *
      * @return index file path
@@ -441,29 +365,11 @@ public class Index extends Service {
     }
 
     /**
-     * Get the history file path.
-     *
-     * @return history file path
-     */
-    public Path getHistoryPath() {
-        return historyPath;
-    }
-
-    /**
      * Get the number of checksums in digest.
      *
      * @return digest size
      */
     public int getDigestSize() {
         return digest.size();
-    }
-
-    /**
-     * Get the number of history records.
-     *
-     * @return history size
-     */
-    public int getHistorySize() {
-        return history.size();
     }
 }

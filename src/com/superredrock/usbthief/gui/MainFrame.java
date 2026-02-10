@@ -1,6 +1,7 @@
 package com.superredrock.usbthief.gui;
 
 import com.superredrock.usbthief.Main;
+import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
@@ -86,28 +87,29 @@ public class MainFrame extends JFrame {
     }
 
     private void createMenus() {
-        // File menu
-        JMenu fileMenu = new JMenu("文件");
+        // Action menu (formerly File menu)
+        JMenu actionMenu = new JMenu("操作");
 
         // Save index menu item
         JMenuItem saveIndexItem = new JMenuItem("保存索引");
         saveIndexItem.addActionListener(e -> saveIndex());
-        fileMenu.add(saveIndexItem);
+        actionMenu.add(saveIndexItem);
 
-        fileMenu.addSeparator();
+        actionMenu.addSeparator();
+
+        // Hide window menu item
+        JMenuItem hideItem = new JMenuItem("隐藏");
+        hideItem.addActionListener(e -> hideWindow());
+        actionMenu.add(hideItem);
+
+        actionMenu.addSeparator();
 
         JMenuItem exitItem = new JMenuItem("退出");
         exitItem.addActionListener(e -> {
             logger.info("Exit requested from menu");
             performShutdown();
         });
-        fileMenu.add(exitItem);
-
-        // Device menu
-        JMenu deviceMenu = new JMenu("设备");
-        JMenuItem refreshItem = new JMenuItem("刷新");
-        refreshItem.addActionListener(e -> refreshDevices());
-        deviceMenu.add(refreshItem);
+        actionMenu.add(exitItem);
 
         // Config menu
         JMenu configMenu = new JMenu("配置");
@@ -115,21 +117,19 @@ public class MainFrame extends JFrame {
         preferencesItem.addActionListener(e -> showPreferences());
         configMenu.add(preferencesItem);
 
+        JMenuItem clearCacheItem = new JMenuItem("清理设备缓存");
+        clearCacheItem.addActionListener(e -> clearDeviceCache());
+        configMenu.add(clearCacheItem);
+
         // Help menu
         JMenu helpMenu = new JMenu("帮助");
         JMenuItem aboutItem = new JMenuItem("关于");
         aboutItem.addActionListener(e -> showAbout());
         helpMenu.add(aboutItem);
 
-        menuBar.add(fileMenu);
-        menuBar.add(deviceMenu);
+        menuBar.add(actionMenu);
         menuBar.add(configMenu);
         menuBar.add(helpMenu);
-    }
-
-    private void refreshDevices() {
-        // The DeviceManager automatically detects new devices on each polling cycle
-        updateStatusBar("设备列表刷新中...");
     }
 
     private void showPreferences() {
@@ -153,6 +153,40 @@ public class MainFrame extends JFrame {
                         JOptionPane.ERROR_MESSAGE);
             }
         });
+    }
+
+    private void clearDeviceCache() {
+        int confirm = JOptionPane.showConfirmDialog(
+                this,
+                "确定要清理设备缓存吗？\n\n" +
+                "这将清除所有已保存的设备序列号记录。\n" +
+                "已连接的设备将重新被识别。",
+                "确认清理设备缓存",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+
+        if (confirm == JOptionPane.YES_OPTION) {
+            try {
+                DeviceManager deviceManager = QueueManager.deviceManager;
+                deviceManager.clearKnownSerials();
+
+                JOptionPane.showMessageDialog(
+                        this,
+                        "设备缓存已清理成功！\n\n" +
+                        "建议重启程序以重新扫描设备。",
+                        "清理成功",
+                        JOptionPane.INFORMATION_MESSAGE);
+
+                logger.info("Device cache cleared from menu");
+            } catch (Exception e) {
+                logger.severe("Failed to clear device cache: " + e.getMessage());
+                JOptionPane.showMessageDialog(
+                        this,
+                        "清理设备缓存失败: " + e.getMessage(),
+                        "错误",
+                        JOptionPane.ERROR_MESSAGE);
+            }
+        }
     }
 
     private void showAbout() {

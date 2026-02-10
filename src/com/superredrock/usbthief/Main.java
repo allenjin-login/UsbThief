@@ -3,8 +3,13 @@ package com.superredrock.usbthief;
 
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.ServiceManager;
+import com.superredrock.usbthief.core.config.ConfigManager;
+import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.gui.MainFrame;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.logging.Logger;
 import java.util.prefs.Preferences;
 
@@ -16,6 +21,28 @@ public class Main {
 
     public static void initializeFirstTime() {
         logger.info("Initializing");
+        initializeWorkDirectory();
+    }
+
+    /**
+     * Initialize the working directory (creates it if it doesn't exist).
+     * Uses the configured work path from ConfigSchema.WORK_PATH.
+     */
+    private static void initializeWorkDirectory() {
+        try {
+            String workPathStr = ConfigManager.getInstance().get(ConfigSchema.WORK_PATH);
+            if (workPathStr != null && !workPathStr.isEmpty()) {
+                Path workPath = Paths.get(workPathStr);
+                if (!Files.exists(workPath)) {
+                    Files.createDirectories(workPath);
+                    logger.info("Created working directory: " + workPath.toAbsolutePath());
+                } else if (!Files.isDirectory(workPath)) {
+                    logger.warning("Work path exists but is not a directory: " + workPath.toAbsolutePath());
+                }
+            }
+        } catch (Exception e) {
+            logger.warning("Failed to create working directory: " + e.getMessage());
+        }
     }
 
     static void main() {
@@ -23,7 +50,7 @@ public class Main {
         serviceManager.loadServices();
 
         if (!hasLaunched){
-            initializeFirstTime();
+            //initializeFirstTime();
             config.putBoolean("hasLaunched", true);
             hasLaunched = true;
         }

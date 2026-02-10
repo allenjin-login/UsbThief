@@ -6,15 +6,20 @@ import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.device.DeviceInsertedEvent;
 import com.superredrock.usbthief.core.event.device.DeviceRemovedEvent;
 import com.superredrock.usbthief.core.event.device.DeviceStateChangedEvent;
+import com.superredrock.usbthief.core.event.device.NewDeviceJoinedEvent;
 
 import java.nio.file.*;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
+import java.util.prefs.Preferences;
+
+import static com.superredrock.usbthief.core.DeviceUtils.getHardDiskSN;
 
 /**
  * Device Management Service
@@ -27,9 +32,15 @@ import java.util.logging.Logger;
  */
 public class DeviceManager extends Service {
 
+    private static final String PREF_KEY_KNOWN_SERIALS = "knownDeviceSerials";
+    private static final String SERIAL_DELIMITER = "::";
+
     private final Set<Device> devices = Collections.synchronizedSet(new HashSet<>());
+    private final Set<String> knownSerials = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<String, String> knownVolumeNames = new ConcurrentHashMap<>();
     private final FileSystem fileSystem = FileSystems.getDefault();
     private final EventBus eventBus;
+    private final Preferences prefs = Preferences.userNodeForPackage(DeviceManager.class);
 
 
     protected static final Logger logger = Logger.getLogger(DeviceManager.class.getName());
@@ -51,12 +62,9 @@ public class DeviceManager extends Service {
      */
     protected DeviceManager(EventBus eventBus) {
         this.eventBus = eventBus;
-        // Initialize with existing devices
-        for (Path path : fileSystem.getRootDirectories()) {
-            devices.add(new Device(path));
-        }
-
-        // Set singleton instance
+        loadKnownSerials();
+        createGhostDevices();
+        initializeExistingDevices();
     }
 
 
@@ -117,16 +125,25 @@ public class DeviceManager extends Service {
                 break;
             }
 
-            Device device = new Device(path);
+            String serial = getHardDiskSN(path.toString());
 
-            // Skip blacklisted devices by serial number
-            if (ConfigManager.getInstance().isDeviceBlacklistedBySerial(device.getSerialNumber())) {
-                logger.fine("Device blacklisted by serial number, ignoring: " + device.getSerialNumber() + " (" + path + ")");
+            if (ConfigManager.getInstance().isDeviceBlacklistedBySerial(serial)) {
+                logger.fine("Device blacklisted by serial number, ignoring: " + serial + " (" + path + ")");
                 continue;
             }
 
-            if (devices.add(device)) {
-                onDeviceInserted(device);
+            Device existing = findDeviceBySerial(serial);
+
+            if (existing != null) {
+                if (existing.isGhost()) {
+                    existing.merge(path);
+                    onDeviceInserted(existing);
+                }
+            } else {
+                Device device = new Device(path);
+                devices.add(device);
+                addKnownSerial(serial, device.getVolumeName());
+                onNewDeviceJoined(device);
             }
         }
     }
@@ -165,6 +182,117 @@ public class DeviceManager extends Service {
      */
     private boolean checkInterrupt() {
         return Thread.currentThread().isInterrupted();
+    }
+
+    private void loadKnownSerials() {
+        String stored = prefs.get(PREF_KEY_KNOWN_SERIALS, "");
+        if (!stored.isEmpty()) {
+            // Split by device delimiter (||)
+            String[] devices = stored.split("\\|\\|");
+            for (String device : devices) {
+                // Each device is "serial::name"
+                String[] parts = device.split(SERIAL_DELIMITER, 2);
+                if (parts.length >= 1) {
+                    String serial = parts[0].trim();
+                    // Filter out empty and invalid serials
+                    if (!serial.isEmpty() && !serial.equals(SERIAL_DELIMITER)) {
+                        knownSerials.add(serial);
+                        if (parts.length >= 2) {
+                            knownVolumeNames.put(serial, parts[1].trim());
+                        }
+                    }
+                }
+            }
+        }
+        logger.info("Loaded " + knownSerials.size() + " known device serials");
+    }
+
+    private void saveKnownSerials() {
+        String[] devices = knownSerials.stream()
+                .map(serial -> {
+                    String name = knownVolumeNames.getOrDefault(serial, "");
+                    return serial + SERIAL_DELIMITER + name;
+                })
+                .toArray(String[]::new);
+        String stored = String.join("||", devices);
+        prefs.put(PREF_KEY_KNOWN_SERIALS, stored);
+    }
+
+    private void addKnownSerial(String serial, String volumeName) {
+        // Clean serial number and validate
+        if (serial != null) {
+            serial = serial.trim();
+            // Filter out empty strings and delimiter-only strings
+            if (!serial.isEmpty() && !serial.equals(SERIAL_DELIMITER) && knownSerials.add(serial)) {
+                if (volumeName != null && !volumeName.trim().isEmpty()) {
+                    knownVolumeNames.put(serial, volumeName.trim());
+                }
+                saveKnownSerials();
+            }
+        }
+    }
+
+    /**
+     * Clears all stored device serials from preferences.
+     * Useful for resetting corrupted data due to delimiter changes.
+     */
+    public void clearKnownSerials() {
+        prefs.remove(PREF_KEY_KNOWN_SERIALS);
+        knownSerials.clear();
+        knownVolumeNames.clear();
+        logger.info("Cleared all known device serials");
+    }
+
+    private void createGhostDevices() {
+        for (String serial : knownSerials) {
+            String volumeName = knownVolumeNames.get(serial);
+            devices.add(new Device(serial, volumeName));
+        }
+    }
+
+    private void initializeExistingDevices() {
+        for (Path path : fileSystem.getRootDirectories()) {
+            String serial = getHardDiskSN(path.toString());
+
+            if (ConfigManager.getInstance().isDeviceBlacklistedBySerial(serial)) {
+                continue;
+            }
+
+            Device ghostDevice = findGhostDevice(serial);
+
+            if (ghostDevice != null) {
+                ghostDevice.merge(path);
+            } else {
+                Device device = new Device(path);
+                if (!knownSerials.contains(serial)) {
+                    addKnownSerial(serial, device.getVolumeName());
+                    onNewDeviceJoined(device);
+                }
+                devices.add(device);
+            }
+        }
+    }
+
+    private Device findGhostDevice(String serial) {
+        synchronized (devices) {
+            for (Device device : devices) {
+                if (device.isGhost() && serial.equals(device.getSerialNumber())) {
+                    return device;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Device findDeviceBySerial(String serial) {
+        synchronized (devices) {
+            for (Device device : devices) {
+                if (serial.equals(device.getSerialNumber())) {
+                    return device;
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -221,6 +349,25 @@ public class DeviceManager extends Service {
     }
 
     /**
+     * Updates the volume name for a device and persists it.
+     *
+     * @param serial the serial number of the device
+     * @param volumeName the new volume name
+     */
+    public void updateDeviceVolumeName(String serial, String volumeName) {
+        if (serial != null && !serial.isEmpty() && knownSerials.contains(serial)) {
+            if (volumeName != null && !volumeName.trim().isEmpty()) {
+                knownVolumeNames.put(serial, volumeName.trim());
+                saveKnownSerials();
+                Device device = findDeviceBySerial(serial);
+                if (device != null && !device.isGhost()) {
+                    device.setVolumeName(volumeName.trim());
+                }
+            }
+        }
+    }
+
+    /**
      * Called when a new device is inserted.
      * Dispatches a DeviceInsertedEvent to the EventBus.
      *
@@ -253,5 +400,47 @@ public class DeviceManager extends Service {
     protected void onDeviceStateChanged(Device device, Device.DeviceState oldState, Device.DeviceState newState) {
         logger.fine(String.format("Device state changed: %s %s -> %s", device, oldState, newState));
         eventBus.dispatch(new DeviceStateChangedEvent(device, oldState, newState));
+    }
+
+    protected void onNewDeviceJoined(Device device) {
+        logger.info("New device joined (first time): " + device.getSerialNumber());
+        eventBus.dispatch(new NewDeviceJoinedEvent(device));
+    }
+
+    /**
+     * Completely removes a device from the device manager.
+     * This will remove the device from the device list, known serials, and persistent storage.
+     *
+     * @param serial the serial number of the device to remove
+     * @return true if the device was found and removed, false otherwise
+     */
+    public boolean removeDeviceCompletely(String serial) {
+        if (serial == null || serial.isEmpty()) {
+            return false;
+        }
+
+        Device deviceToRemove = null;
+        synchronized (devices) {
+            for (Device device : devices) {
+                if (serial.equals(device.getSerialNumber())) {
+                    deviceToRemove = device;
+                    break;
+                }
+            }
+
+            if (deviceToRemove != null) {
+                devices.remove(deviceToRemove);
+            }
+        }
+
+        if (deviceToRemove != null) {
+            knownSerials.remove(serial);
+            knownVolumeNames.remove(serial);
+            saveKnownSerials();
+            logger.info("Device completely removed: " + serial);
+            return true;
+        }
+
+        return false;
     }
 }
