@@ -27,5 +27,27 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### Project Specific ###
 # 项目排除路径
 /target/
+
+# 开发工具和缓存
+Dev/
+
+# 计划文件目录
+.opencode/
+
+# 配置文件目录（运行时生成的配置示例）
+config/
+
+# 构建产物
+*.obj
+*.o
+*.exe
+*.dll
+*.so
+*.dylib
+
+# 错误文件
+nul
