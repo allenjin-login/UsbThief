@@ -16,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.logging.Logger;
 import java.util.prefs.Preferences;
 
@@ -273,10 +274,10 @@ public class DeviceManager extends Service {
         }
     }
 
-    private Device findGhostDevice(String serial) {
+    private Device findDevice(Predicate<Device> predicate) {
         synchronized (devices) {
             for (Device device : devices) {
-                if (device.isGhost() && serial.equals(device.getSerialNumber())) {
+                if (predicate.test(device)) {
                     return device;
                 }
             }
@@ -284,15 +285,12 @@ public class DeviceManager extends Service {
         return null;
     }
 
+    private Device findGhostDevice(String serial) {
+        return findDevice(device -> device.isGhost() && serial.equals(device.getSerialNumber()));
+    }
+
     private Device findDeviceBySerial(String serial) {
-        synchronized (devices) {
-            for (Device device : devices) {
-                if (serial.equals(device.getSerialNumber())) {
-                    return device;
-                }
-            }
-        }
-        return null;
+        return findDevice(device -> serial.equals(device.getSerialNumber()));
     }
 
     /**
@@ -302,14 +300,7 @@ public class DeviceManager extends Service {
      * @return the device containing the path, or null if not found
      */
     public Device getDevice(Path path) {
-        synchronized (devices) {
-            for (Device device : devices) {
-                if (path.startsWith(device.getRootPath())) {
-                    return device;
-                }
-            }
-        }
-        return null;
+        return findDevice(device -> path.startsWith(device.getRootPath()));
     }
 
     /**
@@ -323,18 +314,11 @@ public class DeviceManager extends Service {
         if (store == null) {
             return null;
         }
-
-        synchronized (devices) {
-            for (Device device : devices) {
-                if (store.equals(device.getFileStore())) {
-                    if (device.getState() == Device.DeviceState.OFFLINE) {
-                        return null;
-                    }
-                    return device;
-                }
-            }
-        }
-        return null;
+        return findDevice(device -> {
+            FileStore deviceStore = device.getFileStore();
+            return store.equals(deviceStore)
+                    && device.getState() != Device.DeviceState.OFFLINE;
+        });
     }
 
     /**

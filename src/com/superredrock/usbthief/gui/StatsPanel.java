@@ -12,6 +12,7 @@ import java.awt.*;
 
 public class StatsPanel extends JPanel {
 
+    private final I18NManager i18n = I18NManager.getInstance();
     private final JLabel copiedFilesLabel;
     private final JLabel globalSpeedLabel;
     private final JLabel queueSizeLabel;
@@ -21,12 +22,12 @@ public class StatsPanel extends JPanel {
 
     public StatsPanel() {
         setLayout(new GridLayout(2, 2, 10, 10));
-        setBorder(new TitledBorder("统计信息"));
+        setBorder(new TitledBorder(i18n.getMessage("stats.border")));
 
-        copiedFilesLabel = createStatLabel("已复制文件: 0");
-        globalSpeedLabel = createStatLabel("全局速度: 0 B/s");
-        queueSizeLabel = createStatLabel("任务队列: 0");
-        activeThreadsLabel = createStatLabel("活动线程: 0/8");
+        copiedFilesLabel = createStatLabel(i18n.getMessage("stats.copiedFiles") + ": 0");
+        globalSpeedLabel = createStatLabel(i18n.getMessage("stats.globalSpeed") + ": 0 B/s");
+        queueSizeLabel = createStatLabel(i18n.getMessage("stats.queueSize") + ": 0");
+        activeThreadsLabel = createStatLabel(i18n.getMessage("stats.activeThreads") + ": 0/8");
 
         add(copiedFilesLabel);
         add(globalSpeedLabel);
@@ -50,7 +51,7 @@ public class StatsPanel extends JPanel {
     private void updateStats() {
         SwingUtilities.invokeLater(() -> {
             int fileCount = QueueManager.index.getDigestSize();
-            copiedFilesLabel.setText("已复制文件: " + fileCount);
+            copiedFilesLabel.setText(i18n.getMessage("stats.copiedFiles") + ": " + fileCount);
 
             // Global speed from CopyTask SpeedProbe
             double speedMBps = CopyTask.getSpeedProbeGroup().getTotalSpeed();
@@ -60,16 +61,16 @@ public class StatsPanel extends JPanel {
             } else {
                 formattedSpeed = String.format("%.2f MB/s", speedMBps);
             }
-            globalSpeedLabel.setText("全局速度: " + formattedSpeed);
+            globalSpeedLabel.setText(i18n.getMessage("stats.globalSpeed") + ": " + formattedSpeed);
 
             // Get queue size from QueueManager
             int queueSize = TaskScheduler.getInstance().getQueueDepth();
-            queueSizeLabel.setText("任务队列: " + queueSize);
+            queueSizeLabel.setText(i18n.getMessage("stats.queueSize") + ": " + queueSize);
 
             // Get active thread count
             int activeThreads = QueueManager.getActiveThreadCount();
             int maxThreads = ConfigManager.getInstance().get(ConfigSchema.MAX_POOL_SIZE);
-            activeThreadsLabel.setText("活动线程: " + activeThreads + "/" + maxThreads);
+            activeThreadsLabel.setText(i18n.getMessage("stats.activeThreads") + ": " + activeThreads + "/" + maxThreads);
         });
     }
 

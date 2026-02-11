@@ -22,6 +22,7 @@ import java.util.List;
 
 public class LogPanel extends JPanel {
 
+    private final I18NManager i18n = I18NManager.getInstance();
     private final JTable logTable;
     private final LogTableModel tableModel;
     private final TableRowSorter<LogTableModel> sorter;
@@ -65,7 +66,7 @@ public class LogPanel extends JPanel {
         searchField = new JTextField();
         searchField.setPreferredSize(new Dimension(400, 28));
         searchField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
-        searchField.setToolTipText("输入关键字进行筛选...");
+        searchField.setToolTipText(i18n.getMessage("log.search.tooltip"));
         searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
             @Override
             public void insertUpdate(javax.swing.event.DocumentEvent e) {
@@ -83,10 +84,10 @@ public class LogPanel extends JPanel {
             }
         });
 
-        JButton searchButton = new JButton("搜索");
+        JButton searchButton = new JButton(i18n.getMessage("log.search.button"));
         searchButton.addActionListener(e -> applyFilter());
 
-        JButton clearButton = new JButton("清除");
+        JButton clearButton = new JButton(i18n.getMessage("log.clear.button"));
         clearButton.addActionListener(e -> {
             searchField.setText("");
             applyFilter();
@@ -96,25 +97,25 @@ public class LogPanel extends JPanel {
         buttonPanel.add(clearButton);
         buttonPanel.add(searchButton);
 
-        searchPanel.add(new JLabel("搜索:"), BorderLayout.WEST);
+        searchPanel.add(new JLabel(i18n.getMessage("log.search.label")), BorderLayout.WEST);
         searchPanel.add(searchField, BorderLayout.CENTER);
         searchPanel.add(buttonPanel, BorderLayout.EAST);
 
         // Level checkboxes
         JPanel levelPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        infoCheckBox = new JCheckBox("INFO", true);
+        infoCheckBox = new JCheckBox(i18n.getMessage("log.level.info"), true);
         infoCheckBox.addActionListener(e -> applyFilter());
         infoCheckBox.setForeground(INFO_COLOR);
 
-        warningCheckBox = new JCheckBox("WARNING", true);
+        warningCheckBox = new JCheckBox(i18n.getMessage("log.level.warning"), true);
         warningCheckBox.addActionListener(e -> applyFilter());
         warningCheckBox.setForeground(WARNING_COLOR);
 
-        errorCheckBox = new JCheckBox("ERROR", true);
+        errorCheckBox = new JCheckBox(i18n.getMessage("log.level.error"), true);
         errorCheckBox.addActionListener(e -> applyFilter());
         errorCheckBox.setForeground(ERROR_COLOR);
 
-        successCheckBox = new JCheckBox("SUCCESS", true);
+        successCheckBox = new JCheckBox(i18n.getMessage("log.level.success"), true);
         successCheckBox.addActionListener(e -> applyFilter());
         successCheckBox.setForeground(SUCCESS_COLOR);
 
@@ -133,10 +134,10 @@ public class LogPanel extends JPanel {
         JScrollPane scrollPane = new JScrollPane(logTable);
         scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        scrollPane.setBorder(new TitledBorder("日志"));
+        scrollPane.setBorder(new TitledBorder(i18n.getMessage("log.border")));
 
         // Count label
-        countLabel = new JLabel("显示: 0 / 总计: 0 条");
+        countLabel = new JLabel(String.format(i18n.getMessage("log.count"), 0, 0));
 
         // Layout
         add(controlPanel, BorderLayout.NORTH);
@@ -164,7 +165,7 @@ public class LogPanel extends JPanel {
 
     // Index event handlers
     private void onFileIndexed(FileIndexedEvent event) {
-        String message = String.format("已索引文件: %s (大小: %s, 总计: %d 文件)",
+        String message = String.format(i18n.getMessage("log.message.indexed"),
             event.filePath().getFileName(),
             formatBytes(event.fileSize()),
             event.totalIndexed());
@@ -172,33 +173,33 @@ public class LogPanel extends JPanel {
     }
 
     private void onDuplicateDetected(DuplicateDetectedEvent event) {
-        String message = String.format("检测到重复文件: %s", event.filePath().getFileName());
+        String message = String.format(i18n.getMessage("log.message.duplicate"), event.filePath().getFileName());
         log(message, LogLevel.WARNING);
     }
 
     private void onIndexLoaded(IndexLoadedEvent event) {
-        String message = String.format("索引加载完成: %d 条记录", event.loadedCount());
+        String message = String.format(i18n.getMessage("log.message.indexLoaded"), event.loadedCount());
         log(message, LogLevel.INFO);
     }
 
     private void onIndexSaved(IndexSavedEvent event) {
-        String message = String.format("索引保存完成: %d 条记录", event.savedCount());
+        String message = String.format(i18n.getMessage("log.message.indexSaved"), event.savedCount());
         log(message, LogLevel.INFO);
     }
 
     // Device event handlers
     private void onDeviceInserted(DeviceInsertedEvent event) {
-        String message = String.format("设备已插入: %s", event.device().getRootPath());
+        String message = String.format(i18n.getMessage("log.message.deviceInserted"), event.device().getRootPath());
         log(message, LogLevel.INFO);
     }
 
     private void onDeviceRemoved(DeviceRemovedEvent event) {
-        String message = String.format("设备已移除: %s", event.device().getRootPath());
+        String message = String.format(i18n.getMessage("log.message.deviceRemoved"), event.device().getRootPath());
         log(message, LogLevel.WARNING);
     }
 
     private void onDeviceStateChanged(DeviceStateChangedEvent event) {
-        String message = String.format("设备状态变更: %s -> %s", event.oldState(), event.newState());
+        String message = String.format(i18n.getMessage("log.message.deviceStateChanged"), event.oldState(), event.newState());
         log(message, LogLevel.INFO);
     }
 
@@ -279,7 +280,7 @@ public class LogPanel extends JPanel {
     private void updateCountLabel() {
         int filteredCount = logTable.getRowCount();
         int totalCount = tableModel.getRowCount();
-        countLabel.setText(String.format("显示: %d / 总计: %d 条", filteredCount, totalCount));
+        countLabel.setText(String.format(i18n.getMessage("log.count"), filteredCount, totalCount));
     }
 
     private String formatBytes(long bytes) {
@@ -298,7 +299,11 @@ public class LogPanel extends JPanel {
 
         private final List<LogEntry> logEntries = new ArrayList<>();
 
-        private final String[] columnNames = {"时间", "级别", "消息"};
+        private final String[] columnNames = {
+            I18NManager.getInstance().getMessage("log.table.time"),
+            I18NManager.getInstance().getMessage("log.table.level"),
+            I18NManager.getInstance().getMessage("log.table.message")
+        };
         private final Class<?>[] columnTypes = {String.class, LogLevel.class, String.class};
 
         public void addLogEntry(LogEntry entry) {

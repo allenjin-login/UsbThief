@@ -15,6 +15,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
 /**
  * Event panel that displays all events from the EventBus.
@@ -22,12 +23,17 @@ import java.util.List;
  */
 public class EventPanel extends JPanel {
 
+    private static final Logger logger = Logger.getLogger(EventPanel.class.getName());
+    private final I18NManager i18n = I18NManager.getInstance();
     private final JTable eventTable;
     private final EventTableModel tableModel;
     private final TableRowSorter<EventTableModel> sorter;
     private JTextField searchField;
+    private JLabel searchLabel;
+    private JButton clearButton;
     private final JLabel countLabel;
     private JComboBox<String> eventTypeFilter;
+    private final JScrollPane scrollPane;
 
     private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
 
@@ -57,13 +63,13 @@ public class EventPanel extends JPanel {
         JPanel controlPanel = createControlPanel();
 
         // Table with scroll pane
-        JScrollPane scrollPane = new JScrollPane(eventTable);
+        scrollPane = new JScrollPane(eventTable);
         scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        scrollPane.setBorder(new TitledBorder("事件"));
+        scrollPane.setBorder(new TitledBorder(i18n.getMessage("event.border")));
 
         // Count label
-        countLabel = new JLabel("显示: 0 / 总计: 0 条");
+        countLabel = new JLabel(String.format(i18n.getMessage("event.count"), 0, 0));
 
         // Layout
         add(controlPanel, BorderLayout.NORTH);
@@ -82,7 +88,7 @@ public class EventPanel extends JPanel {
         searchField = new JTextField();
         searchField.setPreferredSize(new Dimension(300, 28));
         searchField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
-        searchField.setToolTipText("输入关键字进行筛选...");
+        searchField.setToolTipText(i18n.getMessage("event.search.tooltip"));
         searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
             @Override
             public void insertUpdate(javax.swing.event.DocumentEvent e) {
@@ -100,28 +106,29 @@ public class EventPanel extends JPanel {
             }
         });
 
-        JButton clearButton = new JButton("清除");
+        clearButton = new JButton(i18n.getMessage("event.clear.button"));
         clearButton.addActionListener(e -> {
             searchField.setText("");
-            eventTypeFilter.setSelectedItem("全部");
+            eventTypeFilter.setSelectedItem(i18n.getMessage("event.filter.all"));
             applyFilter();
         });
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
         buttonPanel.add(clearButton);
 
-        searchPanel.add(new JLabel("搜索:"), BorderLayout.WEST);
+        searchLabel = new JLabel(i18n.getMessage("event.search.label"));
+        searchPanel.add(searchLabel, BorderLayout.WEST);
         searchPanel.add(searchField, BorderLayout.CENTER);
         searchPanel.add(buttonPanel, BorderLayout.EAST);
 
         // Event type filter
         JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         eventTypeFilter = new JComboBox<>();
-        eventTypeFilter.addItem("全部");
+        eventTypeFilter.addItem(i18n.getMessage("event.filter.all"));
         eventTypeFilter.addActionListener(e -> applyFilter());
         eventTypeFilter.setPreferredSize(new Dimension(200, 28));
 
-        filterPanel.add(new JLabel("事件类型:"));
+        filterPanel.add(new JLabel(i18n.getMessage("event.filter.label")));
         filterPanel.add(eventTypeFilter);
 
         controlPanel.add(searchPanel, BorderLayout.WEST);
@@ -197,7 +204,7 @@ public class EventPanel extends JPanel {
 
         // Event type filter
         String selectedType = (String) eventTypeFilter.getSelectedItem();
-        if (selectedType != null && !selectedType.equals("全部")) {
+        if (selectedType != null && !selectedType.equals(i18n.getMessage("event.filter.all"))) {
             filters.add(RowFilter.regexFilter(selectedType, 0)); // Event type column
         }
 
@@ -213,7 +220,7 @@ public class EventPanel extends JPanel {
     private void updateCountLabel() {
         int filteredCount = eventTable.getRowCount();
         int totalCount = tableModel.getRowCount();
-        countLabel.setText(String.format("显示: %d / 总计: %d 条", filteredCount, totalCount));
+        countLabel.setText(String.format(i18n.getMessage("event.count"), filteredCount, totalCount));
     }
 
     public void clear() {
@@ -223,11 +230,23 @@ public class EventPanel extends JPanel {
         });
     }
 
+    public void refreshLanguage() {
+        logger.info("EventPanel.refreshLanguage() called");
+        SwingUtilities.invokeLater(() -> {
+            scrollPane.setBorder(new TitledBorder(i18n.getMessage("event.border")));
+            searchLabel.setText(i18n.getMessage("event.search.label"));
+            searchField.setToolTipText(i18n.getMessage("event.search.tooltip"));
+            clearButton.setText(i18n.getMessage("event.clear.button"));
+            countLabel.setText(String.format(i18n.getMessage("event.count"), eventTable.getRowCount(), tableModel.getRowCount()));
+            tableModel.fireTableStructureChanged();
+            logger.info("EventPanel language refreshed");
+        });
+    }
+
     private static class EventTableModel extends AbstractTableModel {
 
         private final List<EventEntry> eventEntries = new ArrayList<>();
 
-        private final String[] columnNames = {"事件类型", "时间", "描述"};
         private final Class<?>[] columnTypes = {String.class, String.class, String.class};
 
         public void addEventEntry(EventEntry entry) {
@@ -257,12 +276,17 @@ public class EventPanel extends JPanel {
 
         @Override
         public int getColumnCount() {
-            return columnNames.length;
+            return 3;
         }
 
         @Override
         public String getColumnName(int column) {
-            return columnNames[column];
+            return switch (column) {
+                case 0 -> I18NManager.getInstance().getMessage("event.table.type");
+                case 1 -> I18NManager.getInstance().getMessage("event.table.time");
+                case 2 -> I18NManager.getInstance().getMessage("event.table.description");
+                default -> "";
+            };
         }
 
         @Override

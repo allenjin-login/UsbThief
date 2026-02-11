@@ -13,12 +13,14 @@ import com.superredrock.usbthief.worker.CopyTask;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.List;
+import java.util.Locale;
 import java.util.logging.Logger;
 
-public class MainFrame extends JFrame {
+public class MainFrame extends JFrame implements I18NManager.LocaleChangeListener, I18NManager.LanguageListChangeListener {
 
     private static final Logger logger = Logger.getLogger(MainFrame.class.getName());
-    private static final String TITLE = "UsbThief - USB Device Monitor";
+    private final I18NManager i18n = I18NManager.getInstance();
 
     private final JMenuBar menuBar;
     private final JLabel statusBar;
@@ -26,19 +28,25 @@ public class MainFrame extends JFrame {
     private final DeviceListPanel deviceListPanel;
     private final EventPanel eventPanel;
     private final FileHistoryPanel fileHistoryPanel;
+    private final JTabbedPane rightTabbedPane;
 
     // Window visibility state
     private boolean windowVisible = true;
     private SystemTrayIcon trayIcon;
 
     public MainFrame() {
-        setTitle(TITLE);
+        setTitle(i18n.getMessage("main.title"));
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1200, 800);
         setLocationRelativeTo(null);
 
         // Create menu bar
         menuBar = new JMenuBar();
+        
+        // Register locale change listener
+        i18n.addLocaleChangeListener(this);
+        i18n.addLanguageListChangeListener(this);
+
         createMenus();
 
         // Create panels
@@ -49,15 +57,15 @@ public class MainFrame extends JFrame {
         fileHistoryPanel = new FileHistoryPanel();
 
         // Create tabbed pane for right panel
-        JTabbedPane rightTabbedPane = new JTabbedPane();
-        rightTabbedPane.addTab("事件", eventPanel);
-        rightTabbedPane.addTab("文件历史", fileHistoryPanel);
+        rightTabbedPane = new JTabbedPane();
+        rightTabbedPane.addTab(i18n.getMessage("tab.events"), eventPanel);
+        rightTabbedPane.addTab(i18n.getMessage("tab.fileHistory"), fileHistoryPanel);
 
         // Create main split pane
         JSplitPane mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, deviceListPanel, rightTabbedPane);
 
         // Status bar
-        statusBar = new JLabel("Ready");
+        statusBar = new JLabel(i18n.getMessage("main.statusbar.ready"));
         statusBar.setBorder(BorderFactory.createEtchedBorder());
 
         // Layout
@@ -87,49 +95,61 @@ public class MainFrame extends JFrame {
     }
 
     private void createMenus() {
-        // Action menu (formerly File menu)
-        JMenu actionMenu = new JMenu("操作");
+        JMenu actionMenu = new JMenu(i18n.getMessage("menu.action"));
 
-        // Save index menu item
-        JMenuItem saveIndexItem = new JMenuItem("保存索引");
-        saveIndexItem.addActionListener(e -> saveIndex());
+        JMenuItem saveIndexItem = new JMenuItem(i18n.getMessage("menu.action.saveIndex"));
+        saveIndexItem.addActionListener(_ -> saveIndex());
         actionMenu.add(saveIndexItem);
 
         actionMenu.addSeparator();
 
-        // Hide window menu item
-        JMenuItem hideItem = new JMenuItem("隐藏");
+        JMenuItem hideItem = new JMenuItem(i18n.getMessage("menu.action.hide"));
         hideItem.addActionListener(e -> hideWindow());
         actionMenu.add(hideItem);
 
         actionMenu.addSeparator();
 
-        JMenuItem exitItem = new JMenuItem("退出");
-        exitItem.addActionListener(e -> {
+        JMenuItem exitItem = new JMenuItem(i18n.getMessage("menu.action.exit"));
+        exitItem.addActionListener(_ -> {
             logger.info("Exit requested from menu");
             performShutdown();
         });
         actionMenu.add(exitItem);
 
-        // Config menu
-        JMenu configMenu = new JMenu("配置");
-        JMenuItem preferencesItem = new JMenuItem("首选项");
+        JMenu configMenu = new JMenu(i18n.getMessage("menu.config"));
+        JMenuItem preferencesItem = new JMenuItem(i18n.getMessage("menu.config.preferences"));
         preferencesItem.addActionListener(e -> showPreferences());
         configMenu.add(preferencesItem);
 
-        JMenuItem clearCacheItem = new JMenuItem("清理设备缓存");
-        clearCacheItem.addActionListener(e -> clearDeviceCache());
+        JMenuItem clearCacheItem = new JMenuItem(i18n.getMessage("menu.config.clearCache"));
+        clearCacheItem.addActionListener(_ -> clearDeviceCache());
         configMenu.add(clearCacheItem);
 
-        // Help menu
-        JMenu helpMenu = new JMenu("帮助");
-        JMenuItem aboutItem = new JMenuItem("关于");
-        aboutItem.addActionListener(e -> showAbout());
+        JMenu helpMenu = new JMenu(i18n.getMessage("menu.help"));
+        JMenuItem aboutItem = new JMenuItem(i18n.getMessage("menu.help.about"));
+        aboutItem.addActionListener(_ -> showAbout());
         helpMenu.add(aboutItem);
 
         menuBar.add(actionMenu);
         menuBar.add(configMenu);
+        createLanguageMenu();
         menuBar.add(helpMenu);
+    }
+
+    private void createLanguageMenu() {
+        JMenu languageMenu = new JMenu(i18n.getMessage("menu.language"));
+
+        for (LanguageInfo langInfo : i18n.getAvailableLanguages()) {
+            String displayText = langInfo.nativeName() + " (" + langInfo.displayName() + ")";
+            JMenuItem languageItem = new JMenuItem(displayText);
+            languageItem.addActionListener(_ -> {
+                logger.info("Switching to language: " + langInfo.locale());
+                i18n.setLocale(langInfo.locale());
+            });
+            languageMenu.add(languageItem);
+        }
+
+        menuBar.add(languageMenu);
     }
 
     private void showPreferences() {
@@ -138,18 +158,17 @@ public class MainFrame extends JFrame {
     }
 
     private void saveIndex() {
-        updateStatusBar("正在保存索引...");
+        updateStatusBar(i18n.getMessage("status.savingIndex"));
 
         SwingUtilities.invokeLater(() -> {
             try {
                 QueueManager.index.save();
-                updateStatusBar("索引保存成功");
-                // Note: IndexSavedEvent will be automatically displayed in EventPanel
+                updateStatusBar(i18n.getMessage("status.indexSaved"));
             } catch (Exception e) {
-                updateStatusBar("索引保存失败");
+                updateStatusBar(i18n.getMessage("status.indexSaveFailed"));
                 JOptionPane.showMessageDialog(this,
-                        "保存索引失败: " + e.getMessage(),
-                        "错误",
+                        i18n.getMessage("message.saveIndexFailed", e.getMessage()),
+                        i18n.getMessage("common.error"),
                         JOptionPane.ERROR_MESSAGE);
             }
         });
@@ -158,10 +177,8 @@ public class MainFrame extends JFrame {
     private void clearDeviceCache() {
         int confirm = JOptionPane.showConfirmDialog(
                 this,
-                "确定要清理设备缓存吗？\n\n" +
-                "这将清除所有已保存的设备序列号记录。\n" +
-                "已连接的设备将重新被识别。",
-                "确认清理设备缓存",
+                i18n.getMessage("message.clearCacheConfirm"),
+                i18n.getMessage("title.clearCacheConfirm"),
                 JOptionPane.YES_NO_OPTION,
                 JOptionPane.WARNING_MESSAGE);
 
@@ -172,9 +189,8 @@ public class MainFrame extends JFrame {
 
                 JOptionPane.showMessageDialog(
                         this,
-                        "设备缓存已清理成功！\n\n" +
-                        "建议重启程序以重新扫描设备。",
-                        "清理成功",
+                        i18n.getMessage("message.clearCacheSuccess"),
+                        i18n.getMessage("title.clearCacheSuccess"),
                         JOptionPane.INFORMATION_MESSAGE);
 
                 logger.info("Device cache cleared from menu");
@@ -182,8 +198,8 @@ public class MainFrame extends JFrame {
                 logger.severe("Failed to clear device cache: " + e.getMessage());
                 JOptionPane.showMessageDialog(
                         this,
-                        "清理设备缓存失败: " + e.getMessage(),
-                        "错误",
+                        i18n.getMessage("message.clearCacheFailed", e.getMessage()),
+                        i18n.getMessage("common.error"),
                         JOptionPane.ERROR_MESSAGE);
             }
         }
@@ -191,13 +207,8 @@ public class MainFrame extends JFrame {
 
     private void showAbout() {
         JOptionPane.showMessageDialog(this,
-                """
-                        UsbThief - USB Device Monitor
-                        
-                        USB 设备监控和文件复制工具
-                        检测 USB 驱动器、实时监控文件变化、
-                        基于校验和去重复制文件""",
-                "关于 UsbThief",
+                i18n.getMessage("message.about"),
+                i18n.getMessage("title.about"),
                 JOptionPane.INFORMATION_MESSAGE);
     }
 
@@ -207,32 +218,26 @@ public class MainFrame extends JFrame {
 
     private String formatLoadLevel(LoadLevel level) {
         return switch (level) {
-            case LOW -> "\uD83D\uDFE2低";
-            case MEDIUM -> "\uD83D\uDFE1中";
-            case HIGH -> "🔴高";
+            case LOW -> "\uD83D\uDFE2" + i18n.getMessage("load.low");
+            case MEDIUM -> "\uD83D\uDFE1" + i18n.getMessage("load.medium");
+            case HIGH -> "🔴" + i18n.getMessage("load.high");
         };
     }
 
     public void updateStatusBar() {
-        // Get load level
         LoadScore loadScore = new LoadEvaluator().evaluateLoad();
         String loadInfo = formatLoadLevel(loadScore.level());
 
-        // Get queue depth
         int queueDepth = TaskScheduler.getInstance().getQueueDepth();
-        String queueInfo = String.format("队列: %d 任务", queueDepth);
+        String queueInfo = i18n.getMessage("status.queue.format", queueDepth);
 
-        // Get copy speed from SpeedProbeGroup
         double speed = CopyTask.getSpeedProbeGroup().getTotalSpeed();
-        String speedInfo = String.format("速度: %.1f MB/s", speed);
+        String speedInfo = i18n.getMessage("status.speed.format", speed);
 
-        // Get work path
         String workPath = ConfigManager.getInstance().get(ConfigSchema.WORK_PATH);
-        String pathInfo = String.format("路径: %s", workPath.isEmpty() ? "当前目录" : workPath);
+        String pathInfo = i18n.getMessage("status.path.format", workPath.isEmpty() ? i18n.getMessage("status.currentDir") : workPath);
 
-        // Combine all info
-        String message = String.format("负载: %s | %s | %s | %s",
-            loadInfo, queueInfo, speedInfo, pathInfo);
+        String message = i18n.getMessage("status.combined", loadInfo, queueInfo, speedInfo, pathInfo);
         updateStatusBar(message);
     }
 
@@ -345,10 +350,9 @@ public class MainFrame extends JFrame {
 
             if (success) {
                 logger.info("System tray icon initialized");
-                // Show notification
                 trayIcon.displayMessage(
-                    "UsbThief 已启动",
-                    "右键托盘图标查看选项，双击显示/隐藏窗口",
+                    i18n.getMessage("tray.startup.title"),
+                    i18n.getMessage("tray.startup.message"),
                     java.awt.TrayIcon.MessageType.INFO
                 );
             } else {
@@ -374,6 +378,39 @@ public class MainFrame extends JFrame {
             // Note: setVisible is already called in applyWindowSettings() during construction
             // We don't call setVisible(true) here to respect the startHidden/alwaysHidden settings
             frame.updateStatusBar();
+        });
+    }
+
+    @Override
+    public void onLocaleChanged(Locale newLocale) {
+        logger.info("MainFrame received locale change event: " + newLocale);
+        SwingUtilities.invokeLater(() -> {
+            setTitle(i18n.getMessage("main.title"));
+            menuBar.removeAll();
+            createMenus();
+            updateStatusBar();
+
+            logger.info("Refreshing child panels...");
+            deviceListPanel.refreshLanguage();
+            eventPanel.refreshLanguage();
+            fileHistoryPanel.refreshLanguage();
+
+            rightTabbedPane.setTitleAt(0, i18n.getMessage("tab.events"));
+            rightTabbedPane.setTitleAt(1, i18n.getMessage("tab.fileHistory"));
+
+            if (trayIcon != null) {
+                trayIcon.refreshLanguage();
+            }
+            logger.info("Locale change complete");
+        });
+    }
+
+    @Override
+    public void onLanguageListChanged(List<LanguageInfo> languages) {
+        logger.info("Language list changed, refreshing menu: " + languages.size() + " languages");
+        SwingUtilities.invokeLater(() -> {
+            menuBar.removeAll();
+            createMenus();
         });
     }
 }

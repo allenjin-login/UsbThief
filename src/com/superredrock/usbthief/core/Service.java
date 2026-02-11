@@ -3,6 +3,7 @@ package com.superredrock.usbthief.core;
 import java.io.Closeable;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
 
 /**
@@ -33,6 +34,9 @@ public abstract class Service implements Runnable , Closeable {
     // Scheduled task
     protected ScheduledFuture<?> scheduledTask;
 
+    // Lock for state transitions
+    protected final ReentrantLock stateLock = new ReentrantLock();
+
     // ========== Lifecycle control methods ==========
 
     /**
@@ -47,27 +51,30 @@ public abstract class Service implements Runnable , Closeable {
             throw new IllegalArgumentException("scheduler cannot be null");
         }
 
-        if (state == ServiceState.RUNNING) {
-            logger.warning(getName() + " service is already running");
-            return;
-        }
-
-        state = ServiceState.STARTING;
-
+        stateLock.lock();
         try {
-            // Cancel old task
-            if (scheduledTask != null && !scheduledTask.isDone()) {
-                scheduledTask.cancel(false);
+            if (state == ServiceState.RUNNING) {
+                logger.warning(getName() + " service is already running");
+                return;
             }
 
-            // Subclass defines scheduling logic
-            scheduledTask = scheduleTask(scheduler);
-            state = ServiceState.RUNNING;
-            logger.info(getName() + " service started");
+            state = ServiceState.STARTING;
 
-        } catch (Exception e) {
-            logger.severe(getName() + " start failed: " + e.getMessage());
-            state = ServiceState.FAILED;
+            try {
+                if (scheduledTask != null && !scheduledTask.isDone()) {
+                    scheduledTask.cancel(false);
+                }
+
+                scheduledTask = scheduleTask(scheduler);
+                state = ServiceState.RUNNING;
+                logger.info(getName() + " service started");
+
+            } catch (Exception e) {
+                logger.severe(getName() + " start failed: " + e.getMessage());
+                state = ServiceState.FAILED;
+            }
+        } finally {
+            stateLock.unlock();
         }
     }
 
@@ -77,28 +84,31 @@ public abstract class Service implements Runnable , Closeable {
      * Cancel scheduled task, call cleanup hook, and reset state.
      */
     public void stop() {
-        if (state == ServiceState.STOPPED) {
-            return;
-        }
-
-        state = ServiceState.STOPPING;
-
+        stateLock.lock();
         try {
-            // Cancel scheduled task
-            if (scheduledTask != null) {
-                scheduledTask.cancel(true);
-                scheduledTask = null;
+            if (state == ServiceState.STOPPED) {
+                return;
             }
 
-            // Call cleanup hook
-            cleanup();
+            state = ServiceState.STOPPING;
 
-            state = ServiceState.STOPPED;
-            logger.info(getName() + " service stopped");
+            try {
+                if (scheduledTask != null) {
+                    scheduledTask.cancel(true);
+                    scheduledTask = null;
+                }
 
-        } catch (Exception e) {
-            logger.severe(getName() + " stop failed: " + e.getMessage());
-            state = ServiceState.FAILED;
+                cleanup();
+
+                state = ServiceState.STOPPED;
+                logger.info(getName() + " service stopped");
+
+            } catch (Exception e) {
+                logger.severe(getName() + " stop failed: " + e.getMessage());
+                state = ServiceState.FAILED;
+            }
+        } finally {
+            stateLock.unlock();
         }
     }
 
@@ -108,23 +118,28 @@ public abstract class Service implements Runnable , Closeable {
      * Pause periodic execution without releasing resources.
      */
     public void pause() {
-        if (state != ServiceState.RUNNING) {
-            logger.warning(getName() + " service is not running, cannot pause");
-            return;
-        }
-
+        stateLock.lock();
         try {
-            if (scheduledTask != null) {
-                scheduledTask.cancel(false);
-                scheduledTask = null;
+            if (state != ServiceState.RUNNING) {
+                logger.warning(getName() + " service is not running, cannot pause");
+                return;
             }
 
-            state = ServiceState.PAUSED;
-            logger.info(getName() + " service paused");
+            try {
+                if (scheduledTask != null) {
+                    scheduledTask.cancel(false);
+                    scheduledTask = null;
+                }
 
-        } catch (Exception e) {
-            logger.severe(getName() + " pause failed: " + e.getMessage());
-            state = ServiceState.FAILED;
+                state = ServiceState.PAUSED;
+                logger.info(getName() + " service paused");
+
+            } catch (Exception e) {
+                logger.severe(getName() + " pause failed: " + e.getMessage());
+                state = ServiceState.FAILED;
+            }
+        } finally {
+            stateLock.unlock();
         }
     }
 
@@ -136,23 +151,25 @@ public abstract class Service implements Runnable , Closeable {
      * @param scheduler scheduler
      */
     public void resume(ScheduledThreadPoolExecutor scheduler) {
+        if (scheduler == null) {
+            throw new IllegalArgumentException("scheduler cannot be null");
+        }
+
         if (state != ServiceState.PAUSED) {
             logger.warning(getName() + " service is not paused, cannot resume");
             return;
         }
 
-        if (scheduler == null) {
-            throw new IllegalArgumentException("scheduler cannot be null");
-        }
-
+        stateLock.lock();
         try {
             scheduledTask = scheduleTask(scheduler);
             state = ServiceState.RUNNING;
             logger.info(getName() + " service resumed");
-
         } catch (Exception e) {
             logger.severe(getName() + " resume failed: " + e.getMessage());
             state = ServiceState.FAILED;
+        } finally {
+            stateLock.unlock();
         }
     }
 

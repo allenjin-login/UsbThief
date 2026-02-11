@@ -21,12 +21,13 @@ import java.util.Map;
  */
 public class ConfigDialog extends JDialog {
 
+    private static final I18NManager i18n = I18NManager.getInstance();
     private final Map<String, JComponent> valueComponents = new HashMap<>();
     private final JTabbedPane tabbedPane;
     private final ConfigManager configManager;
 
     public ConfigDialog(JFrame parent) {
-        super(parent, "配置", true);
+        super(parent, i18n.getMessage("config.title"), true);
         setSize(800, 700);
         setLocationRelativeTo(parent);
 
@@ -44,25 +45,25 @@ public class ConfigDialog extends JDialog {
 
         // Import/Export buttons
         JPanel importExportPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton importButton = new JButton("导入配置");
-        importButton.setToolTipText("从文件导入配置");
+        JButton importButton = new JButton(i18n.getMessage("config.button.import"));
+        importButton.setToolTipText(i18n.getMessage("config.button.import.tooltip"));
         importButton.addActionListener(e -> importConfig());
 
-        JButton exportButton = new JButton("导出配置");
-        exportButton.setToolTipText("导出配置到文件");
+        JButton exportButton = new JButton(i18n.getMessage("config.button.export"));
+        exportButton.setToolTipText(i18n.getMessage("config.button.export.tooltip"));
         exportButton.addActionListener(e -> exportConfig());
 
         importExportPanel.add(importButton);
         importExportPanel.add(exportButton);
 
         // Action buttons
-        JButton saveButton = new JButton("保存");
+        JButton saveButton = new JButton(i18n.getMessage("config.button.save"));
         saveButton.addActionListener(e -> saveConfig());
 
-        JButton resetButton = new JButton("重置为默认值");
+        JButton resetButton = new JButton(i18n.getMessage("config.button.reset"));
         resetButton.addActionListener(e -> resetToDefaults());
 
-        JButton cancelButton = new JButton("取消");
+        JButton cancelButton = new JButton(i18n.getMessage("config.button.cancel"));
         cancelButton.addActionListener(e -> dispose());
 
         JPanel buttonPanel = new JPanel(new BorderLayout());
@@ -137,7 +138,7 @@ public class ConfigDialog extends JDialog {
         } else if (entry.type() == ConfigType.STRING_LIST) {
             return createTextArea((List<String>) currentValue, entry.description());
         }
-        return new JLabel("Unknown type");
+        return new JLabel(i18n.getMessage("common.unknown"));
     }
 
     /**
@@ -200,7 +201,7 @@ public class ConfigDialog extends JDialog {
      */
     private JTextArea createTextArea(List<String> values, String description) {
         JTextArea textArea = new JTextArea(values != null ? String.join(";", values) : "", 5, 30);
-        textArea.setToolTipText(description + " (多个值用分号分隔)");
+        textArea.setToolTipText(description + " (" + i18n.getMessage("config.tooltip.separator") + ")");
         textArea.setLineWrap(true);
         textArea.setWrapStyleWord(true);
         JScrollPane scrollPane = new JScrollPane(textArea);
@@ -257,10 +258,10 @@ public class ConfigDialog extends JDialog {
                 }
             }
 
-            JOptionPane.showMessageDialog(this, "配置已保存！", "成功", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, i18n.getMessage("config.success"), i18n.getMessage("common.success"), JOptionPane.INFORMATION_MESSAGE);
             dispose();
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "保存配置失败: " + e.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, i18n.getMessage("config.error.save") + ": " + e.getMessage(), i18n.getMessage("common.error"), JOptionPane.ERROR_MESSAGE);
             e.printStackTrace();
         }
     }
@@ -270,13 +271,13 @@ public class ConfigDialog extends JDialog {
      */
     private void resetToDefaults() {
         int confirm = JOptionPane.showConfirmDialog(this,
-                "确定要重置所有配置为默认值吗？",
-                "确认重置",
+                i18n.getMessage("config.reset.confirm"),
+                i18n.getMessage("config.reset.confirm.title"),
                 JOptionPane.YES_NO_OPTION);
 
         if (confirm == JOptionPane.YES_OPTION) {
             configManager.resetToDefaults();
-            JOptionPane.showMessageDialog(this, "配置已重置为默认值，请重新打开配置对话框。", "成功", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, i18n.getMessage("config.reset.success"), i18n.getMessage("common.success"), JOptionPane.INFORMATION_MESSAGE);
             dispose();
         }
     }
@@ -286,8 +287,8 @@ public class ConfigDialog extends JDialog {
      */
     private void importConfig() {
         JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setDialogTitle("导入配置文件");
-        fileChooser.setFileFilter(new FileNameExtensionFilter("配置文件 (*.properties, *.json)", "properties", "json"));
+        fileChooser.setDialogTitle(i18n.getMessage("config.import.title"));
+        fileChooser.setFileFilter(new FileNameExtensionFilter(i18n.getMessage("config.import.filter"), "properties", "json"));
 
         int result = fileChooser.showOpenDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
@@ -299,14 +300,14 @@ public class ConfigDialog extends JDialog {
                 } else if (fileName.endsWith(".properties")) {
                     configManager.importFromProperties(path);
                 } else {
-                    JOptionPane.showMessageDialog(this, "不支持的文件格式，请使用 .properties 或 .json 文件。", "错误", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(this, i18n.getMessage("config.import.unsupported"), i18n.getMessage("common.error"), JOptionPane.ERROR_MESSAGE);
                     return;
                 }
 
-                JOptionPane.showMessageDialog(this, "配置已成功导入，请重新打开配置对话框。", "成功", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, i18n.getMessage("config.import.success"), i18n.getMessage("common.success"), JOptionPane.INFORMATION_MESSAGE);
                 dispose();
             } catch (Exception e) {
-                JOptionPane.showMessageDialog(this, "导入配置失败: " + e.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, i18n.getMessage("config.import.error") + ": " + e.getMessage(), i18n.getMessage("common.error"), JOptionPane.ERROR_MESSAGE);
             }
         }
     }
@@ -316,8 +317,8 @@ public class ConfigDialog extends JDialog {
      */
     private void exportConfig() {
         JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setDialogTitle("导出配置文件");
-        fileChooser.setFileFilter(new FileNameExtensionFilter("JSON 文件 (*.json)", "json"));
+        fileChooser.setDialogTitle(i18n.getMessage("config.export.title"));
+        fileChooser.setFileFilter(new FileNameExtensionFilter(i18n.getMessage("config.export.filter"), "json"));
 
         int result = fileChooser.showSaveDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
@@ -330,9 +331,9 @@ public class ConfigDialog extends JDialog {
 
             try {
                 configManager.exportToJson(path);
-                JOptionPane.showMessageDialog(this, "配置已成功导出到: " + path, "成功", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, i18n.getMessage("config.export.success", path.toString()), i18n.getMessage("common.success"), JOptionPane.INFORMATION_MESSAGE);
             } catch (Exception e) {
-                JOptionPane.showMessageDialog(this, "导出配置失败: " + e.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, i18n.getMessage("config.export.error") + ": " + e.getMessage(), i18n.getMessage("common.error"), JOptionPane.ERROR_MESSAGE);
             }
         }
     }

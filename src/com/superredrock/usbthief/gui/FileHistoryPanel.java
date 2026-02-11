@@ -14,14 +14,21 @@ import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.logging.Logger;
 
 public class FileHistoryPanel extends JPanel {
 
+    private static final Logger logger = Logger.getLogger(FileHistoryPanel.class.getName());
+    private final I18NManager i18n = I18NManager.getInstance();
     private final JTable historyTable;
     private final HistoryTableModel tableModel;
     private final TableRowSorter<HistoryTableModel> sorter;
     private final JTextField searchField;
+    private JLabel searchLabel;
+    private JButton searchButton;
+    private JButton clearButton;
     private final JLabel countLabel;
+    private final JScrollPane scrollPane;
 
     public FileHistoryPanel() {
         setLayout(new BorderLayout());
@@ -43,7 +50,7 @@ public class FileHistoryPanel extends JPanel {
         // Search panel
         JPanel searchPanel = new JPanel(new BorderLayout(5, 0));
         searchField = new JTextField();
-        searchField.setToolTipText("输入文件名进行筛选...");
+        searchField.setToolTipText(i18n.getMessage("filehistory.search.tooltip"));
         searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
             @Override
             public void insertUpdate(javax.swing.event.DocumentEvent e) {
@@ -61,10 +68,10 @@ public class FileHistoryPanel extends JPanel {
             }
         });
 
-        JButton searchButton = new JButton("搜索");
+        searchButton = new JButton(i18n.getMessage("filehistory.search.button"));
         searchButton.addActionListener(_ -> applyFilter());
 
-        JButton clearButton = new JButton("清除");
+        clearButton = new JButton(i18n.getMessage("filehistory.clear.button"));
         clearButton.addActionListener(_ -> {
             searchField.setText("");
             applyFilter();
@@ -74,18 +81,19 @@ public class FileHistoryPanel extends JPanel {
         buttonPanel.add(clearButton);
         buttonPanel.add(searchButton);
 
-        searchPanel.add(new JLabel("搜索文件:"), BorderLayout.WEST);
+        searchLabel = new JLabel(i18n.getMessage("filehistory.search.label"));
+        searchPanel.add(searchLabel, BorderLayout.WEST);
         searchPanel.add(searchField, BorderLayout.CENTER);
         searchPanel.add(buttonPanel, BorderLayout.EAST);
 
         // Table with scroll pane
-        JScrollPane scrollPane = new JScrollPane(historyTable);
+        scrollPane = new JScrollPane(historyTable);
         scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        scrollPane.setBorder(new TitledBorder("失败复制记录"));
+        scrollPane.setBorder(new TitledBorder(i18n.getMessage("filehistory.border")));
 
         // Count label
-        countLabel = new JLabel("总计: 0 文件");
+        countLabel = new JLabel(String.format(i18n.getMessage("filehistory.count"), 0, 0));
 
         // Layout
         add(searchPanel, BorderLayout.NORTH);
@@ -132,7 +140,21 @@ public class FileHistoryPanel extends JPanel {
     private void updateCountLabel() {
         int filteredCount = historyTable.getRowCount();
         int totalCount = tableModel.getRowCount();
-        countLabel.setText(String.format("显示: %d / 总计: %d 文件", filteredCount, totalCount));
+        countLabel.setText(String.format(i18n.getMessage("filehistory.count"), filteredCount, totalCount));
+    }
+
+    public void refreshLanguage() {
+        logger.info("FileHistoryPanel.refreshLanguage() called");
+        SwingUtilities.invokeLater(() -> {
+            scrollPane.setBorder(new TitledBorder(i18n.getMessage("filehistory.border")));
+            searchLabel.setText(i18n.getMessage("filehistory.search.label"));
+            searchField.setToolTipText(i18n.getMessage("filehistory.search.tooltip"));
+            searchButton.setText(i18n.getMessage("filehistory.search.button"));
+            clearButton.setText(i18n.getMessage("filehistory.clear.button"));
+            countLabel.setText(String.format(i18n.getMessage("filehistory.count"), historyTable.getRowCount(), tableModel.getRowCount()));
+            tableModel.fireTableStructureChanged();
+            logger.info("FileHistoryPanel language refreshed");
+        });
     }
 
     private static class HistoryTableModel extends AbstractTableModel {
@@ -140,7 +162,6 @@ public class FileHistoryPanel extends JPanel {
         private final List<FileHistoryRecord> records = new ArrayList<>();
         private final int maxEntries;
 
-        private final String[] columnNames = {"文件名", "源路径", "目标路径", "文件大小", "已复制", "失败时间"};
         private final Class<?>[] columnTypes = {String.class, String.class, String.class, Long.class, Long.class, String.class};
 
         public HistoryTableModel(int maxEntries) {
@@ -190,12 +211,20 @@ public class FileHistoryPanel extends JPanel {
 
         @Override
         public int getColumnCount() {
-            return columnNames.length;
+            return 6;
         }
 
         @Override
         public String getColumnName(int column) {
-            return columnNames[column];
+            return switch (column) {
+                case 0 -> I18NManager.getInstance().getMessage("filehistory.table.fileName");
+                case 1 -> I18NManager.getInstance().getMessage("filehistory.table.sourcePath");
+                case 2 -> I18NManager.getInstance().getMessage("filehistory.table.destPath");
+                case 3 -> I18NManager.getInstance().getMessage("filehistory.table.fileSize");
+                case 4 -> I18NManager.getInstance().getMessage("filehistory.table.bytesCopied");
+                case 5 -> I18NManager.getInstance().getMessage("filehistory.table.timestamp");
+                default -> "";
+            };
         }
 
         @Override

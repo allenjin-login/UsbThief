@@ -15,6 +15,7 @@ import java.util.List;
  */
 public class BlacklistDialog extends JDialog {
 
+    private static final I18NManager i18n = I18NManager.getInstance();
     private final JList<String> blacklistList;
     private final DefaultListModel<String> listModel;
 
@@ -24,7 +25,7 @@ public class BlacklistDialog extends JDialog {
      * @param parent parent frame
      */
     public BlacklistDialog(JFrame parent) {
-        super(parent, "设备黑名单", true);
+        super(parent, i18n.getMessage("blacklist.title"), true);
         setSize(500, 450);
         setLocationRelativeTo(parent);
         setLayout(new BorderLayout(10, 10));
@@ -37,12 +38,12 @@ public class BlacklistDialog extends JDialog {
         blacklistList = new JList<>(listModel);
         blacklistList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         blacklistList.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
-        blacklistList.setToolTipText("设备序列号 - 设备的唯一标识");
+        blacklistList.setToolTipText(i18n.getMessage("blacklist.tooltip"));
 
         JScrollPane scrollPane = new JScrollPane(blacklistList);
         scrollPane.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createEtchedBorder(),
-                "已屏蔽的设备 (按序列号)",
+                i18n.getMessage("blacklist.border.title"),
                 TitledBorder.LEFT,
                 TitledBorder.TOP));
 
@@ -75,10 +76,8 @@ public class BlacklistDialog extends JDialog {
 
         JLabel infoLabel = new JLabel("<html>" +
                 "<div style='padding: 10px;'>" +
-                "<b>提示：</b><br>" +
-                "• 黑名单使用设备序列号作为唯一标识<br>" +
-                "• 序列号不会因盘符变化而改变<br>" +
-                "• 可以在设备列表中直接点击'加入黑名单'按钮" +
+                "<b>" + i18n.getMessage("blacklist.info.title") + "</b><br>" +
+                i18n.getMessage("blacklist.info.text").replace("\n", "<br>") +
                 "</div>" +
                 "</html>");
         infoLabel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -95,19 +94,19 @@ public class BlacklistDialog extends JDialog {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
 
         // Add button
-        JButton addButton = new JButton("添加");
+        JButton addButton = new JButton(i18n.getMessage("blacklist.button.add"));
         addButton.addActionListener(e -> addDevice());
 
         // Remove button
-        JButton removeButton = new JButton("移除");
+        JButton removeButton = new JButton(i18n.getMessage("blacklist.button.remove"));
         removeButton.addActionListener(e -> removeDevice());
 
         // Clear all button
-        JButton clearButton = new JButton("清空");
+        JButton clearButton = new JButton(i18n.getMessage("blacklist.button.clear"));
         clearButton.addActionListener(e -> clearBlacklist());
 
         // Close button
-        JButton closeButton = new JButton("关闭");
+        JButton closeButton = new JButton(i18n.getMessage("blacklist.button.close"));
         closeButton.addActionListener(e -> dispose());
 
         // Add to panel
@@ -136,9 +135,8 @@ public class BlacklistDialog extends JDialog {
     private void addDevice() {
         String serialNumber = JOptionPane.showInputDialog(
                 this,
-                "<html>输入设备序列号：<br>" +
-                "<small>提示：可以从设备列表中点击'加入黑名单'按钮直接添加</small></html>",
-                "添加设备到黑名单",
+                "<html>" + i18n.getMessage("blacklist.add.prompt").replace("\n", "<br>") + "</html>",
+                i18n.getMessage("blacklist.add.title"),
                 JOptionPane.QUESTION_MESSAGE);
 
         if (serialNumber != null && !serialNumber.trim().isEmpty()) {
@@ -149,8 +147,8 @@ public class BlacklistDialog extends JDialog {
                 if (listModel.getElementAt(i).equals(serialNumber)) {
                     JOptionPane.showMessageDialog(
                             this,
-                            "该设备已在黑名单中: " + serialNumber,
-                            "重复添加",
+                            i18n.getMessage("blacklist.add.duplicate", serialNumber),
+                            i18n.getMessage("blacklist.add.duplicate.title"),
                             JOptionPane.WARNING_MESSAGE);
                     return;
                 }
@@ -172,8 +170,8 @@ public class BlacklistDialog extends JDialog {
 
             int confirm = JOptionPane.showConfirmDialog(
                     this,
-                    "确定要移除以下设备吗?\n" + serialNumber,
-                    "确认移除",
+                    i18n.getMessage("blacklist.remove.confirm", serialNumber),
+                    i18n.getMessage("blacklist.remove.confirm.title"),
                     JOptionPane.YES_NO_OPTION,
                     JOptionPane.QUESTION_MESSAGE);
 
@@ -184,8 +182,8 @@ public class BlacklistDialog extends JDialog {
         } else {
             JOptionPane.showMessageDialog(
                     this,
-                    "请先选择要移除的设备",
-                    "未选择设备",
+                    i18n.getMessage("blacklist.remove.noselection"),
+                    i18n.getMessage("blacklist.remove.noselection.title"),
                     JOptionPane.INFORMATION_MESSAGE);
         }
     }
@@ -197,16 +195,16 @@ public class BlacklistDialog extends JDialog {
         if (listModel.isEmpty()) {
             JOptionPane.showMessageDialog(
                     this,
-                    "黑名单为空",
-                    "无设备",
+                    i18n.getMessage("blacklist.clear.empty"),
+                    i18n.getMessage("blacklist.clear.empty.title"),
                     JOptionPane.INFORMATION_MESSAGE);
             return;
         }
 
         int confirm = JOptionPane.showConfirmDialog(
                 this,
-                "确定要清空所有黑名单设备吗?\n共 " + listModel.size() + " 个设备",
-                "确认清空",
+                i18n.getMessage("blacklist.clear.confirm", listModel.size()),
+                i18n.getMessage("blacklist.clear.confirm.title"),
                 JOptionPane.YES_NO_OPTION,
                 JOptionPane.WARNING_MESSAGE);
 
@@ -215,8 +213,8 @@ public class BlacklistDialog extends JDialog {
             saveBlacklist();
             JOptionPane.showMessageDialog(
                     this,
-                    "黑名单已清空",
-                    "操作完成",
+                    i18n.getMessage("blacklist.clear.success"),
+                    i18n.getMessage("blacklist.clear.success.title"),
                     JOptionPane.INFORMATION_MESSAGE);
         }
     }

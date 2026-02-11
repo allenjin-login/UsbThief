@@ -25,6 +25,7 @@ public class CopyTask implements Callable<CopyResult> {
 
     protected Path processingPath;
     private static volatile RateLimiter rateLimiter;
+    private static final Object rateLimiterLock = new Object();
     private static final SpeedProbeGroup speedProbeGroup = new SpeedProbeGroup("copy-tasks");
     private static long lastLogTime = 0;
     private static final long LOG_INTERVAL_MS = 1000;
@@ -45,14 +46,20 @@ public class CopyTask implements Callable<CopyResult> {
         return speedProbeGroup;
     }
 
-    private static synchronized RateLimiter getRateLimiter() {
-        long currentLimit = ConfigManager.getInstance().get(ConfigSchema.COPY_RATE_LIMIT);
-        long currentBurst = ConfigManager.getInstance().get(ConfigSchema.COPY_RATE_BURST_SIZE);
+    private static RateLimiter getRateLimiter() {
+        RateLimiter current = rateLimiter;
+        long limit = ConfigManager.getInstance().get(ConfigSchema.COPY_RATE_LIMIT);
+        long burst = ConfigManager.getInstance().get(ConfigSchema.COPY_RATE_BURST_SIZE);
 
-        if (rateLimiter == null ||
-            currentLimit != rateLimiter.getRateLimitBytesPerSecond() ||
-            currentBurst != rateLimiter.getBurstSize()) {
-            rateLimiter = new RateLimiter(currentLimit, currentBurst);
+        if (current == null || limit != current.getRateLimitBytesPerSecond() 
+                || burst != current.getBurstSize()) {
+            synchronized (rateLimiterLock) {
+                current = rateLimiter;
+                if (current == null || limit != current.getRateLimitBytesPerSecond() 
+                        || burst != current.getBurstSize()) {
+                    rateLimiter = new RateLimiter(limit, burst);
+                }
+            }
         }
         return rateLimiter;
     }

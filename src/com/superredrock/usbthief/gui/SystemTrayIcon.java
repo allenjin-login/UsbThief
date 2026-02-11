@@ -16,6 +16,7 @@ import java.util.logging.Logger;
 public class SystemTrayIcon {
     private static final Logger logger = Logger.getLogger(SystemTrayIcon.class.getName());
 
+    private final I18NManager i18n = I18NManager.getInstance();
     private final MainFrame mainFrame;
     private TrayIcon trayIcon;
     private MenuItem showHideItem;
@@ -46,7 +47,7 @@ public class SystemTrayIcon {
         PopupMenu popup = new PopupMenu();
 
         // Show/Hide toggle menu item
-        showHideItem = new MenuItem("Show Window");
+        showHideItem = new MenuItem(i18n.getMessage("tray.menu.show"));
         showHideItem.addActionListener(this::toggleWindowVisibility);
         popup.add(showHideItem);
 
@@ -55,21 +56,21 @@ public class SystemTrayIcon {
 
         // Always Hide toggle menu item
         boolean alwaysHidden = ConfigManager.getInstance().get(ConfigSchema.ALWAYS_HIDDEN);
-        alwaysHideItem = new MenuItem("Always Hide: " + (alwaysHidden ? "Yes" : "No"));
+        alwaysHideItem = new MenuItem(i18n.getMessage("tray.menu.alwaysHide", alwaysHidden ? i18n.getMessage("tray.menu.yes") : i18n.getMessage("tray.menu.no")));
         alwaysHideItem.addActionListener(this::toggleAlwaysHidden);
         popup.add(alwaysHideItem);
 
         popup.addSeparator();
 
         // Start/Stop scanning menu item
-        scanItem = new MenuItem("Pause Scanning");
+        scanItem = new MenuItem(i18n.getMessage("tray.menu.pause"));
         scanItem.addActionListener(this::toggleScanning);
         popup.add(scanItem);
 
         popup.addSeparator();
 
         // Exit menu item
-        MenuItem exitItem = new MenuItem("Exit");
+        MenuItem exitItem = new MenuItem(i18n.getMessage("tray.menu.exit"));
         exitItem.addActionListener(this::exitApplication);
         popup.add(exitItem);
 
@@ -84,7 +85,7 @@ public class SystemTrayIcon {
         // Create tray icon with tooltip
         int iconSize = systemTray.getTrayIconSize().width;
         Image scaledImage = trayImage.getScaledInstance(iconSize, iconSize, Image.SCALE_SMOOTH);
-        trayIcon = new TrayIcon(scaledImage, "UsbThief - USB Device Monitor", popup);
+        trayIcon = new TrayIcon(scaledImage, i18n.getMessage("tray.tooltip"), popup);
 
         // Set auto-size to true for better appearance
         trayIcon.setImageAutoSize(true);
@@ -181,7 +182,7 @@ public class SystemTrayIcon {
         ConfigManager.getInstance().set(ConfigSchema.ALWAYS_HIDDEN, newValue);
 
         // Update menu item label
-        alwaysHideItem.setLabel("Always Hide: " + (newValue ? "Yes" : "No"));
+        alwaysHideItem.setLabel(i18n.getMessage("tray.menu.alwaysHide", newValue ? i18n.getMessage("tray.menu.yes") : i18n.getMessage("tray.menu.no")));
 
         logger.info("Always Hidden setting changed to: " + newValue);
 
@@ -198,11 +199,11 @@ public class SystemTrayIcon {
         MenuItem item = (MenuItem) e.getSource();
         // This would need access to deviceListPanel
         // For now, just toggle the label
-        if (item.getLabel().equals("Pause Scanning")) {
-            item.setLabel("Start Scanning");
+        if (item.getLabel().equals(i18n.getMessage("tray.menu.pause"))) {
+            item.setLabel(i18n.getMessage("tray.menu.start"));
             logger.info("Scanning paused (menu toggle)");
         } else {
-            item.setLabel("Pause Scanning");
+            item.setLabel(i18n.getMessage("tray.menu.pause"));
             logger.info("Scanning resumed (menu toggle)");
         }
     }
@@ -215,8 +216,8 @@ public class SystemTrayIcon {
 
         int confirm = JOptionPane.showConfirmDialog(
             mainFrame,
-            "Are you sure you want to exit UsbThief?",
-            "Confirm Exit",
+            i18n.getMessage("tray.exit.confirm"),
+            i18n.getMessage("tray.exit.confirm.title"),
             JOptionPane.YES_NO_OPTION,
             JOptionPane.QUESTION_MESSAGE
         );
@@ -233,7 +234,7 @@ public class SystemTrayIcon {
     private void updateMenuItems() {
         if (trayIcon != null && trayIcon.getPopupMenu() != null) {
             // Update Show/Hide item
-            showHideItem.setLabel(mainFrame.isVisible() ? "Show Window" : "Hide Window" );
+            showHideItem.setLabel(mainFrame.isVisible() ? i18n.getMessage("tray.menu.show") : i18n.getMessage("tray.menu.hide"));
         }
     }
 
@@ -242,6 +243,20 @@ public class SystemTrayIcon {
      */
     public void updateShowHideMenuItem() {
         updateMenuItems();
+    }
+
+    /**
+     * Refresh all menu item labels after locale change.
+     */
+    public void refreshLanguage() {
+        if (trayIcon == null) return;
+
+        trayIcon.setToolTip(i18n.getMessage("tray.tooltip"));
+
+        boolean alwaysHidden = ConfigManager.getInstance().get(ConfigSchema.ALWAYS_HIDDEN);
+        showHideItem.setLabel(mainFrame.isVisible() ? i18n.getMessage("tray.menu.hide") : i18n.getMessage("tray.menu.show"));
+        alwaysHideItem.setLabel(i18n.getMessage("tray.menu.alwaysHide", alwaysHidden ? i18n.getMessage("tray.menu.yes") : i18n.getMessage("tray.menu.no")));
+        scanItem.setLabel(i18n.getMessage("tray.menu.pause"));
     }
 
     /**
