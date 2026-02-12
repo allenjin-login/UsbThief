@@ -37,20 +37,6 @@ public record LanguageInfo(
     }
 
     /**
-     * Create a LanguageInfo from locale string (e.g., "zh_CN", "en").
-     */
-    public static LanguageInfo fromString(String localeString) {
-        String[] parts = localeString.split("_");
-        Locale locale = switch (parts.length) {
-            case 1 -> new Locale(parts[0]);
-            case 2 -> new Locale(parts[0], parts[1]);
-            case 3 -> new Locale(parts[0], parts[1], parts[2]);
-            default -> throw new IllegalArgumentException("Invalid locale string: " + localeString);
-        };
-        return new LanguageInfo(locale);
-    }
-
-    /**
      * Get locale string for this language.
      */
     public String localeString() {

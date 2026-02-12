@@ -11,17 +11,9 @@ import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.ScheduledFuture;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * Task scheduler with priority queue and adaptive load-based dispatching.
- * Extends Service for lifecycle management and periodic task submission.
- * Uses graceful degradation: falls back to FIFO submission on errors.
- */
 public class TaskScheduler extends Service {
     private static final Logger logger = Logger.getLogger(TaskScheduler.class.getName());
 
@@ -49,22 +41,29 @@ public class TaskScheduler extends Service {
     }
 
     @Override
-    protected ScheduledFuture<?> scheduleTask(ScheduledThreadPoolExecutor scheduler) {
-        long initialDelay = ConfigManager.getInstance().get(ConfigSchema.SCHEDULER_INITIAL_DELAY_MS);
-        long interval = ConfigManager.getInstance().get(ConfigSchema.SCHEDULER_TICK_INTERVAL_MS);
+    protected void tick() {
+        if (getServiceState() != ServiceState.RUNNING) {
+            return;
+        }
 
-        logger.info("Scheduling TaskScheduler with " + interval + "ms interval");
+        LoadScore score = loadEvaluator.evaluateLoad();
 
-        return scheduler.scheduleAtFixedRate(
-            this,
-            initialDelay,
-            interval,
-            TimeUnit.MILLISECONDS
-        );
+        switch (score.level()) {
+            case HIGH -> handleHighLoad();
+            case MEDIUM -> dispatchBatch(5);
+            case LOW -> dispatchAll();
+        }
+
+        adjustRateLimit(score.level());
     }
 
     @Override
-    public String getName() {
+    protected long getTickIntervalMs() {
+        return 500;
+    }
+
+    @Override
+    public String getServiceName() {
         return "TaskScheduler";
     }
 
@@ -73,28 +72,8 @@ public class TaskScheduler extends Service {
         return "Adaptive priority scheduler with load-based task accumulation";
     }
 
-    @Override
-    public void run() {
-        if (getState() != ServiceState.RUNNING) {
-            return;
-        }
-
-        LoadScore score = loadEvaluator.evaluateLoad();
-
-        switch (score.level()) {
-            case HIGH -> handleHighLoad();
-            case MEDIUM -> dispatchBatch(ConfigManager.getInstance().get(ConfigSchema.SCHEDULER_MEDIUM_BATCH_SIZE));
-            case LOW -> dispatchAll(); // 在 LOW 负载时尽可能推出所有任务
-        }
-
-        adjustRateLimit(score.level());
-    }
-
-    /**
-     * Submit task to scheduler. Tasks are queued and periodically dispatched.
-     */
     public void submit(PriorityCopyTask task) {
-        ServiceState state = getState();
+        ServiceState state = getServiceState();
         if (state == ServiceState.STOPPED || state == ServiceState.FAILED) {
             throw new IllegalStateException("TaskScheduler is not running, state: " + state);
         }
@@ -110,8 +89,6 @@ public class TaskScheduler extends Service {
             int queueDepth = getQueueDepth();
             logger.warning("High load detected - entering accumulation mode, queue depth: " + queueDepth);
         }
-
-        // Don't submit tasks while accumulating - let them queue up
     }
 
     private void dispatchBatch(int batchSize) {
@@ -138,10 +115,6 @@ public class TaskScheduler extends Service {
         dispatchTask(batch);
     }
 
-    /**
-     * Dispatch all pending tasks without limit.
-     * Used during LOW load to maximize throughput.
-     */
     private void dispatchAll() {
         if (accumulating) {
             accumulating = false;
@@ -175,25 +148,17 @@ public class TaskScheduler extends Service {
                 synchronized (priorityQueue) {
                     priorityQueue.offer(task);
                 }
-                break; // Stop dispatching on rejection
+                break;
             } catch (Exception e) {
                 logger.log(Level.SEVERE, "Failed to submit task, dropping", e);
             }
         }
     }
 
-    /**
-     * Get current queue depth (number of pending tasks).
-     * Thread-safe: synchronized on priorityQueue access.
-     */
     public synchronized int getQueueDepth() {
         return priorityQueue.size();
     }
 
-    /**
-     * Adjust rate limit based on current load level.
-     * Only decreases rate under HIGH/MEDIUM load, never increases above base.
-     */
     private void adjustRateLimit(LoadLevel level) {
         ConfigManager config = ConfigManager.getInstance();
 
@@ -228,7 +193,6 @@ public class TaskScheduler extends Service {
     protected void cleanup() {
         logger.info("Cleaning up TaskScheduler...");
 
-        // Try to drain remaining tasks
         int drained = 0;
         synchronized (priorityQueue) {
             while (!priorityQueue.isEmpty()) {

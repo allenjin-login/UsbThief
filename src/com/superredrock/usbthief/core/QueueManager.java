@@ -62,7 +62,7 @@ public class QueueManager {
 
         try {
             // 1. Stop index periodic save service
-            index.stop();
+            index.stopService();
             logger.info("Index ticker stopped");
 
             // 2. Save index

@@ -139,7 +139,9 @@ public class Device {
     }
 
     public void updateState(){
-        // Skip if manually disabled
+        if (ghost) {
+            return;
+        }
         if (this.state == DeviceState.DISABLED) {
             return;
         }
@@ -149,23 +151,29 @@ public class Device {
             this.volumeName = fileStore.name();
             // Device is accessible - keep current state (IDLE/SCANNING handled by update())
         } catch (IOException e) {
-            if (e instanceof NoSuchFileException) {
-                // Device unplugged - convert to ghost state
-                if (!ghost) {
-                    checkChangeAndUpdate(DeviceState.OFFLINE);
-                    convertToGhost();
+            switch (e){
+                case NoSuchFileException _ -> {
+                    if (!ghost) {
+                        checkChangeAndUpdate(DeviceState.OFFLINE);
+                        convertToGhost();
+                    }
                 }
-            } else if (e instanceof AccessDeniedException) {
-                checkChangeAndUpdate(DeviceState.UNAVAILABLE);
-            } else {
-                checkChangeAndUpdate(DeviceState.UNAVAILABLE);
-                DeviceManager.logger.throwing("Device","updateState",e);
+                case AccessDeniedException _ -> {
+                    checkChangeAndUpdate(DeviceState.UNAVAILABLE);
+                }
+                default -> {
+                    checkChangeAndUpdate(DeviceState.UNAVAILABLE);
+                    DeviceManager.logger.throwing("Device","updateState", e);
+                }
             }
+
         }
     }
 
     public void update(){
-        // Check connection status first (skip if disabled)
+        if (ghost) {
+            return;
+        }
         if (this.state != DeviceState.DISABLED) {
             updateState();
         }

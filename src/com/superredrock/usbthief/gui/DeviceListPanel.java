@@ -396,6 +396,8 @@ public class DeviceListPanel extends JPanel {
                 buttonPanel.add(toggleButton);
                 buttonPanel.add(blacklistButton);
                 buttonPanel.add(removeButton);
+
+                updateButtonEnabled();
             } else {
                 toggleButton = null;
                 blacklistButton = null;
@@ -462,6 +464,9 @@ public class DeviceListPanel extends JPanel {
         }
 
         private void toggleDevice() {
+            if (device.isGhost()) {
+                return;
+            }
             if (device.getState() == Device.DeviceState.DISABLED) {
                 device.enable();
             } else {
@@ -470,6 +475,9 @@ public class DeviceListPanel extends JPanel {
         }
 
         private void addToBlacklist() {
+            if (device.isGhost()) {
+                return;
+            }
             String serialNumber = device.getSerialNumber();
             String devicePath = device.getRootPath().toString();
 
@@ -552,6 +560,23 @@ public class DeviceListPanel extends JPanel {
         }
 
         /**
+         * Updates button enabled state based on device status.
+         * Ghost devices have buttons disabled.
+         * System disks don't have buttons at all.
+         */
+        private void updateButtonEnabled() {
+            boolean enabled = !device.isGhost();
+            checkBox.setEnabled(enabled);
+            if (toggleButton != null){
+                toggleButton.setEnabled(enabled);
+            }
+            if (blacklistButton != null){
+                blacklistButton.setEnabled(enabled);
+            }
+
+        }
+
+        /**
          * Refreshes all device information displayed on this card.
          * Called when device state changes or device is updated.
          */
@@ -585,20 +610,13 @@ public class DeviceListPanel extends JPanel {
                 if (toggleButton != null) {
                     toggleButton.setText(getToggleButtonText());
                 }
+
+                // Update button enabled state
+                updateButtonEnabled();
             });
         }
 
         public void updateState(Device.DeviceState newState) {
-            refreshDeviceInfo();
-        }
-
-        // Deprecated: Use refreshDeviceInfo() instead
-        public void updateIcon() {
-            refreshDeviceInfo();
-        }
-
-        // Deprecated: Use refreshDeviceInfo() instead
-        public void updateVolumeName() {
             refreshDeviceInfo();
         }
 

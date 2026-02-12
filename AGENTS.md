@@ -1,12 +1,12 @@
 # UsbThief - Project Knowledge Base
 
 **Generated:** 2026-02-03
-**Last Updated:** 2026-02-11
+**Last Updated:** 2026-02-12
 **Java Version:** 24 (modular, with --enable-preview)
 **Module:** UsbThief
 
 ## OVERVIEW
-USB device monitoring and file copying utility for Windows. Detects USB drives, monitors file changes in real-time, and copies files using checksum-based deduplication. Features an extensible event system for device lifecycle notifications. **Priority-based task scheduling with adaptive load control and load-aware rate limiting.** **Full internationalization (i18n) support with hot language switching.**
+USB device monitoring and file copying utility for Windows. Detects USB drives, monitors file changes in real-time, and copies files using checksum-based deduplication. Features an extensible event system for device lifecycle notifications. **Priority-based task scheduling with adaptive load control and load-aware rate limiting.** **Full internationalization (i18n) support with hot language switching.** **Thread-based service architecture with sleep-based tick scheduling.**
 
 ## STRUCTURE
 ```
@@ -52,8 +52,10 @@ java -p out -m UsbThief/com.superredrock.usbthief.Main
 ### Resource Bundles
 Located in `src/com/superredrock/usbthief/gui/`:
 - `messages.properties` - English (default, 263 keys)
-- `messages_zh_CN.properties.utf8` - Chinese Simplified (UTF-8 encoded)
-- Naming: `messages_<locale>.properties.utf8` (auto-discovered)
+- `messages_en.properties` - English
+- `messages_zh_CN.properties` - Chinese Simplified
+- `messages_de.properties` - German
+- Naming: `messages_<locale>.properties` (auto-discovered)
 
 ### Key Naming Conventions
 - `main.*` - MainFrame window/menu items
@@ -77,7 +79,7 @@ public void refreshLanguage() {
 ```
 
 ### Adding New Languages
-1. Create `messages_<locale>.properties.utf8` in gui package
+1. Create `messages_<locale>.properties` in gui package
 2. Add translations for all keys (UTF-8 encoding, no Unicode escapes needed)
 3. Restart application - language auto-appears in menu
 4. Optional: Configure in `~/.usbthief/languages.properties`
@@ -245,6 +247,72 @@ try (FileChannel readChannel = FileChannel.open(path, StandardOpenOption.READ);
  */
 ```
 
+## SERVICE ARCHITECTURE
+
+### Design Pattern
+- **Service extends Thread**: Thread-based execution instead of ScheduledThreadPoolExecutor
+- **Tick-based lifecycle**: Subclasses implement `tick()` method for periodic execution
+- **Hard-coded intervals**: Subclasses override `getTickIntervalMs()` to specify tick timing
+- **No user-configurable delays**: Tick intervals are set in code, not via configuration
+
+### Abstract Methods
+```java
+protected abstract void tick();              // Core tick logic (replaces run())
+protected abstract long getTickIntervalMs(); // Hard-coded tick interval in milliseconds
+public abstract String getServiceName();        // Service name (renamed to avoid Thread.getName() conflict)
+public abstract String getDescription();        // Service description
+```
+
+### Service Lifecycle
+```
+STOPPED → STARTING → RUNNING → STOPPING → STOPPED
+                    ↕
+                 PAUSED
+```
+
+### Method Renaming (Thread Conflicts)
+- `getName()` → `getServiceName()` (Thread.getName() is final)
+- `getState()` → `getServiceState()` (Thread.getState() is final)
+- `stop()` → `stopService()` (Thread.stop() is deprecated)
+
+### Subclass Implementations
+| Service | Tick Interval | Description |
+|---------|---------------|-------------|
+| DeviceManager | 2000ms | Device detection and monitoring |
+| TaskScheduler | 500ms | Task dispatch with load-based batching |
+| Index | 60000ms | Periodic index save when dirty |
+
+### Thread Safety
+- `volatile boolean running` - Controls main tick loop
+- `volatile boolean paused` - Pause/resume functionality
+- `ReentrantLock stateLock` - Protects state transitions
+- `TimeUnit.MILLISECONDS.sleep()` - More precise than Thread.sleep()
+
+### Pause/Resume Support
+```java
+// Pause: Sets paused flag, state changes to PAUSED
+public void pause();
+
+// Resume: Clears paused flag, state changes to RUNNING
+public void resume();
+
+// Tick loop checks paused flag before calling tick()
+if (!paused) {
+    tick();
+}
+```
+
+### Ghost Device Handling
+Ghost devices (devices with serial but no path) skip update operations:
+```java
+public void update() {
+    if (ghost) {
+        return; // Ghost devices don't need updates
+    }
+    // ... normal update logic
+}
+```
+
 ## ANTI-PATTERNS
 - **DO NOT hard-code constants** - always use ConfigManager
 - **DO NOT skip ThreadLocal.clear()** - buffers must be reset after use in thread pools
@@ -262,9 +330,11 @@ try (FileChannel readChannel = FileChannel.open(path, StandardOpenOption.READ);
 - **Checksum deduplication**: ConcurrentHashMap.newKeySet() for O(1) add operations
 - **Graceful degradation**: TaskScheduler falls back to FIFO on errors
 - **Token bucket rate limiting**: RateLimiter for copy speed control
+- **Thread-based services**: Each Service runs in its own Thread with tick-based execution
 
 ## NOTES
 - **Build**: Maven + IntelliJ IDEA
 - **Linting**: No formal linting - manual code review
 - **Module exports**: `index`, `core`, `core.config`, `core.event`, `gui`
 - **I18N**: Hot-switching enabled via I18NManager singleton with locale change listeners
+- **Supported Languages**: English (en), Chinese Simplified (zh_CN), German (de)

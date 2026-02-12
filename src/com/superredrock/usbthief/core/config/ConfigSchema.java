@@ -29,7 +29,7 @@ public class ConfigSchema {
             intEntry("initialDelaySeconds", "Initial delay before first device scan (seconds)", 10, "Device Scanner");
 
     public static final ConfigEntry<Integer> DELAY_SECONDS =
-            intEntry("delaySeconds", "Interval between device scans (seconds)", 5, "Device Scanner");
+            intEntry("delaySeconds", "Interval between device scans (seconds)", 500, "Device Scanner");
 
     // Index management configuration
     public static final ConfigEntry<Integer> SAVE_INITIAL_DELAY_SECONDS =
