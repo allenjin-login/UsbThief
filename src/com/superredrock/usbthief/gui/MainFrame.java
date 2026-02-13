@@ -162,7 +162,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
         SwingUtilities.invokeLater(() -> {
             try {
-                QueueManager.index.save();
+                QueueManager.getIndex().save();
                 updateStatusBar(i18n.getMessage("status.indexSaved"));
             } catch (Exception e) {
                 updateStatusBar(i18n.getMessage("status.indexSaveFailed"));
@@ -184,7 +184,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
         if (confirm == JOptionPane.YES_OPTION) {
             try {
-                DeviceManager deviceManager = QueueManager.deviceManager;
+                DeviceManager deviceManager = QueueManager.getDeviceManager();
                 deviceManager.clearKnownSerials();
 
                 JOptionPane.showMessageDialog(

@@ -45,10 +45,11 @@ public abstract class Service extends Thread implements Closeable {
         logger.info(getServiceName() + " service stopped");
     }
 
+    @Override
     public void start() {
         stateLock.lock();
         try {
-            if (state == ServiceState.RUNNING) {
+            if (state == ServiceState.RUNNING || state == ServiceState.STARTING) {
                 logger.warning(getServiceName() + " service is already running");
                 return;
             }
@@ -60,7 +61,6 @@ public abstract class Service extends Thread implements Closeable {
 
             state = ServiceState.STARTING;
             super.start();
-            state = ServiceState.RUNNING;
 
         } catch (Exception e) {
             logger.severe(getServiceName() + " start failed: " + e.getMessage());

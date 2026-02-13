@@ -15,10 +15,25 @@ import java.util.logging.Logger;
  */
 public class QueueManager {
 
-    // Device manager is now managed by ServiceManager
-    public static DeviceManager deviceManager;
-    public static Index index;
+    private static DeviceManager deviceManager;
+    private static Index index;
 
+    private static final ThreadGroup diskScanners = new ThreadGroup("DiskScanner");
+    private static final ArrayBlockingQueue<Runnable> taskQueue = new ArrayBlockingQueue<>(ConfigManager.getInstance().get(ConfigSchema.TASK_QUEUE_CAPACITY));
+    private static final RejectionAwarePolicy rejectionPolicy = new RejectionAwarePolicy();
+    private static final ThreadPoolExecutor pool = new ThreadPoolExecutor(
+            ConfigManager.getInstance().get(ConfigSchema.CORE_POOL_SIZE),
+            ConfigManager.getInstance().get(ConfigSchema.MAX_POOL_SIZE),
+            ConfigManager.getInstance().get(ConfigSchema.KEEP_ALIVE_TIME_SECONDS),
+            TimeUnit.SECONDS,
+            taskQueue,
+            rejectionPolicy
+    );
+
+    protected static final Logger logger = Logger.getLogger(QueueManager.class.getName());
+
+    private QueueManager() {
+    }
 
     public static void init(){
         deviceManager = ServiceManager.getInstance().findService(DeviceManager.class)
@@ -35,21 +50,21 @@ public class QueueManager {
                 });
     }
 
+    public static DeviceManager getDeviceManager() {
+        return deviceManager;
+    }
 
+    public static Index getIndex() {
+        return index;
+    }
 
-    public static final ThreadGroup DiskScanners = new ThreadGroup("DiskScanner");
-    public static final ArrayBlockingQueue<Runnable> taskQueue = new ArrayBlockingQueue<>(ConfigManager.getInstance().get(ConfigSchema.TASK_QUEUE_CAPACITY));
-    public static final RejectionAwarePolicy rejectionPolicy = new RejectionAwarePolicy();
-    public static final ThreadPoolExecutor pool = new ThreadPoolExecutor(
-            ConfigManager.getInstance().get(ConfigSchema.CORE_POOL_SIZE),
-            ConfigManager.getInstance().get(ConfigSchema.MAX_POOL_SIZE),
-            ConfigManager.getInstance().get(ConfigSchema.KEEP_ALIVE_TIME_SECONDS),
-            TimeUnit.SECONDS,
-            taskQueue,
-            rejectionPolicy
-    );
+    public static ThreadGroup getDiskScanners() {
+        return diskScanners;
+    }
 
-    protected static final Logger logger = Logger.getLogger(QueueManager.class.getName());
+    public static ThreadPoolExecutor getPool() {
+        return pool;
+    }
 
     /**
      * Application exit cleanup
@@ -70,7 +85,7 @@ public class QueueManager {
             logger.info("Index saved");
 
             // 3. Interrupt all disk scanner threads
-            DiskScanners.interrupt();
+            diskScanners.interrupt();
             logger.info("DiskScanners interrupted");
 
             // 4. Gracefully shutdown thread pool

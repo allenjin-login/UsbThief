@@ -38,7 +38,7 @@ public class DeviceListPanel extends JPanel {
     private final JButton batchBlacklistButton;
 
     public DeviceListPanel() {
-        this.deviceManager = QueueManager.deviceManager;
+        this.deviceManager = QueueManager.getDeviceManager();
         setLayout(new BorderLayout());
 
         devicesPanel = new JPanel();
@@ -97,7 +97,7 @@ public class DeviceListPanel extends JPanel {
 
     private void initializeExistingDevices() {
         SwingUtilities.invokeLater(() -> {
-            for (Device device : QueueManager.deviceManager.getAllDevices()) {
+            for (Device device : deviceManager.getAllDevices()) {
                 addDevice(device);
             }
         });

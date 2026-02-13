@@ -1,7 +1,7 @@
 # UsbThief - Project Knowledge Base
 
 **Generated:** 2026-02-03
-**Last Updated:** 2026-02-12
+**Last Updated:** 2026-02-13
 **Java Version:** 24 (modular, with --enable-preview)
 **Module:** UsbThief
 
@@ -21,7 +21,12 @@ UsbThief/
  │   │   ├── worker/             # Device scanning, file copying, task execution (14 files)
  │   │   ├── index/              # File indexing, checksum verification (4 files)
  │   │   └── gui/                # Swing UI components (10 files + i18n)
- │   
+│   ├── test/                   # Unit tests (JUnit 5 + Mockito)
+│   │   └── com/superredrock/usbthief/
+│   │       ├── core/           # Core module tests
+│   │       ├── worker/         # Worker module tests
+│   │       └── index/          # Index module tests
+│   
  ├── pom.xml                     # Maven build config (Java 24, --enable-preview)
  ├── AGENTS.md                   # Root - this file
  ├── CONFIG.md                   # Configuration documentation
@@ -34,11 +39,16 @@ UsbThief/
 mvn clean compile              # Clean and compile all sources
 mvn compile                    # Compile only (incremental)
 
+# Run tests
+mvn test                       # Run all unit tests
+mvn test -Dtest=CheckSumTest   # Run specific test class
+
 # Manual modular build
 javac -d out --module-source-path src -m UsbThief
 
 # Run application
 java -p out -m UsbThief/com.superredrock.usbthief.Main
+```
 
 
 ## I18N SYSTEM
@@ -201,9 +211,11 @@ switch (loadLevel) {
 - `Collections.synchronizedSet()` for device collections
 - `ConcurrentHashMap.newKeySet()` for O(1) index lookups
 - `CopyOnWriteArrayList` for event listener lists
-- `volatile` for singleton instance flags
+- `volatile` for singleton instance flags and state fields
+- `AtomicLong` with `compareAndSet()` for thread-safe counters
 - `synchronized` methods for queue depth queries
 - **ThreadLocal buffers**: Always call `clear()` in finally block for thread-pool reuse
+- **Encapsulated static fields**: Use private static fields with getter methods (e.g., `QueueManager.getIndex()`)
 
 ### Singleton Pattern
 ```java
@@ -316,11 +328,11 @@ public void update() {
 ## ANTI-PATTERNS
 - **DO NOT hard-code constants** - always use ConfigManager
 - **DO NOT skip ThreadLocal.clear()** - buffers must be reset after use in thread pools
-- **DO NOT use JUnit/TestNG** - manual test stubs only (main() methods)
 - **DO NOT block EDT** - all Swing updates use SwingUtilities.invokeLater()
 - **DO NOT mutate events after creation** - all events are immutable
 - **DO NOT throw exceptions from event listeners** - suppresses dispatch to other listeners
 - **DO NOT hard-code UI strings** - always use I18NManager for user-facing text
+- **DO NOT use public static mutable fields** - use private fields with getter methods
 
 ## UNIQUE STYLES
 - **Priority scheduling**: Extension-based (PDF=10, TMP=1) + size adjustment (+2/-2)
@@ -334,6 +346,7 @@ public void update() {
 
 ## NOTES
 - **Build**: Maven + IntelliJ IDEA
+- **Testing**: JUnit 5.11.4 + Mockito 5.15.2
 - **Linting**: No formal linting - manual code review
 - **Module exports**: `index`, `core`, `core.config`, `core.event`, `gui`
 - **I18N**: Hot-switching enabled via I18NManager singleton with locale change listeners

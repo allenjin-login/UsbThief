@@ -31,8 +31,8 @@ public class Device {
     private FileStore fileStore = null;
     private String volumeName = "";
     private DeviceScanner scanner;
-    private DeviceState state;
-    private boolean stateChange = false;
+    private volatile DeviceState state;
+    private volatile boolean stateChange = false;
     private boolean ghost;
     private boolean systemDisk;
 

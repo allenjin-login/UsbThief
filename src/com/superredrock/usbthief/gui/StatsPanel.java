@@ -50,7 +50,7 @@ public class StatsPanel extends JPanel {
 
     private void updateStats() {
         SwingUtilities.invokeLater(() -> {
-            int fileCount = QueueManager.index.getDigestSize();
+            int fileCount = QueueManager.getIndex().getDigestSize();
             copiedFilesLabel.setText(i18n.getMessage("stats.copiedFiles") + ": " + fileCount);
 
             // Global speed from CopyTask SpeedProbe

@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
 
 public class CopyTask implements Callable<CopyResult> {
@@ -27,7 +28,7 @@ public class CopyTask implements Callable<CopyResult> {
     private static volatile RateLimiter rateLimiter;
     private static final Object rateLimiterLock = new Object();
     private static final SpeedProbeGroup speedProbeGroup = new SpeedProbeGroup("copy-tasks");
-    private static long lastLogTime = 0;
+    private static final AtomicLong lastLogTime = new AtomicLong(0);
     private static final long LOG_INTERVAL_MS = 1000;
 
     // Per-task speed probe for individual file tracking
@@ -82,7 +83,7 @@ public class CopyTask implements Callable<CopyResult> {
                 Files.createDirectories(destinationPath);
             }else {
                 CheckSum hash = CheckSum.verify(processingPath);
-                if (QueueManager.index.checkDuplicate(processingPath, hash)){
+                if (QueueManager.getIndex().checkDuplicate(processingPath, hash)){
                     logger.info("Path Ignore: " + processingPath);
                     // File already exists in index - treat as success (no copy needed)
                     bytesCopied = size;
@@ -102,19 +103,21 @@ public class CopyTask implements Callable<CopyResult> {
                             getRateLimiter().acquire(bytesWritten);
 
                             long now = System.currentTimeMillis();
-                            if (now - lastLogTime >= LOG_INTERVAL_MS) {
-                                double speed = speedProbeGroup.getTotalSpeed();  // Get total from group
-                                logger.info(String.format("Copying: %s - Global: %.2f MB/s",
-                                    processingPath.getFileName(),
-                                    speed));
-                                lastLogTime = now;
+                            long lastLog = lastLogTime.get();
+                            if (now - lastLog >= LOG_INTERVAL_MS) {
+                                if (lastLogTime.compareAndSet(lastLog, now)) {
+                                    double speed = speedProbeGroup.getTotalSpeed();
+                                    logger.info(String.format("Copying: %s - Global: %.2f MB/s",
+                                        processingPath.getFileName(),
+                                        speed));
+                                }
                             }
 
                             buffer.clear();
                         }
                     }
                     // Add to index (checksum + history) - FileIndexedEvent will be dispatched by Index.addFile()
-                    QueueManager.index.addFile(hash, processingPath, size);
+                    QueueManager.getIndex().addFile(hash, processingPath, size);
                 }
             }
 

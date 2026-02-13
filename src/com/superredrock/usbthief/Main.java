@@ -58,7 +58,7 @@ public class Main {
         logger.info("Starting");
         QueueManager.init();
 
-        QueueManager.index.load();
+        QueueManager.getIndex().load();
 
 
         // 启动所有服务

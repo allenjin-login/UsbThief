@@ -28,7 +28,7 @@ public class DeviceScanner extends Thread{
     private final com.superredrock.usbthief.core.Device device;
 
     public DeviceScanner(com.superredrock.usbthief.core.Device device, FileStore rootStore, Path root) {
-        super(QueueManager.DiskScanners,"DiskScanner: " + rootStore.name());
+        super(QueueManager.getDiskScanners(),"DiskScanner: " + rootStore.name());
         this.device = device;
         WatchService monitor1;
         this.rootStore = rootStore;
@@ -41,7 +41,7 @@ public class DeviceScanner extends Thread{
         monitor = monitor1;
     }
     public DeviceScanner(com.superredrock.usbthief.core.Device device, FileStore rootStore){
-        super(QueueManager.DiskScanners,"DiskScanner: " + rootStore.name());
+        super(QueueManager.getDiskScanners(),"DiskScanner: " + rootStore.name());
         this.device = device;
         this.rootStore = rootStore;
         this.root = device.getRootPath(); // Use Device's root path
