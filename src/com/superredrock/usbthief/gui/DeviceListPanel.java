@@ -6,6 +6,8 @@ import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.SizeFormatter;
 import com.superredrock.usbthief.core.event.EventBus;
+import com.superredrock.usbthief.core.event.device.DeviceInsertedEvent;
+import com.superredrock.usbthief.core.event.device.DeviceRemovedEvent;
 import com.superredrock.usbthief.core.event.device.DeviceStateChangedEvent;
 import com.superredrock.usbthief.core.event.device.NewDeviceJoinedEvent;
 
@@ -107,7 +109,9 @@ public class DeviceListPanel extends JPanel {
     private void registerEventListeners() {
         EventBus eventBus = EventBus.getInstance();
 
-        eventBus.register(NewDeviceJoinedEvent.class, this::onDeviceInserted);
+        eventBus.register(NewDeviceJoinedEvent.class, this::onDeviceJoined);
+        eventBus.register(DeviceInsertedEvent.class, this::onDeviceInserted);
+        eventBus.register(DeviceRemovedEvent.class, this::onDeviceRemoved);
         eventBus.register(DeviceStateChangedEvent.class, this::onDeviceStateChanged);
     }
 
@@ -168,8 +172,57 @@ public class DeviceListPanel extends JPanel {
         });
     }
 
-    private void onDeviceInserted(NewDeviceJoinedEvent event) {
+    private void onDeviceJoined(NewDeviceJoinedEvent event) {
         SwingUtilities.invokeLater(() -> addDevice(event.device()));
+    }
+
+    private void onDeviceInserted(DeviceInsertedEvent event) {
+        SwingUtilities.invokeLater(() -> {
+            Device newDevice = event.device();
+            String serial = newDevice.getSerialNumber();
+            
+            Device oldKey = null;
+            for (Device device : deviceCards.keySet()) {
+                if (device.getSerialNumber().equals(serial)) {
+                    oldKey = device;
+                    break;
+                }
+            }
+            
+            if (oldKey != null) {
+                DeviceCard card = deviceCards.remove(oldKey);
+                card.updateDevice(newDevice);
+                deviceCards.put(newDevice, card);
+            } else {
+                addDevice(newDevice);
+            }
+        });
+    }
+
+    private void onDeviceRemoved(DeviceRemovedEvent event) {
+        SwingUtilities.invokeLater(() -> removeDeviceBySerial(event.device().getSerialNumber()));
+    }
+
+    private DeviceCard findCardBySerial(String serial) {
+        for (Map.Entry<Device, DeviceCard> entry : deviceCards.entrySet()) {
+            if (entry.getKey().getSerialNumber().equals(serial)) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private void removeDeviceBySerial(String serial) {
+        Device toRemove = null;
+        for (Device device : deviceCards.keySet()) {
+            if (device.getSerialNumber().equals(serial)) {
+                toRemove = device;
+                break;
+            }
+        }
+        if (toRemove != null) {
+            removeDevice(toRemove);
+        }
     }
 
     private void onDeviceStateChanged(DeviceStateChangedEvent event) {
@@ -312,7 +365,7 @@ public class DeviceListPanel extends JPanel {
     private static class DeviceCard extends JPanel {
 
         private final I18NManager i18n = I18NManager.getInstance();
-        private final Device device;
+        private Device device;
         private final JFrame parentFrame;
         private final DeviceManager deviceManager;
         private final JLabel iconLabel;
@@ -571,6 +624,11 @@ public class DeviceListPanel extends JPanel {
         }
 
         public void updateState() {
+            refreshDeviceInfo();
+        }
+
+        public void updateDevice(Device newDevice) {
+            this.device = newDevice;
             refreshDeviceInfo();
         }
 
