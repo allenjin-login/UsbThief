@@ -28,6 +28,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     private final DeviceListPanel deviceListPanel;
     private final EventPanel eventPanel;
     private final FileHistoryPanel fileHistoryPanel;
+    private final StatisticsPanel statisticsPanel;
     private final JTabbedPane rightTabbedPane;
 
     // Window visibility state
@@ -49,17 +50,17 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
         createMenus();
 
-        // Create panels
         deviceListPanel = new DeviceListPanel();
         deviceListPanel.setParentFrame(this);
         deviceListPanel.setMainFrame(this);
         eventPanel = new EventPanel();
         fileHistoryPanel = new FileHistoryPanel();
+        statisticsPanel = new StatisticsPanel();
 
-        // Create tabbed pane for right panel
         rightTabbedPane = new JTabbedPane();
         rightTabbedPane.addTab(i18n.getMessage("tab.events"), eventPanel);
         rightTabbedPane.addTab(i18n.getMessage("tab.fileHistory"), fileHistoryPanel);
+        rightTabbedPane.addTab(i18n.getMessage("tab.statistics"), statisticsPanel);
 
         // Create main split pane
         JSplitPane mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, deviceListPanel, rightTabbedPane);
@@ -125,6 +126,10 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         clearCacheItem.addActionListener(_ -> clearDeviceCache());
         configMenu.add(clearCacheItem);
 
+        JMenuItem clearStatsItem = new JMenuItem(i18n.getMessage("menu.config.clearStats"));
+        clearStatsItem.addActionListener(_ -> clearStatistics());
+        configMenu.add(clearStatsItem);
+
         JMenu helpMenu = new JMenu(i18n.getMessage("menu.help"));
         JMenuItem aboutItem = new JMenuItem(i18n.getMessage("menu.help.about"));
         aboutItem.addActionListener(_ -> showAbout());
@@ -185,7 +190,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         if (confirm == JOptionPane.YES_OPTION) {
             try {
                 DeviceManager deviceManager = QueueManager.getDeviceManager();
-                deviceManager.clearKnownSerials();
+                deviceManager.clearDeviceRecords();
 
                 JOptionPane.showMessageDialog(
                         this,
@@ -202,6 +207,25 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
                         i18n.getMessage("common.error"),
                         JOptionPane.ERROR_MESSAGE);
             }
+        }
+    }
+
+    private void clearStatistics() {
+        int confirm = JOptionPane.showConfirmDialog(
+                this,
+                i18n.getMessage("message.clearStatsConfirm"),
+                i18n.getMessage("title.clearStatsConfirm"),
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+
+        if (confirm == JOptionPane.YES_OPTION) {
+            com.superredrock.usbthief.statistics.Statistics.getInstance().resetAll();
+            JOptionPane.showMessageDialog(
+                    this,
+                    i18n.getMessage("message.clearStatsSuccess"),
+                    i18n.getMessage("title.clearStatsSuccess"),
+                    JOptionPane.INFORMATION_MESSAGE);
+            logger.info("Statistics cleared from menu");
         }
     }
 
@@ -278,11 +302,12 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         logger.info("Performing unified shutdown");
 
         try {
-            // Stop device scanning
             deviceListPanel.stop();
             logger.info("DeviceListPanel stopped");
 
-            // Remove tray icon
+            statisticsPanel.stop();
+            logger.info("StatisticsPanel stopped");
+
             if (trayIcon != null) {
                 trayIcon.dispose();
                 logger.info("Tray icon disposed");
@@ -394,9 +419,11 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
             deviceListPanel.refreshLanguage();
             eventPanel.refreshLanguage();
             fileHistoryPanel.refreshLanguage();
+            statisticsPanel.refreshLanguage();
 
             rightTabbedPane.setTitleAt(0, i18n.getMessage("tab.events"));
             rightTabbedPane.setTitleAt(1, i18n.getMessage("tab.fileHistory"));
+            rightTabbedPane.setTitleAt(2, i18n.getMessage("tab.statistics"));
 
             if (trayIcon != null) {
                 trayIcon.refreshLanguage();

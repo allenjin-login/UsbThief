@@ -3,6 +3,7 @@ package com.superredrock.usbthief.worker;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.QueueManager;
+import com.superredrock.usbthief.statistics.Statistics;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -27,25 +28,19 @@ public class DeviceScanner extends Thread{
     private volatile boolean running = true;
     private final com.superredrock.usbthief.core.Device device;
 
-    public DeviceScanner(com.superredrock.usbthief.core.Device device, FileStore rootStore, Path root) {
-        super(QueueManager.getDiskScanners(),"DiskScanner: " + rootStore.name());
+    public DeviceScanner(com.superredrock.usbthief.core.Device device, FileStore rootStore) {
+        super(QueueManager.getDiskScanners(), "DiskScanner: " + rootStore.name());
         this.device = device;
-        WatchService monitor1;
         this.rootStore = rootStore;
-        this.root = root;
+        this.root = device.getRootPath();
+        WatchService ws;
         try {
-            monitor1 = FileSystems.getDefault().newWatchService();
+            ws = FileSystems.getDefault().newWatchService();
         } catch (IOException e) {
-            monitor1 = null;
+            logger.warning("Failed to create WatchService: " + e.getMessage());
+            ws = null;
         }
-        monitor = monitor1;
-    }
-    public DeviceScanner(com.superredrock.usbthief.core.Device device, FileStore rootStore){
-        super(QueueManager.getDiskScanners(),"DiskScanner: " + rootStore.name());
-        this.device = device;
-        this.rootStore = rootStore;
-        this.root = device.getRootPath(); // Use Device's root path
-        this.monitor = null;
+        this.monitor = ws;
     }
 
     @Override
@@ -179,8 +174,9 @@ public class DeviceScanner extends Thread{
 
                         @Override
                         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                            if (Files.isReadable(file) && Files.size(file) != 0 && Files.size(file) < ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE)) {
-                                // Use TaskScheduler with priority
+                            long size = Files.size(file);
+                            if (Files.isReadable(file) && size != 0 && size < ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE)) {
+                                Statistics.getInstance().recordFileDiscovered(size);
                                 CopyTask rawTask = new CopyTask(file);
                                 int priority = TaskScheduler.getInstance().getPriorityRule().calculatePriority(file);
                                 PriorityCopyTask priorityTask = new PriorityCopyTask(rawTask, priority, device, Instant.now());
@@ -191,8 +187,9 @@ public class DeviceScanner extends Thread{
                     });
                 }
             } else if (Files.isRegularFile(path)) {
-                if (Files.isReadable(path) && Files.size(path) != 0 && Files.size(path) < ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE)) {
-                    // Use TaskScheduler with priority
+                long size = Files.size(path);
+                if (Files.isReadable(path) && size != 0 && size < ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE)) {
+                    Statistics.getInstance().recordFileDiscovered(size);
                     CopyTask rawTask = new CopyTask(path);
                     int priority = TaskScheduler.getInstance().getPriorityRule().calculatePriority(path);
                     PriorityCopyTask priorityTask = new PriorityCopyTask(rawTask, priority, device, Instant.now());
@@ -255,10 +252,11 @@ public class DeviceScanner extends Thread{
                 return FileVisitResult.SKIP_SIBLINGS;
             }
 
-            try {
-                if(Files.size(file) != 0 && Files.size(file) < ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE)){
-                    // Use TaskScheduler with priority
-                    CopyTask rawTask = new CopyTask(file);
+        try {
+            long size = Files.size(file);
+            if(size != 0 && size < ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE)){
+                Statistics.getInstance().recordFileDiscovered(size);
+                CopyTask rawTask = new CopyTask(file);
                     int priority = TaskScheduler.getInstance().getPriorityRule().calculatePriority(file);
                     PriorityCopyTask priorityTask = new PriorityCopyTask(rawTask, priority, device, Instant.now());
                     TaskScheduler.getInstance().submit(priorityTask);

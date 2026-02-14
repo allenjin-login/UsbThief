@@ -1,7 +1,5 @@
 package com.superredrock.usbthief.core;
 
-import com.superredrock.usbthief.worker.DeviceScanner;
-
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.Objects;
@@ -9,73 +7,83 @@ import java.util.logging.Logger;
 
 import static com.superredrock.usbthief.core.DeviceUtils.getHardDiskSN;
 
+/**
+ * Represents a USB storage device with its state and metadata.
+ * <p>
+ * Device is responsible for storing device information and managing its state.
+ * Scanner lifecycle and ghost device management are handled by DeviceManager.
+ */
 public class Device {
 
     public enum DeviceState {
-        // Connection status
-        OFFLINE,       // Device plug out
+        OFFLINE,       // Device not present
         UNAVAILABLE,   // Device exists but inaccessible (AccessDeniedException / IOException)
-
-        // Available status
-        IDLE,          // Device ready, no active operations
-        SCANNING,      // DeviceScanner is running
-
-        // User control
-        DISABLED       // Manually disabled by user (no automatic transitions)
+        IDLE,          // Ready, no active operations
+        SCANNING,      // Scanner is running
+        DISABLED       // Manually disabled by user
     }
 
     protected static final Logger logger = Logger.getLogger(Device.class.getName());
 
-    private Path rootPath;
+    private final Path rootPath;
     private final String serialNumber;
-    private FileStore fileStore = null;
-    private String volumeName = "";
-    private DeviceScanner scanner;
-    private volatile DeviceState state;
-    private volatile boolean stateChange = false;
-    private boolean ghost;
-    private boolean systemDisk;
+    private final FileStore fileStore;
+    private final String volumeName;
+    private final boolean systemDisk;
 
-    protected Device(Path rootPath) {
+    private volatile DeviceState state;
+    private volatile boolean stateChange;
+
+    /**
+     * Creates a Device from a root path.
+     * Initializes fileStore, volumeName, and detects system disk.
+     *
+     * @param rootPath the root path of the device
+     */
+    public Device(Path rootPath) {
         this.rootPath = rootPath;
         this.serialNumber = getHardDiskSN(rootPath.toString());
-        this.ghost = false;
-        this.systemDisk = false;
-        initializeState();
-    }
-
-    protected Device(String serialNumber) {
-        this(serialNumber, "");
-    }
-
-    protected Device(String serialNumber, String volumeName) {
-        this.rootPath = null;
-        this.serialNumber = serialNumber;
-        this.fileStore = null;
-        this.volumeName = volumeName != null ? volumeName : "";
-        this.ghost = true;
-        this.state = DeviceState.OFFLINE;
-        this.systemDisk = false;
-    }
-
-    private void initializeState() {
-        if (Files.exists(rootPath) && Files.isDirectory(rootPath)){
+        
+        FileStore fs = null;
+        String volName = "";
+        boolean sysDisk = false;
+        DeviceState initialState = DeviceState.UNAVAILABLE;
+        
+        if (Files.exists(rootPath) && Files.isDirectory(rootPath)) {
             try {
-                this.fileStore = Files.getFileStore(rootPath);
-                this.volumeName = fileStore.name();
-                state = DeviceState.IDLE;
+                fs = Files.getFileStore(rootPath);
+                volName = fs.name();
+                initialState = DeviceState.IDLE;
+                
+                String fsType = fs.type();
+                if (!fsType.equals("exFAT") && !fsType.equals("FAT32")) {
+                    sysDisk = true;
+                    initialState = DeviceState.DISABLED;
+                }
             } catch (IOException e) {
-                this.state = DeviceState.UNAVAILABLE;
+                logger.fine("Failed to get FileStore for " + rootPath + ": " + e.getMessage());
             }
-        }else {
-            state = DeviceState.UNAVAILABLE;
         }
-        if (this.fileStore != null && !(this.fileStore.type().equals("exFAT") || this.fileStore.type().equals("FAT32"))){
-            this.systemDisk = true;
-        };
-        if (isSystemDisk()) {
-            this.state = DeviceState.DISABLED;
-        }
+        
+        this.fileStore = fs;
+        this.volumeName = volName;
+        this.systemDisk = sysDisk;
+        this.state = initialState;
+    }
+
+    /**
+     * Creates a ghost Device from a DeviceRecord.
+     * Ghost devices have no rootPath and are in OFFLINE state.
+     *
+     * @param record the device record containing serial number and volume name
+     */
+    Device(DeviceRecord record) {
+        this.rootPath = null;
+        this.serialNumber = record.serialNumber();
+        this.fileStore = null;
+        this.volumeName = record.volumeName();
+        this.systemDisk = false;
+        this.state = DeviceState.OFFLINE;
     }
 
     public Path getRootPath() {
@@ -86,149 +94,105 @@ public class Device {
         return serialNumber;
     }
 
-    public boolean isGhost() {
-        return ghost;
-    }
-
-    public boolean isSystemDisk() {
-        return systemDisk;
+    public FileStore getFileStore() {
+        return fileStore;
     }
 
     public String getVolumeName() {
         return volumeName;
     }
 
-    protected void setVolumeName(String volumeName) {
-        this.volumeName = volumeName != null ? volumeName : "";
-    }
-
-    protected void merge(Path newRootPath) {
-        if (!ghost || rootPath != null) {
-            return;
-        }
-        this.rootPath = newRootPath;
-        initializeState();
-        this.ghost = false;
+    public boolean isSystemDisk() {
+        return systemDisk;
     }
 
     /**
-     * Converts this device to ghost state.
-     * Called when device is unplugged (NoSuchFileException).
-     * Clears rootPath and fileStore, sets ghost=true, state=OFFLINE.
+     * Returns true if this is a ghost device (no rootPath).
+     * Ghost devices represent known devices that are currently offline.
+     *
+     * @return true if ghost device
      */
-    protected void convertToGhost() {
-        this.rootPath = null;
-        this.fileStore = null;
-        this.ghost = true;
-        this.state = DeviceState.OFFLINE;
-        logger.fine("Device converted to ghost: " + serialNumber);
-    }
-
-    public FileStore getFileStore() {
-        return fileStore;
+    public boolean isGhost() {
+        return rootPath == null;
     }
 
     public DeviceState getState() {
         return state;
     }
 
-    public boolean isChangeAndReset(){
-        boolean flag = this.stateChange;
-        this.stateChange = false;
-        return flag;
+    /**
+     * Sets the device state and tracks if state changed.
+     *
+     * @param newState the new state
+     */
+    public void setState(DeviceState newState) {
+        if (this.state != newState) {
+            this.stateChange = true;
+        }
+        this.state = newState;
     }
 
-    public void updateState(){
-        if (ghost) {
+    /**
+     * Checks if state changed since last call and resets the flag.
+     *
+     * @return true if state changed
+     */
+    public boolean isChangeAndReset() {
+        boolean changed = this.stateChange;
+        this.stateChange = false;
+        return changed;
+    }
+
+    /**
+     * Disables the device. Transition to IDLE state on next update.
+     */
+    public void enable() {
+        if (this.state == DeviceState.DISABLED) {
+            setState(DeviceState.IDLE);
+        }
+    }
+
+    /**
+     * Disables the device and prevents automatic operations.
+     */
+    public void disable() {
+        setState(DeviceState.DISABLED);
+    }
+
+    /**
+     * Updates the device state based on filesystem accessibility.
+     * Ghost devices and disabled devices are not updated.
+     */
+    public void updateState() {
+        if (isGhost()) {
             return;
         }
-        if (this.state == DeviceState.DISABLED) {
+        if (state == DeviceState.DISABLED) {
             return;
         }
 
         try {
-            this.fileStore = Files.getFileStore(rootPath);
-            this.volumeName = fileStore.name();
-            // Device is accessible - keep current state (IDLE/SCANNING handled by update())
+            Files.getFileStore(rootPath);
+            if (state == DeviceState.OFFLINE || state == DeviceState.UNAVAILABLE) {
+                setState(DeviceState.IDLE);
+            }
+        } catch (NoSuchFileException e) {
+            setState(DeviceState.OFFLINE);
+        } catch (AccessDeniedException e) {
+            setState(DeviceState.UNAVAILABLE);
         } catch (IOException e) {
-            switch (e){
-                case NoSuchFileException _ -> {
-                    if (!ghost) {
-                        checkChangeAndUpdate(DeviceState.OFFLINE);
-                        convertToGhost();
-                    }
-                }
-                case AccessDeniedException _ -> {
-                    checkChangeAndUpdate(DeviceState.UNAVAILABLE);
-                }
-                default -> {
-                    checkChangeAndUpdate(DeviceState.UNAVAILABLE);
-                    DeviceManager.logger.throwing("Device","updateState", e);
-                }
-            }
-
+            setState(DeviceState.UNAVAILABLE);
+            logger.fine("Error checking device state: " + e.getMessage());
         }
     }
 
-    public void update(){
-        if (ghost) {
-            return;
-        }
-        if (this.state != DeviceState.DISABLED) {
-            updateState();
-        }
-
-        // Only handle available state transitions
-        switch (this.state) {
-            case IDLE -> {
-                // Start scanner if filesystem type matches
-                if (this.fileStore != null){
-                    if (scanner != null && scanner.isAlive()){
-                        scanner.interrupt();
-                    }
-                    scanner = new DeviceScanner(this, this.fileStore);
-                    scanner.start();
-                    checkChangeAndUpdate(DeviceState.SCANNING);
-                }
-            }
-            case SCANNING -> {
-                // Transition back to IDLE if scanner terminated
-                if (scanner != null && scanner.getState() == Thread.State.TERMINATED){
-                    scanner = null;
-                    checkChangeAndUpdate(DeviceState.IDLE);
-                }
-            }
-            case DISABLED -> stopScanning();
-            default -> {} // OFFLINE, UNAVAILABLE: no transitions
-        }
-    }
-
-    protected void checkChangeAndUpdate(DeviceState state){
-        if (this.state != state){
-            stateChange = true;
-        }
-        this.state = state;
-    }
-
-    public void disable(){
-        checkChangeAndUpdate(DeviceState.DISABLED);
-        stopScanning();
-    }
-
-    public void enable(){
-        if (this.state == DeviceState.DISABLED) {
-            // Transition to IDLE temporarily, actual state will be determined in next update
-            checkChangeAndUpdate(DeviceState.IDLE);
-        }
-    }
-
-    public void stopScanning(){
-        if (this.scanner != null && this.scanner.isAlive()){
-            // Interrupt the thread to stop any ongoing operations (initial scan or monitoring)
-            this.scanner.interrupt();
-            // Stop the WatchService monitoring
-            this.scanner.stopMonitoring();
-        }
+    /**
+     * Creates a DeviceRecord from this device for persistence.
+     *
+     * @return DeviceRecord containing serial number and volume name
+     */
+    public DeviceRecord toRecord() {
+        return new DeviceRecord(serialNumber, volumeName);
     }
 
     @Override
@@ -246,10 +210,10 @@ public class Device {
     public String toString() {
         return "Device{" +
                 "rootPath=" + rootPath +
-                ", fileStore=" + fileStore +
-                ", scanner=" + scanner +
+                ", serialNumber='" + serialNumber + '\'' +
+                ", volumeName='" + volumeName + '\'' +
                 ", state=" + state +
-                ", stateChange=" + stateChange +
+                ", systemDisk=" + systemDisk +
                 '}';
     }
 }

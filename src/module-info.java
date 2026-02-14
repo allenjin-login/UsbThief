@@ -14,6 +14,7 @@ module UsbThief {
     exports com.superredrock.usbthief.core.event.index;
     exports com.superredrock.usbthief.core.event.worker;
     exports com.superredrock.usbthief.gui;
+    exports com.superredrock.usbthief.statistics;
 
     // Register Service implementations using Java module system
     // Note: Index requires constructor parameters, not loaded via ServiceLoader

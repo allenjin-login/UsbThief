@@ -6,6 +6,7 @@ import com.superredrock.usbthief.core.ServiceManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.gui.MainFrame;
+import com.superredrock.usbthief.statistics.Statistics;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -71,6 +72,7 @@ public class Main {
 
     public static void quit() {
         System.out.println("Quitting");
+        Statistics.getInstance().save();
         ServiceManager.getInstance().shutdown();
         QueueManager.quit();
     }

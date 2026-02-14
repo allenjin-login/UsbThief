@@ -1,7 +1,7 @@
 # UsbThief - Project Knowledge Base
 
 **Generated:** 2026-02-03
-**Last Updated:** 2026-02-13
+**Last Updated:** 2026-02-14
 **Java Version:** 24 (modular, with --enable-preview)
 **Module:** UsbThief
 
@@ -15,9 +15,10 @@ UsbThief/
 │   ├── module-info.java        # Java module definition (requires: java.base, java.logging, java.prefs, java.desktop)
 │   ├── com/superredrock/usbthief/
 │   │   ├── Main.java           # Application entry point
-│   │   ├── core/               # Device management, queue infrastructure (7 files)
+│   │   ├── core/               # Device management, queue infrastructure (9 files)
 │   │   │   ├── config/         # Type-safe configuration system (4 files)
 │   │   │   └── event/          # Event bus and device/event types (12 files)
+│   │   ├── statistics/         # Statistics tracking and reporting
  │   │   ├── worker/             # Device scanning, file copying, task execution (14 files)
  │   │   ├── index/              # File indexing, checksum verification (4 files)
  │   │   └── gui/                # Swing UI components (10 files + i18n)
@@ -315,14 +316,31 @@ if (!paused) {
 ```
 
 ### Ghost Device Handling
-Ghost devices (devices with serial but no path) skip update operations:
-```java
-public void update() {
-    if (ghost) {
-        return; // Ghost devices don't need updates
-    }
-    // ... normal update logic
-}
+Ghost devices represent known devices that are currently offline, stored as `DeviceRecord` in Java Preferences:
+- **DeviceRecord**: Immutable record for persistence (serial, totalSpace, lastSeen)
+- **DeviceManager**: Manages ghost device lifecycle and persistence
+- **Persistence**: Uses Java Preferences API (`~/.usbthief/devices/`)
+- When device reconnects: Ghost → Active device with scanner
+- When device disconnects: Active device → Ghost (if previously known)
+
+## DEVICE ARCHITECTURE
+
+### Responsibility Separation
+- **Device**: State management only (IDLE, SCANNING, DISABLED, UNAVAILABLE, OFFLINE)
+- **DeviceManager**: Scanner lifecycle (`Map<Device, DeviceScanner>`), ghost handling
+- **DeviceRecord**: Immutable persistence record (serial, totalSpace, lastSeen)
+- **DeviceScanner**: File scanning and copy task creation
+
+### Device State Transitions
+```
+OFFLINE ←→ IDLE ←→ SCANNING
+    ↓         ↓
+DISABLED   DISABLED
+```
+
+### SizeFormatter Utility
+Unified byte formatting utility (`SizeFormatter.format()`) used across:
+- Device cards, FileHistoryPanel, LogPanel, StatisticsPanel, Statistics
 ```
 
 ## ANTI-PATTERNS

@@ -1,5 +1,6 @@
 package com.superredrock.usbthief.gui;
 
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -144,6 +145,6 @@ public class I18NManager {
         if (args.length == 0) {
             return message;
         }
-        return String.format(message, args);
+        return MessageFormat.format(message, args);
     }
 }

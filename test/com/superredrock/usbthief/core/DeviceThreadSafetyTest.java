@@ -13,6 +13,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class DeviceThreadSafetyTest {
 
+    private Device createGhostDevice(String serial, String volume) {
+        return new Device(new DeviceRecord(serial, volume));
+    }
+
     @Test
     @Timeout(10)
     void stateChange_shouldBeThreadSafe() throws InterruptedException {
@@ -24,7 +28,7 @@ class DeviceThreadSafetyTest {
         CountDownLatch endLatch = new CountDownLatch(numThreads);
         AtomicInteger successCount = new AtomicInteger(0);
 
-        Device device = new Device("TEST-SERIAL", "TestVolume");
+        Device device = createGhostDevice("TEST-SERIAL", "TestVolume");
 
         for (int i = 0; i < numThreads; i++) {
             executor.submit(() -> {
@@ -53,7 +57,7 @@ class DeviceThreadSafetyTest {
 
     @Test
     void initialState_shouldBeOfflineForGhost() {
-        Device ghostDevice = new Device("GHOST-SERIAL", "GhostVolume");
+        Device ghostDevice = createGhostDevice("GHOST-SERIAL", "GhostVolume");
 
         assertTrue(ghostDevice.isGhost());
         assertEquals(Device.DeviceState.OFFLINE, ghostDevice.getState());
@@ -61,7 +65,7 @@ class DeviceThreadSafetyTest {
 
     @Test
     void disable_shouldSetDisabledState() {
-        Device device = new Device("TEST-SERIAL", "TestVolume");
+        Device device = createGhostDevice("TEST-SERIAL", "TestVolume");
 
         device.disable();
 
@@ -70,7 +74,7 @@ class DeviceThreadSafetyTest {
 
     @Test
     void enable_shouldEnableFromDisabled() {
-        Device device = new Device("TEST-SERIAL", "TestVolume");
+        Device device = createGhostDevice("TEST-SERIAL", "TestVolume");
 
         device.disable();
         assertEquals(Device.DeviceState.DISABLED, device.getState());
@@ -82,9 +86,9 @@ class DeviceThreadSafetyTest {
 
     @Test
     void equalsAndHashCode_shouldBeBasedOnSerialNumber() {
-        Device device1 = new Device("SERIAL-123", "Volume1");
-        Device device2 = new Device("SERIAL-123", "Volume2");
-        Device device3 = new Device("SERIAL-456", "Volume1");
+        Device device1 = createGhostDevice("SERIAL-123", "Volume1");
+        Device device2 = createGhostDevice("SERIAL-123", "Volume2");
+        Device device3 = createGhostDevice("SERIAL-456", "Volume1");
 
         assertEquals(device1, device2);
         assertEquals(device1.hashCode(), device2.hashCode());
@@ -93,7 +97,7 @@ class DeviceThreadSafetyTest {
 
     @Test
     void isChangeAndReset_shouldReturnTrueAfterStateChange() {
-        Device device = new Device("TEST-SERIAL", "TestVolume");
+        Device device = createGhostDevice("TEST-SERIAL", "TestVolume");
 
         assertFalse(device.isChangeAndReset());
 

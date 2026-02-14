@@ -4,6 +4,7 @@ import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.Device;
 import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.QueueManager;
+import com.superredrock.usbthief.core.SizeFormatter;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.device.DeviceStateChangedEvent;
 import com.superredrock.usbthief.core.event.device.NewDeviceJoinedEvent;
@@ -172,7 +173,7 @@ public class DeviceListPanel extends JPanel {
     }
 
     private void onDeviceStateChanged(DeviceStateChangedEvent event) {
-        SwingUtilities.invokeLater(() -> updateDeviceState(event.device(), event.newState()));
+        SwingUtilities.invokeLater(() -> updateDeviceState(event.device()));
     }
 
     private void toggleSelectAll() {
@@ -210,7 +211,7 @@ public class DeviceListPanel extends JPanel {
         int count = 0;
         for (DeviceCard card : deviceCards.values()) {
             if (card.getCheckBox().isSelected()) {
-                card.device.enable();
+                deviceManager.enableDevice(card.device);
                 count++;
             }
         }
@@ -227,7 +228,7 @@ public class DeviceListPanel extends JPanel {
         int count = 0;
         for (DeviceCard card : deviceCards.values()) {
             if (card.getCheckBox().isSelected()) {
-                card.device.disable();
+                deviceManager.disableDevice(card.device);
                 count++;
             }
         }
@@ -291,10 +292,10 @@ public class DeviceListPanel extends JPanel {
         }
     }
 
-    private void updateDeviceState(Device device, Device.DeviceState newState) {
+    private void updateDeviceState(Device device) {
         DeviceCard card = deviceCards.get(device);
         if (card != null) {
-            card.updateState(newState);
+            card.updateState();
         }
     }
 
@@ -390,12 +391,8 @@ public class DeviceListPanel extends JPanel {
                 blacklistButton = new JButton(i18n.getMessage("device.card.button.blacklist"));
                 blacklistButton.addActionListener(_ -> addToBlacklist());
 
-                JButton removeButton = new JButton(i18n.getMessage("device.card.button.remove"));
-                removeButton.addActionListener(_ -> removeDevice());
-
                 buttonPanel.add(toggleButton);
                 buttonPanel.add(blacklistButton);
-                buttonPanel.add(removeButton);
 
                 updateButtonEnabled();
             } else {
@@ -428,9 +425,9 @@ public class DeviceListPanel extends JPanel {
                 long usable = device.getFileStore().getUsableSpace();
                 long used = total - usable;
 
-                String totalStr = formatSize(total);
-                String usedStr = formatSize(used);
-                String usableStr = formatSize(usable);
+                String totalStr = SizeFormatter.format(total);
+                String usedStr = SizeFormatter.format(used);
+                String usableStr = SizeFormatter.format(usable);
 
                 double usagePercent = total > 0 ? (used * 100.0 / total) : 0;
 
@@ -438,20 +435,6 @@ public class DeviceListPanel extends JPanel {
                         usedStr, totalStr, i18n.getMessage("device.card.volume.none"), usableStr, usagePercent);
             } catch (IOException e) {
                 return i18n.getMessage("device.card.unavailable");
-            }
-        }
-
-        private String formatSize(long bytes) {
-            if (bytes < 1024) {
-                return bytes + " B";
-            } else if (bytes < 1024 * 1024) {
-                return String.format("%.1f KB", bytes / 1024.0);
-            } else if (bytes < 1024 * 1024 * 1024) {
-                return String.format("%.1f MB", bytes / (1024.0 * 1024));
-            } else if (bytes < 1024L * 1024 * 1024 * 1024) {
-                return String.format("%.1f GB", bytes / (1024.0 * 1024 * 1024));
-            } else {
-                return String.format("%.1f TB", bytes / (1024.0 * 1024 * 1024 * 1024));
             }
         }
 
@@ -468,9 +451,9 @@ public class DeviceListPanel extends JPanel {
                 return;
             }
             if (device.getState() == Device.DeviceState.DISABLED) {
-                device.enable();
+                deviceManager.enableDevice(device);
             } else {
-                device.disable();
+                deviceManager.disableDevice(device);
             }
         }
 
@@ -495,35 +478,6 @@ public class DeviceListPanel extends JPanel {
                         i18n.getMessage("device.card.blacklist.success"),
                         i18n.getMessage("device.card.blacklist.success.title"),
                         JOptionPane.INFORMATION_MESSAGE);
-            }
-        }
-
-        private void removeDevice() {
-            String serialNumber = device.getSerialNumber();
-            String devicePath = device.getRootPath() != null ? device.getRootPath().toString() : i18n.getMessage("device.card.unknown");
-
-            int confirm = JOptionPane.showConfirmDialog(
-                    parentFrame,
-                    i18n.getMessage("device.card.remove.confirm", devicePath, serialNumber),
-                    i18n.getMessage("device.card.remove.confirm.title"),
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.WARNING_MESSAGE);
-
-            if (confirm == JOptionPane.YES_OPTION) {
-                boolean removed = deviceManager.removeDeviceCompletely(serialNumber);
-                if (removed) {
-                    JOptionPane.showMessageDialog(
-                            parentFrame,
-                            i18n.getMessage("device.card.remove.success"),
-                            i18n.getMessage("device.card.remove.success.title"),
-                            JOptionPane.INFORMATION_MESSAGE);
-                } else {
-                    JOptionPane.showMessageDialog(
-                            parentFrame,
-                            i18n.getMessage("device.card.remove.failed"),
-                            i18n.getMessage("device.card.remove.failed.title"),
-                            JOptionPane.ERROR_MESSAGE);
-                }
             }
         }
 
@@ -616,7 +570,7 @@ public class DeviceListPanel extends JPanel {
             });
         }
 
-        public void updateState(Device.DeviceState newState) {
+        public void updateState() {
             refreshDeviceInfo();
         }
 

@@ -288,22 +288,13 @@ public class ConfigDialog extends JDialog {
     private void importConfig() {
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setDialogTitle(i18n.getMessage("config.import.title"));
-        fileChooser.setFileFilter(new FileNameExtensionFilter(i18n.getMessage("config.import.filter"), "properties", "json"));
+        fileChooser.setFileFilter(new FileNameExtensionFilter(i18n.getMessage("config.import.filter"), "xml"));
 
         int result = fileChooser.showOpenDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             Path path = fileChooser.getSelectedFile().toPath();
             try {
-                String fileName = path.getFileName().toString().toLowerCase();
-                if (fileName.endsWith(".json")) {
-                    configManager.importFromJson(path);
-                } else if (fileName.endsWith(".properties")) {
-                    configManager.importFromProperties(path);
-                } else {
-                    JOptionPane.showMessageDialog(this, i18n.getMessage("config.import.unsupported"), i18n.getMessage("common.error"), JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-
+                configManager.importFromXml(path);
                 JOptionPane.showMessageDialog(this, i18n.getMessage("config.import.success"), i18n.getMessage("common.success"), JOptionPane.INFORMATION_MESSAGE);
                 dispose();
             } catch (Exception e) {
@@ -318,19 +309,18 @@ public class ConfigDialog extends JDialog {
     private void exportConfig() {
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setDialogTitle(i18n.getMessage("config.export.title"));
-        fileChooser.setFileFilter(new FileNameExtensionFilter(i18n.getMessage("config.export.filter"), "json"));
+        fileChooser.setFileFilter(new FileNameExtensionFilter(i18n.getMessage("config.export.filter"), "xml"));
 
         int result = fileChooser.showSaveDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             Path path = fileChooser.getSelectedFile().toPath();
 
-            // Ensure .json extension
-            if (!path.toString().toLowerCase().endsWith(".json")) {
-                path = Paths.get(path + ".json");
+            if (!path.toString().toLowerCase().endsWith(".xml")) {
+                path = Paths.get(path + ".xml");
             }
 
             try {
-                configManager.exportToJson(path);
+                configManager.exportToXml(path);
                 JOptionPane.showMessageDialog(this, i18n.getMessage("config.export.success", path.toString()), i18n.getMessage("common.success"), JOptionPane.INFORMATION_MESSAGE);
             } catch (Exception e) {
                 JOptionPane.showMessageDialog(this, i18n.getMessage("config.export.error") + ": " + e.getMessage(), i18n.getMessage("common.error"), JOptionPane.ERROR_MESSAGE);
