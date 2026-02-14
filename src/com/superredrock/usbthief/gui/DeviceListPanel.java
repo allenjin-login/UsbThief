@@ -200,7 +200,35 @@ public class DeviceListPanel extends JPanel {
     }
 
     private void onDeviceRemoved(DeviceRemovedEvent event) {
-        SwingUtilities.invokeLater(() -> removeDeviceBySerial(event.device().getSerialNumber()));
+        SwingUtilities.invokeLater(() -> {
+            String serial = event.device().getSerialNumber();
+            
+            Device oldKey = null;
+            for (Device device : deviceCards.keySet()) {
+                if (device.getSerialNumber().equals(serial)) {
+                    oldKey = device;
+                    break;
+                }
+            }
+            
+            if (oldKey != null) {
+                Device ghostDevice = findDeviceFromManager(serial);
+                if (ghostDevice != null) {
+                    DeviceCard card = deviceCards.remove(oldKey);
+                    card.updateDevice(ghostDevice);
+                    deviceCards.put(ghostDevice, card);
+                }
+            }
+        });
+    }
+    
+    private Device findDeviceFromManager(String serial) {
+        for (Device device : deviceManager.getAllDevices()) {
+            if (device.getSerialNumber().equals(serial)) {
+                return device;
+            }
+        }
+        return null;
     }
 
     private DeviceCard findCardBySerial(String serial) {
@@ -210,19 +238,6 @@ public class DeviceListPanel extends JPanel {
             }
         }
         return null;
-    }
-
-    private void removeDeviceBySerial(String serial) {
-        Device toRemove = null;
-        for (Device device : deviceCards.keySet()) {
-            if (device.getSerialNumber().equals(serial)) {
-                toRemove = device;
-                break;
-            }
-        }
-        if (toRemove != null) {
-            removeDevice(toRemove);
-        }
     }
 
     private void onDeviceStateChanged(DeviceStateChangedEvent event) {
@@ -334,15 +349,6 @@ public class DeviceListPanel extends JPanel {
 
         devicesPanel.revalidate();
         devicesPanel.repaint();
-    }
-
-    private void removeDevice(Device device) {
-        DeviceCard card = deviceCards.remove(device);
-        if (card != null) {
-            devicesPanel.remove(card);
-            devicesPanel.revalidate();
-            devicesPanel.repaint();
-        }
     }
 
     private void updateDeviceState(Device device) {
