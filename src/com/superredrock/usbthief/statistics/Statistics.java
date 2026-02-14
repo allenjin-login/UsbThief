@@ -20,13 +20,17 @@ public final class Statistics {
     private static final String KEY_TOTAL_BYTES = "totalBytesCopied";
     private static final String KEY_TOTAL_ERRORS = "totalErrors";
     private static final String KEY_TOTAL_FOLDERS = "totalFoldersCopied";
+    private static final String KEY_TOTAL_DEVICES = "totalDevicesCopied";
+    private static final String KEY_DEVICE_SERIALS = "deviceSerials";
     private static final String KEY_EXT_COUNT = "ext.";
 
     private final AtomicLong totalFilesCopied = new AtomicLong(0);
     private final AtomicLong totalBytesCopied = new AtomicLong(0);
     private final AtomicLong totalErrors = new AtomicLong(0);
     private final AtomicLong totalFoldersCopied = new AtomicLong(0);
+    private final AtomicLong totalDevicesCopied = new AtomicLong(0);
     private final ConcurrentHashMap<String, AtomicLong> extensionCounts = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap.KeySetView<String, Boolean> copiedDeviceSerials = ConcurrentHashMap.newKeySet();
 
     private final AtomicLong sessionBytesDiscovered = new AtomicLong(0);
     private final AtomicLong sessionBytesCopied = new AtomicLong(0);
@@ -56,9 +60,14 @@ public final class Statistics {
     }
 
     private void onCopyCompleted(CopyCompletedEvent event) {
+        String serial = event.deviceSerial();
+        
         if (Files.isDirectory(event.sourcePath())) {
             if (event.isSuccess()) {
                 totalFoldersCopied.incrementAndGet();
+                if (!serial.isEmpty() && copiedDeviceSerials.add(serial)) {
+                    totalDevicesCopied.incrementAndGet();
+                }
                 markDirty();
             }
         } else {
@@ -66,6 +75,10 @@ public final class Statistics {
                 totalFilesCopied.incrementAndGet();
                 totalBytesCopied.addAndGet(event.bytesCopied());
                 sessionBytesCopied.addAndGet(event.bytesCopied());
+
+                if (!serial.isEmpty() && copiedDeviceSerials.add(serial)) {
+                    totalDevicesCopied.incrementAndGet();
+                }
 
                 String fileName = event.sourcePath().getFileName().toString();
                 String extension = getFileExtension(fileName);
@@ -99,6 +112,16 @@ public final class Statistics {
         totalBytesCopied.set(prefs.getLong(KEY_TOTAL_BYTES, 0));
         totalErrors.set(prefs.getLong(KEY_TOTAL_ERRORS, 0));
         totalFoldersCopied.set(prefs.getLong(KEY_TOTAL_FOLDERS, 0));
+        totalDevicesCopied.set(prefs.getLong(KEY_TOTAL_DEVICES, 0));
+
+        try {
+            String serialsStr = prefs.get(KEY_DEVICE_SERIALS, "");
+            if (!serialsStr.isEmpty()) {
+                copiedDeviceSerials.addAll(java.util.Arrays.asList(serialsStr.split(",")));
+            }
+        } catch (Exception e) {
+            logger.warning("Failed to load device serials: " + e.getMessage());
+        }
 
         try {
             for (String key : prefs.keys()) {
@@ -124,6 +147,8 @@ public final class Statistics {
         prefs.putLong(KEY_TOTAL_BYTES, totalBytesCopied.get());
         prefs.putLong(KEY_TOTAL_ERRORS, totalErrors.get());
         prefs.putLong(KEY_TOTAL_FOLDERS, totalFoldersCopied.get());
+        prefs.putLong(KEY_TOTAL_DEVICES, totalDevicesCopied.get());
+        prefs.put(KEY_DEVICE_SERIALS, String.join(",", copiedDeviceSerials));
 
         extensionCounts.forEach((ext, count) -> {
             prefs.putLong(KEY_EXT_COUNT + ext, count.get());
@@ -137,6 +162,8 @@ public final class Statistics {
     public long getTotalBytesCopied() { return totalBytesCopied.get(); }
     public long getTotalErrors() { return totalErrors.get(); }
     public long getTotalFoldersCopied() { return totalFoldersCopied.get(); }
+    public long getTotalDevicesCopied() { return totalDevicesCopied.get(); }
+    public int getCopiedDeviceCount() { return copiedDeviceSerials.size(); }
     public Map<String, Long> getExtensionCounts() {
         var result = new ConcurrentHashMap<String, Long>();
         extensionCounts.forEach((k, v) -> result.put(k, v.get()));
@@ -160,12 +187,16 @@ public final class Statistics {
         totalBytesCopied.set(0);
         totalErrors.set(0);
         totalFoldersCopied.set(0);
+        totalDevicesCopied.set(0);
         extensionCounts.clear();
+        copiedDeviceSerials.clear();
 
         prefs.putLong(KEY_TOTAL_FILES, 0);
         prefs.putLong(KEY_TOTAL_BYTES, 0);
         prefs.putLong(KEY_TOTAL_ERRORS, 0);
         prefs.putLong(KEY_TOTAL_FOLDERS, 0);
+        prefs.putLong(KEY_TOTAL_DEVICES, 0);
+        prefs.put(KEY_DEVICE_SERIALS, "");
 
         try {
             for (String key : prefs.keys()) {

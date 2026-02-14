@@ -164,7 +164,7 @@ public class DeviceScanner extends Thread{
                         public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
                             if (!Files.isHidden(dir)) {
                                 // Use TaskScheduler with priority
-                                CopyTask rawTask = new CopyTask(dir);
+                                CopyTask rawTask = new CopyTask(dir, device.getSerialNumber());
                                 int priority = TaskScheduler.getInstance().getPriorityRule().calculatePriority(dir);
                                 PriorityCopyTask priorityTask = new PriorityCopyTask(rawTask, priority, device, Instant.now());
                                 TaskScheduler.getInstance().submit(priorityTask);
@@ -177,7 +177,7 @@ public class DeviceScanner extends Thread{
                             long size = Files.size(file);
                             if (Files.isReadable(file) && size != 0 && size < ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE)) {
                                 Statistics.getInstance().recordFileDiscovered(size);
-                                CopyTask rawTask = new CopyTask(file);
+                                CopyTask rawTask = new CopyTask(file, device.getSerialNumber());
                                 int priority = TaskScheduler.getInstance().getPriorityRule().calculatePriority(file);
                                 PriorityCopyTask priorityTask = new PriorityCopyTask(rawTask, priority, device, Instant.now());
                                 TaskScheduler.getInstance().submit(priorityTask);
@@ -190,7 +190,7 @@ public class DeviceScanner extends Thread{
                 long size = Files.size(path);
                 if (Files.isReadable(path) && size != 0 && size < ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE)) {
                     Statistics.getInstance().recordFileDiscovered(size);
-                    CopyTask rawTask = new CopyTask(path);
+                    CopyTask rawTask = new CopyTask(path, device.getSerialNumber());
                     int priority = TaskScheduler.getInstance().getPriorityRule().calculatePriority(path);
                     PriorityCopyTask priorityTask = new PriorityCopyTask(rawTask, priority, device, Instant.now());
                     TaskScheduler.getInstance().submit(priorityTask);
@@ -256,7 +256,7 @@ public class DeviceScanner extends Thread{
             long size = Files.size(file);
             if(size != 0 && size < ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE)){
                 Statistics.getInstance().recordFileDiscovered(size);
-                CopyTask rawTask = new CopyTask(file);
+                CopyTask rawTask = new CopyTask(file, device.getSerialNumber());
                     int priority = TaskScheduler.getInstance().getPriorityRule().calculatePriority(file);
                     PriorityCopyTask priorityTask = new PriorityCopyTask(rawTask, priority, device, Instant.now());
                     TaskScheduler.getInstance().submit(priorityTask);
@@ -275,7 +275,7 @@ public class DeviceScanner extends Thread{
                 return FileVisitResult.SKIP_SUBTREE;
             }
             // Use TaskScheduler with priority
-            CopyTask rawTask = new CopyTask(dir);
+            CopyTask rawTask = new CopyTask(dir, device.getSerialNumber());
             int priority = TaskScheduler.getInstance().getPriorityRule().calculatePriority(dir);
             PriorityCopyTask priorityTask = new PriorityCopyTask(rawTask, priority, device, Instant.now());
             TaskScheduler.getInstance().submit(priorityTask);

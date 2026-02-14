@@ -16,10 +16,11 @@ public class CopyCompletedEvent implements Event {
     private final long fileSize;
     private final long bytesCopied;
     private final CopyResult result;
+    private final String deviceSerial;
     private final long timestamp;
 
     public CopyCompletedEvent(Path sourcePath, Path destinationPath,
-                           long fileSize, long bytesCopied, CopyResult result) {
+                           long fileSize, long bytesCopied, CopyResult result, String deviceSerial) {
         if (sourcePath == null || result == null) {
             throw new IllegalArgumentException("sourcePath and result cannot be null");
         }
@@ -28,7 +29,12 @@ public class CopyCompletedEvent implements Event {
         this.fileSize = fileSize;
         this.bytesCopied = bytesCopied;
         this.result = result;
+        this.deviceSerial = deviceSerial != null ? deviceSerial : "";
         this.timestamp = System.currentTimeMillis();
+    }
+
+    public String deviceSerial() {
+        return deviceSerial;
     }
 
     /**

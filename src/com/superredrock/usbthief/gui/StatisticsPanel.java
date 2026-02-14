@@ -20,6 +20,7 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
     private JLabel totalSizeLabel;
     private JLabel totalErrorsLabel;
     private JLabel totalFoldersLabel;
+    private JLabel totalDevicesLabel;
 
     private JLabel discoveredSizeLabel;
     private JLabel copiedSizeLabel;
@@ -51,17 +52,19 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
     }
 
     private JPanel createPersistentPanel() {
-        JPanel panel = new JPanel(new GridLayout(2, 2, 10, 5));
+        JPanel panel = new JPanel(new GridLayout(2, 3, 10, 5));
         panel.setBorder(new TitledBorder(i18n.getMessage("stats.persistent.border")));
 
         totalFilesLabel = new JLabel();
         totalSizeLabel = new JLabel();
         totalErrorsLabel = new JLabel();
         totalFoldersLabel = new JLabel();
+        totalDevicesLabel = new JLabel();
 
         panel.add(totalFilesLabel);
         panel.add(totalSizeLabel);
         panel.add(totalFoldersLabel);
+        panel.add(totalDevicesLabel);
         panel.add(totalErrorsLabel);
 
         return panel;
@@ -113,6 +116,9 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
         SwingUtilities.invokeLater(() -> {
             totalFilesLabel.setText(i18n.getMessage("stats.totalFiles", stats.getTotalFilesCopied()));
             totalSizeLabel.setText(i18n.getMessage("stats.totalSize", SizeFormatter.format(stats.getTotalBytesCopied())));
+            totalFoldersLabel.setText(i18n.getMessage("stats.totalFolders", stats.getTotalFoldersCopied()));
+            totalDevicesLabel.setText(i18n.getMessage("stats.totalDevices", stats.getTotalDevicesCopied()));
+            totalErrorsLabel.setText(i18n.getMessage("stats.totalErrors", stats.getTotalErrors()));
 
             discoveredSizeLabel.setText(i18n.getMessage("stats.discoveredSize", SizeFormatter.format(stats.getSessionBytesDiscovered())));
             copiedSizeLabel.setText(i18n.getMessage("stats.copiedSize", SizeFormatter.format(stats.getSessionBytesCopied())));

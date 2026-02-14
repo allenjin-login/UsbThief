@@ -25,21 +25,21 @@ public class CopyTask implements Callable<CopyResult> {
     private static final ThreadLocal<ByteBuffer> bufferThreadLocal = ThreadLocal.withInitial(() -> ByteBuffer.allocate(ConfigManager.getInstance().get(ConfigSchema.BUFFER_SIZE)));
 
     protected Path processingPath;
+    private final String deviceSerial;
     private static volatile RateLimiter rateLimiter;
     private static final Object rateLimiterLock = new Object();
     private static final SpeedProbeGroup speedProbeGroup = new SpeedProbeGroup("copy-tasks");
     private static final AtomicLong lastLogTime = new AtomicLong(0);
     private static final long LOG_INTERVAL_MS = 1000;
 
-    // Per-task speed probe for individual file tracking
     private final SpeedProbe taskProbe;
 
 
 
-    public CopyTask(Path path){
+    public CopyTask(Path path, String deviceSerial){
         this.processingPath = path;
+        this.deviceSerial = deviceSerial != null ? deviceSerial : "";
         this.taskProbe = new SpeedProbe("CopyTask-" + path.getFileName());
-        // Register this task's probe with the group
         speedProbeGroup.addProbe(taskProbe);
     }
 
@@ -129,9 +129,10 @@ public class CopyTask implements Callable<CopyResult> {
             EventBus.getInstance().dispatch(new CopyCompletedEvent(
                     processingPath,
                     destinationPath,
-                    size, // Use file size from try block or 0
+                    size,
                     bytesCopied,
-                    result
+                    result,
+                    deviceSerial
             ));
         }
 
