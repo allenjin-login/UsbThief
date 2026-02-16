@@ -3,6 +3,7 @@ package com.superredrock.usbthief.statistics;
 import com.superredrock.usbthief.core.SizeFormatter;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
+import com.superredrock.usbthief.core.event.worker.FileDiscoveredEvent;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -57,6 +58,11 @@ public final class Statistics {
 
     private void registerEventListeners() {
         EventBus.getInstance().register(CopyCompletedEvent.class, this::onCopyCompleted);
+        EventBus.getInstance().register(FileDiscoveredEvent.class, this::onFileDiscovered);
+    }
+
+    private void onFileDiscovered(FileDiscoveredEvent event) {
+        sessionBytesDiscovered.addAndGet(event.fileSize());
     }
 
     private void onCopyCompleted(CopyCompletedEvent event) {
@@ -97,10 +103,6 @@ public final class Statistics {
             return fileName.substring(dotIndex + 1).toLowerCase();
         }
         return "unknown";
-    }
-
-    public void recordFileDiscovered(long bytes) {
-        sessionBytesDiscovered.addAndGet(bytes);
     }
 
     private void markDirty() {

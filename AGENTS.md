@@ -1,7 +1,7 @@
 # UsbThief - Project Knowledge Base
 
 **Generated:** 2026-02-03
-**Last Updated:** 2026-02-14
+**Last Updated:** 2026-02-16
 **Java Version:** 24 (modular, with --enable-preview)
 **Module:** UsbThief
 
@@ -17,7 +17,7 @@ UsbThief/
 │   │   ├── Main.java           # Application entry point
 │   │   ├── core/               # Device management, queue infrastructure (9 files)
 │   │   │   ├── config/         # Type-safe configuration system (4 files)
-│   │   │   └── event/          # Event bus and device/event types (12 files)
+│   │   │   └── event/          # Event bus and device/event types (13 files)
 │   │   ├── statistics/         # Statistics tracking and reporting
  │   │   ├── worker/             # Device scanning, file copying, task execution (14 files)
  │   │   ├── index/              # File indexing, checksum verification (4 files)
@@ -25,6 +25,7 @@ UsbThief/
 │   ├── test/                   # Unit tests (JUnit 5 + Mockito)
 │   │   └── com/superredrock/usbthief/
 │   │       ├── core/           # Core module tests
+│   │       │   └── event/      # EventBus and event tests
 │   │       ├── worker/         # Worker module tests
 │   │       └── index/          # Index module tests
 │   
@@ -259,6 +260,40 @@ try (FileChannel readChannel = FileChannel.open(path, StandardOpenOption.READ);
  * @throws Exception description
  */
 ```
+
+## EVENT SYSTEM
+
+### Architecture
+- **EventBus** (Singleton): Central event dispatcher with parallel listener invocation
+- **EventListener<T>**: Synchronous listener interface (`void onEvent(T event)`)
+- **AsyncEventListener<T, R>**: Asynchronous listener returning `CompletableFuture<R>`
+
+### Dispatch Methods
+| Method | Execution | Return Type | Use Case |
+|--------|-----------|-------------|----------|
+| `dispatch(event)` | Parallel (parallelStream) | void | Fire-and-forget, high throughput |
+| `dispatchAsync(event)` | Async (thread pool) | `CompletableFuture<Void>` | Non-blocking with completion tracking |
+| `dispatchWithResult(event, type)` | Async | `CompletableFuture<List<R>>` | Collect results from async listeners |
+
+### Parallel Dispatch
+`dispatch()` uses `parallelStream()` for multi-threaded listener invocation:
+- Uses ForkJoinPool.commonPool() for parallel execution
+- Method blocks until all listeners complete
+- Exception in one listener does not affect others (logged but not rethrown)
+- **Order not guaranteed** - listeners execute in parallel
+
+### Event Types
+| Package | Events | Description |
+|---------|--------|-------------|
+| `core.event.device` | DeviceInsertedEvent, DeviceRemovedEvent, DeviceStateChangedEvent, NewDeviceJoinedEvent | Device lifecycle |
+| `core.event.worker` | CopyCompletedEvent, FileDiscoveredEvent | File operations |
+| `core.event.index` | FileIndexedEvent, DuplicateDetectedEvent, IndexLoadedEvent, IndexSavedEvent | Index operations |
+| `core.event.misc` | TestEvent | Testing/demonstration |
+
+### Thread Safety
+- `CopyOnWriteArrayList` for listener storage (safe iteration during modification)
+- EventBus singleton is thread-safe
+- Events should be immutable after creation
 
 ## SERVICE ARCHITECTURE
 

@@ -102,7 +102,7 @@ public final class EventBus {
 
     /**
      * Dispatches an event to all registered listeners for its type.
-     * Listeners are notified synchronously in registration order.
+     * Listeners are notified in parallel using parallel streams.
      * Exceptions thrown by listeners are logged but do not stop dispatch to other listeners.
      *
      * @param event the event to dispatch
@@ -114,16 +114,17 @@ public final class EventBus {
             throw new IllegalArgumentException("event cannot be null");
         }
 
-        for (EventListenerWrapper<?> wrapper : listeners) {
-            if (wrapper.canHandle(event)) {
-                try {
-                    ((EventListener<T>) wrapper.listener()).onEvent(event);
-                } catch (Exception e) {
-                    logger.severe("Exception in event listener for " + event.getClass().getName()
-                            + ": " + e.getMessage());
-                }
-            }
-        }
+        listeners.parallelStream()
+                .filter(wrapper -> wrapper.canHandle(event))
+                .forEach(wrapper -> {
+                    try {
+                        EventListener<T> listener = (EventListener<T>) wrapper.listener();
+                        listener.onEvent(event);
+                    } catch (Exception e) {
+                        logger.severe("Exception in event listener for " + event.getClass().getName()
+                                + ": " + e.getMessage());
+                    }
+                });
     }
 
     /**
