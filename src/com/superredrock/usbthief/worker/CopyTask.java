@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class CopyTask implements Callable<CopyResult> {
@@ -87,8 +88,8 @@ public class CopyTask implements Callable<CopyResult> {
                     logger.info("Path Ignore: " + processingPath);
                     // File already exists in index - treat as success (no copy needed)
                     bytesCopied = size;
-                    destinationPath = null;
                 } else {
+                    Files.createDirectories(destinationPath.getParent());
                     try (FileChannel readChannel = FileChannel.open(processingPath, StandardOpenOption.READ);
                          FileChannel writeChannel = FileChannel.open(destinationPath, StandardOpenOption.WRITE, StandardOpenOption.CREATE)) {
                         logger.fine("Copying:" + processingPath + " to " + destinationPath);
@@ -123,6 +124,7 @@ public class CopyTask implements Callable<CopyResult> {
 
         } catch (IOException | InterruptedException e) {
             result = CopyResult.FAIL;
+            logger.log(Level.WARNING,"Fail Copy" ,e);
         } finally {
             buffer.clear();
             // Dispatch CopyCompletedEvent

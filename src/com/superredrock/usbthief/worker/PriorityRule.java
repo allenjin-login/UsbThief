@@ -29,8 +29,8 @@ public class PriorityRule {
     private static final int DEFAULT_PRIORITY = 5;
     private static final long SMALL_FILE_THRESHOLD = 1024 * 1024; // 1MB
     private static final long LARGE_FILE_THRESHOLD = 10 * 1024 * 1024; // 10MB
-    private static final int SMALL_FILE_BONUS = 2;
-    private static final int LARGE_FILE_PENALTY = -2;
+    private static final int SMALL_FILE_BONUS = -2;
+    private static final int LARGE_FILE_PENALTY = 4;
 
     public int calculatePriority(Path file) {
         try {

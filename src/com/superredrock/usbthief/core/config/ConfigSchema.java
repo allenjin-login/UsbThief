@@ -49,7 +49,7 @@ public class ConfigSchema {
             intEntry("hashBufferSize", "Buffer size for hash calculation (bytes)", 1024, "File Copy");
 
     public static final ConfigEntry<Integer> MAX_FILE_SIZE =
-            intEntry("maxFileSize", "Maximum file size to copy (bytes)", 100 * 1024 * 1024, "File Copy");
+            intEntry("maxFileSize", "Maximum file size to copy (bytes)", 1000 * 1024 * 1024, "File Copy");
 
     public static final ConfigEntry<Integer> RETRY_COUNT =
             intEntry("retryCount", "Number of retry attempts for failed operations", 5, "File Copy");

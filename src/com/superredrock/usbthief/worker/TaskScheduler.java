@@ -50,8 +50,9 @@ public class TaskScheduler extends Service {
 
         switch (score.level()) {
             case HIGH -> handleHighLoad();
-            case MEDIUM -> dispatchBatch(5);
+            case MEDIUM -> dispatchBatch(50);
             case LOW -> dispatchAll();
+            default -> dispatchBatch(100);
         }
 
         adjustRateLimit(score.level());

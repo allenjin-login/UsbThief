@@ -255,13 +255,16 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         int queueDepth = TaskScheduler.getInstance().getQueueDepth();
         String queueInfo = i18n.getMessage("status.queue.format", queueDepth);
 
+        int poolQueueSize = QueueManager.getQueueSize();
+        String poolQueueInfo = i18n.getMessage("status.poolQueue.format", poolQueueSize);
+
         double speed = CopyTask.getSpeedProbeGroup().getTotalSpeed();
         String speedInfo = i18n.getMessage("status.speed.format", speed);
 
         String workPath = ConfigManager.getInstance().get(ConfigSchema.WORK_PATH);
         String pathInfo = i18n.getMessage("status.path.format", workPath.isEmpty() ? i18n.getMessage("status.currentDir") : workPath);
 
-        String message = i18n.getMessage("status.combined", loadInfo, queueInfo, speedInfo, pathInfo);
+        String message = i18n.getMessage("status.combined", loadInfo, queueInfo, poolQueueInfo, speedInfo, pathInfo);
         updateStatusBar(message);
     }
 
@@ -376,8 +379,8 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
             if (success) {
                 logger.info("System tray icon initialized");
                 trayIcon.displayMessage(
-                    i18n.getMessage("tray.startup.title"),
-                    i18n.getMessage("tray.startup.message"),
+                    "UsbThief Started",
+                    "Right-click tray icon for options, double-click to show/hide window",
                     java.awt.TrayIcon.MessageType.INFO
                 );
             } else {

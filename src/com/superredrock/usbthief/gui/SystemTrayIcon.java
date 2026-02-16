@@ -12,11 +12,11 @@ import java.util.logging.Logger;
 /**
  * System tray integration for UsbThief.
  * Provides tray icon with popup menu for window control.
+ * All text is hardcoded in English - not affected by i18n.
  */
 public class SystemTrayIcon {
     private static final Logger logger = Logger.getLogger(SystemTrayIcon.class.getName());
 
-    private final I18NManager i18n = I18NManager.getInstance();
     private final MainFrame mainFrame;
     private TrayIcon trayIcon;
     private MenuItem showHideItem;
@@ -35,7 +35,6 @@ public class SystemTrayIcon {
      * @return true if successful, false if system tray is not supported
      */
     public boolean initialize() {
-        // Check if system tray is supported
         if (!SystemTray.isSupported()) {
             logger.warning("System tray is not supported on this platform");
             return false;
@@ -43,54 +42,43 @@ public class SystemTrayIcon {
 
         SystemTray systemTray = SystemTray.getSystemTray();
 
-        // Create popup menu
         PopupMenu popup = new PopupMenu();
 
-        // Show/Hide toggle menu item
-        showHideItem = new MenuItem(i18n.getMessage("tray.menu.show"));
+        showHideItem = new MenuItem("Show Window");
         showHideItem.addActionListener(this::toggleWindowVisibility);
         popup.add(showHideItem);
 
-
         popup.addSeparator();
 
-        // Always Hide toggle menu item
         boolean alwaysHidden = ConfigManager.getInstance().get(ConfigSchema.ALWAYS_HIDDEN);
-        alwaysHideItem = new MenuItem(i18n.getMessage("tray.menu.alwaysHide", alwaysHidden ? i18n.getMessage("tray.menu.yes") : i18n.getMessage("tray.menu.no")));
+        alwaysHideItem = new MenuItem("Always Hide: " + (alwaysHidden ? "Yes" : "No"));
         alwaysHideItem.addActionListener(this::toggleAlwaysHidden);
         popup.add(alwaysHideItem);
 
         popup.addSeparator();
 
-        // Start/Stop scanning menu item
-        scanItem = new MenuItem(i18n.getMessage("tray.menu.pause"));
+        scanItem = new MenuItem("Pause Scanning");
         scanItem.addActionListener(this::toggleScanning);
         popup.add(scanItem);
 
         popup.addSeparator();
 
-        // Exit menu item
-        MenuItem exitItem = new MenuItem(i18n.getMessage("tray.menu.exit"));
+        MenuItem exitItem = new MenuItem("Exit");
         exitItem.addActionListener(this::exitApplication);
         popup.add(exitItem);
 
-        // Load tray icon image
         Image trayImage = createTrayIconImage();
         if (trayImage == null) {
             logger.warning("Failed to create tray icon image, using default");
-            // Use default icon or create a simple colored square
             trayImage = createDefaultIcon();
         }
 
-        // Create tray icon with tooltip
         int iconSize = systemTray.getTrayIconSize().width;
         Image scaledImage = trayImage.getScaledInstance(iconSize, iconSize, Image.SCALE_SMOOTH);
-        trayIcon = new TrayIcon(scaledImage, i18n.getMessage("tray.tooltip"), popup);
+        trayIcon = new TrayIcon(scaledImage, "UsbThief - USB Device Monitor", popup);
 
-        // Set auto-size to true for better appearance
         trayIcon.setImageAutoSize(true);
 
-        // Add double-click listener to toggle window
         trayIcon.addActionListener((ActionEvent e) -> {
             logger.info("Tray icon double-clicked");
             mainFrame.toggleWindowVisibility();
@@ -181,12 +169,10 @@ public class SystemTrayIcon {
         boolean newValue = !currentValue;
         ConfigManager.getInstance().set(ConfigSchema.ALWAYS_HIDDEN, newValue);
 
-        // Update menu item label
-        alwaysHideItem.setLabel(i18n.getMessage("tray.menu.alwaysHide", newValue ? i18n.getMessage("tray.menu.yes") : i18n.getMessage("tray.menu.no")));
+        alwaysHideItem.setLabel("Always Hide: " + (newValue ? "Yes" : "No"));
 
         logger.info("Always Hidden setting changed to: " + newValue);
 
-        // If enabled, hide the window immediately
         if (newValue && mainFrame.isVisible()) {
             mainFrame.hideWindow();
         }
@@ -197,66 +183,50 @@ public class SystemTrayIcon {
      */
     private void toggleScanning(ActionEvent e) {
         MenuItem item = (MenuItem) e.getSource();
-        // This would need access to deviceListPanel
-        // For now, just toggle the label
-        if (item.getLabel().equals(i18n.getMessage("tray.menu.pause"))) {
-            item.setLabel(i18n.getMessage("tray.menu.start"));
+        if (item.getLabel().equals("Pause Scanning")) {
+            item.setLabel("Start Scanning");
             logger.info("Scanning paused (menu toggle)");
         } else {
-            item.setLabel(i18n.getMessage("tray.menu.pause"));
+            item.setLabel("Pause Scanning");
             logger.info("Scanning resumed (menu toggle)");
         }
     }
 
-    /**
-     * Exit application with unified shutdown logic.
-     */
     private void exitApplication(ActionEvent e) {
         logger.info("Exit requested from system tray");
 
         int confirm = JOptionPane.showConfirmDialog(
             mainFrame,
-            i18n.getMessage("tray.exit.confirm"),
-            i18n.getMessage("tray.exit.confirm.title"),
+            "Are you sure you want to exit UsbThief?",
+            "Confirm Exit",
             JOptionPane.YES_NO_OPTION,
             JOptionPane.QUESTION_MESSAGE
         );
 
         if (confirm == JOptionPane.YES_OPTION) {
-            // Use unified shutdown logic from MainFrame
             mainFrame.performShutdown();
         }
     }
 
-    /**
-     * Update menu item labels based on current state.
-     */
     private void updateMenuItems() {
         if (trayIcon != null && trayIcon.getPopupMenu() != null) {
-            // Update Show/Hide item
-            showHideItem.setLabel(mainFrame.isVisible() ? i18n.getMessage("tray.menu.show") : i18n.getMessage("tray.menu.hide"));
+            showHideItem.setLabel(mainFrame.isVisible() ? "Hide Window" : "Show Window");
         }
     }
 
-    /**
-     * Update the Show/Hide menu item label based on window state.
-     */
     public void updateShowHideMenuItem() {
         updateMenuItems();
     }
 
-    /**
-     * Refresh all menu item labels after locale change.
-     */
     public void refreshLanguage() {
         if (trayIcon == null) return;
 
-        trayIcon.setToolTip(i18n.getMessage("tray.tooltip"));
+        trayIcon.setToolTip("UsbThief - USB Device Monitor");
 
         boolean alwaysHidden = ConfigManager.getInstance().get(ConfigSchema.ALWAYS_HIDDEN);
-        showHideItem.setLabel(mainFrame.isVisible() ? i18n.getMessage("tray.menu.hide") : i18n.getMessage("tray.menu.show"));
-        alwaysHideItem.setLabel(i18n.getMessage("tray.menu.alwaysHide", alwaysHidden ? i18n.getMessage("tray.menu.yes") : i18n.getMessage("tray.menu.no")));
-        scanItem.setLabel(i18n.getMessage("tray.menu.pause"));
+        showHideItem.setLabel(mainFrame.isVisible() ? "Hide Window" : "Show Window");
+        alwaysHideItem.setLabel("Always Hide: " + (alwaysHidden ? "Yes" : "No"));
+        scanItem.setLabel("Pause Scanning");
     }
 
     /**

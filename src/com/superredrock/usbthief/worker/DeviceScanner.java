@@ -76,20 +76,10 @@ public class DeviceScanner extends Thread {
         BiPredicate<Path, BasicFileAttributes> filter = createFileFilter(maxSize);
 
         try (Stream<Path> paths = Files.find(root, Integer.MAX_VALUE, filter).parallel()) {
-            paths.peek(path -> {
-                if (Files.isDirectory(path)){
-                    processFileSafely(path);
-                    EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, 0, device.getSerialNumber()));
-                }
-            }).filter(path -> !Files.isDirectory(path))
-                    .peek(path -> {
-                        try {
-                            EventBus.getInstance().dispatch(new FileDiscoveredEvent(path,Files.size(path), device.getSerialNumber()));
-                        } catch (IOException _) {
-                            EventBus.getInstance().dispatch(new FileDiscoveredEvent(path,0, device.getSerialNumber()));
-                        }
-                    })
-                    .forEach(this::processFileSafely);
+            paths
+                    .peek(path -> EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, 0, device.getSerialNumber()))
+                    ).filter(Files::exists)
+                    .forEach(this::submitCopyTask);
         }
 
         logger.info("Initial scan completed for " + root);
@@ -123,20 +113,6 @@ public class DeviceScanner extends Thread {
         }
     }
 
-    private void processFileSafely(Path file) {
-        try {
-            long size = Files.size(file);
-            if (size > 0) {
-                submitCopyTask(file);
-            }
-        } catch (AccessDeniedException e) {
-            logger.fine("Access denied: " + file);
-        } catch (NoSuchFileException e) {
-            logger.fine("File disappeared: " + file);
-        } catch (IOException e) {
-            logger.warning("Error processing file " + file + ": " + e.getMessage());
-        }
-    }
 
     private void submitCopyTask(Path path) {
         CopyTask rawTask = new CopyTask(path, device.getSerialNumber());
@@ -161,7 +137,7 @@ public class DeviceScanner extends Thread {
 
             partitioned.getOrDefault(false, java.util.List.of())
                 .parallelStream()
-                .forEach(this::processFileSafely);
+                .forEach(this::submitCopyTask);
         }
     }
 
@@ -253,7 +229,7 @@ public class DeviceScanner extends Thread {
             if (Files.isDirectory(path) && kind == StandardWatchEventKinds.ENTRY_CREATE) {
                 scanNewDirectory(path);
             } else if (Files.isRegularFile(path)) {
-                processFileSafely(path);
+                submitCopyTask(path);
             }
         } catch (IOException e) {
             logger.warning("Error handling changed path: " + e.getMessage());
