@@ -6,7 +6,8 @@
 
     <groupId>com.superredrock</groupId>
     <artifactId>UsbThief</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <!-- Version: major.minor.patch (SemVer) -->
+    <version>1.0.0</version>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -14,6 +15,15 @@
         <maven.compiler.target>24</maven.compiler.target>
         <junit.version>5.11.4</junit.version>
         <mockito.version>5.15.2</mockito.version>
+        <!-- Version components (for resource filtering and Launch4j) -->
+        <project.version.major>1</project.version.major>
+        <project.version.minor>0</project.version.minor>
+        <project.version.patch>0</project.version.patch>
+        <build.timestamp>${maven.build.timestamp}</build.timestamp>
+        <maven.build.timestamp.format>yyyyMMdd</maven.build.timestamp.format>
+        <!-- Jlink configuration -->
+        <jlink.image.name>usbthief</jlink.image.name>
+        <jlink.main.class>com.superredrock.usbthief.Main</jlink.main.class>
     </properties>
 
     <dependencyManagement>
@@ -57,12 +67,24 @@
         <sourceDirectory>src</sourceDirectory>
         <testSourceDirectory>test</testSourceDirectory>
         <resources>
+            <!-- Standard resources without filtering -->
             <resource>
                 <directory>src</directory>
                 <includes>
                     <include>**/*.properties</include>
                     <include>**/*.properties.utf8</include>
                 </includes>
+                <excludes>
+                    <exclude>**/version.properties</exclude>
+                </excludes>
+            </resource>
+            <!-- Version properties with Maven filtering -->
+            <resource>
+                <directory>src</directory>
+                <includes>
+                    <include>**/version.properties</include>
+                </includes>
+                <filtering>true</filtering>
             </resource>
         </resources>
         <plugins>
@@ -83,6 +105,144 @@
                 <configuration>
                     <argLine>--enable-preview</argLine>
                 </configuration>
+            </plugin>
+            <!-- JLink: Create custom runtime image using exec-maven-plugin -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>jlink</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>${java.home}/bin/jlink</executable>
+                            <workingDirectory>${project.build.directory}</workingDirectory>
+                            <arguments>
+                                <!-- Module path: JDK jmods + compiled classes -->
+                                <argument>--module-path</argument>
+                                <argument>${java.home}/jmods${path.separator}${project.build.outputDirectory}</argument>
+                                <!-- Add modules -->
+                                <argument>--add-modules</argument>
+                                <argument>UsbThief</argument>
+                                <!-- Output directory -->
+                                <argument>--output</argument>
+                                <argument>${project.build.directory}/${jlink.image.name}</argument>
+                                <!-- Launcher script -->
+                                <argument>--launcher</argument>
+                                <argument>${jlink.image.name}=UsbThief/${jlink.main.class}</argument>
+                                <!-- Compress (ZIP level) -->
+                                <argument>--compress</argument>
+                                <argument>2</argument>
+                                <!-- Strip debug for smaller image -->
+                                <argument>--strip-debug</argument>
+                                <!-- No header files and man pages -->
+                                <argument>--no-header-files</argument>
+                                <argument>--no-man-pages</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <!-- Patch launcher scripts to add enable-preview VM option -->
+                    <execution>
+                        <id>patch-launcher-bat</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>powershell</executable>
+                            <workingDirectory>${project.build.directory}/${jlink.image.name}/bin</workingDirectory>
+                            <arguments>
+                                <argument>-Command</argument>
+                                <argument>(Get-Content usbthief.bat) -replace 'set JLINK_VM_OPTIONS=', 'set JLINK_VM_OPTIONS=--enable-preview' | Set-Content usbthief.bat</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <!-- Patch Unix launcher script -->
+                    <execution>
+                        <id>patch-launcher-sh</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>powershell</executable>
+                            <workingDirectory>${project.build.directory}/${jlink.image.name}/bin</workingDirectory>
+                            <arguments>
+                                <argument>-Command</argument>
+                                <argument>(Get-Content usbthief) -replace 'JLINK_VM_OPTIONS=', 'JLINK_VM_OPTIONS=--enable-preview' | Set-Content usbthief</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Launch4j: Create Windows EXE -->
+            <plugin>
+                <groupId>com.akathist.maven.plugins.launch4j</groupId>
+                <artifactId>launch4j-maven-plugin</artifactId>
+                <version>2.5.1</version>
+                <executions>
+                    <execution>
+                        <id>launch4j</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>launch4j</goal>
+                        </goals>
+                        <configuration>
+                            <headerType>gui</headerType>
+                            <outfile>${project.build.directory}/UsbThief-${project.version}.exe</outfile>
+                            <errTitle>UsbThief</errTitle>
+                            <classPath>
+                                <mainClass>com.superredrock.usbthief.Main</mainClass>
+                            </classPath>
+                            <jre>
+                                <!-- Use jlink-generated runtime -->
+                                <path>${jlink.image.name}</path>
+                                <minVersion>24</minVersion>
+                                <opts>
+                                    <opt>--enable-preview</opt>
+                                </opts>
+                            </jre>
+                            <versionInfo>
+                                <fileVersion>${project.version.major}.${project.version.minor}.${project.version.patch}.0</fileVersion>
+                                <txtFileVersion>${project.version.major}.${project.version.minor}.${project.version.patch}</txtFileVersion>
+                                <fileDescription>USB Device Monitoring Utility</fileDescription>
+                                <copyright>Copyright (C) 2026 SuperRedRock</copyright>
+                                <productVersion>${project.version.major}.${project.version.minor}.${project.version.patch}.0</productVersion>
+                                <txtProductVersion>${project.version.major}.${project.version.minor}.${project.version.patch}</txtProductVersion>
+                                <productName>UsbThief</productName>
+                                <internalName>UsbThief</internalName>
+                                <originalFilename>UsbThief-${project.version}.exe</originalFilename>
+                            </versionInfo>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Create distribution ZIP (exe + runtime) -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>create-dist-zip</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <zip destfile="${project.build.directory}/UsbThief-${project.version}.zip">
+                                    <zipfileset dir="${project.build.directory}" includes="UsbThief-${project.version}.exe"/>
+                                    <zipfileset dir="${project.build.directory}" includes="${jlink.image.name}/**"/>
+                                </zip>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

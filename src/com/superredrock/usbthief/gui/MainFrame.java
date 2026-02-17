@@ -3,6 +3,7 @@ package com.superredrock.usbthief.gui;
 import com.superredrock.usbthief.Main;
 import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.QueueManager;
+import com.superredrock.usbthief.core.Version;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.worker.LoadEvaluator;
@@ -36,7 +37,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     private SystemTrayIcon trayIcon;
 
     public MainFrame() {
-        setTitle(i18n.getMessage("main.title"));
+        setTitle(i18n.getMessage("main.title") + " v" + Version.getVersion());
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1200, 800);
         setLocationRelativeTo(null);
@@ -230,9 +231,14 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     }
 
     private void showAbout() {
+        String aboutMessage = i18n.getMessage("message.about", 
+            Version.getVersion(), 
+            Version.getFullVersion(),
+            System.getProperty("java.version")
+        );
         JOptionPane.showMessageDialog(this,
-                i18n.getMessage("message.about"),
-                i18n.getMessage("title.about"),
+                aboutMessage,
+                i18n.getMessage("title.about") + " v" + Version.getVersion(),
                 JOptionPane.INFORMATION_MESSAGE);
     }
 
@@ -414,7 +420,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     public void onLocaleChanged(Locale newLocale) {
         logger.info("MainFrame received locale change event: " + newLocale);
         SwingUtilities.invokeLater(() -> {
-            setTitle(i18n.getMessage("main.title"));
+            setTitle(i18n.getMessage("main.title") + " v" + Version.getVersion());
             menuBar.removeAll();
             createMenus();
             updateStatusBar();
