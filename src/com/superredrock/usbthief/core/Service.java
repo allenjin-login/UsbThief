@@ -16,6 +16,8 @@ public abstract class Service extends Thread implements Closeable {
 
     public Service() {
         super();
+        setDaemon(true);
+        setName(getServiceName());
     }
 
     @Override
@@ -24,7 +26,8 @@ public abstract class Service extends Thread implements Closeable {
         state = ServiceState.RUNNING;
         logger.info(getServiceName() + " service started");
 
-        while (running) {
+        while (running && !Thread.currentThread().isInterrupted()) {
+            stateLock.lock();
             try {
                 if (!paused) {
                     tick();
@@ -34,10 +37,12 @@ public abstract class Service extends Thread implements Closeable {
                 if (running) {
                     logger.severe(getServiceName() + " interrupted unexpectedly");
                 }
-                break;
+                Thread.currentThread().interrupt();
             } catch (Exception e) {
                 logger.severe(getServiceName() + " tick failed: " + e.getMessage());
                 state = ServiceState.FAILED;
+            }finally {
+                stateLock.unlock();
             }
         }
 
@@ -71,37 +76,32 @@ public abstract class Service extends Thread implements Closeable {
     }
 
     public void stopService() {
-        stateLock.lock();
+        if (state == ServiceState.STOPPED) {
+            return;
+        }
+
+        state = ServiceState.STOPPING;
+
         try {
-            if (state == ServiceState.STOPPED) {
-                return;
-            }
+            running = false;
+            interrupt();
 
-            state = ServiceState.STOPPING;
-
-            try {
-                running = false;
-                interrupt();
-
-                if (isAlive()) {
-                    try {
-                        join(5000);
-                    } catch (InterruptedException e) {
-                        logger.warning(getServiceName() + " stop interrupted while waiting for thread");
-                    }
+            if (isAlive()) {
+                try {
+                    join(5000);
+                } catch (InterruptedException e) {
+                    logger.warning(getServiceName() + " stop interrupted while waiting for thread");
                 }
-
-                cleanup();
-
-                state = ServiceState.STOPPED;
-                logger.info(getServiceName() + " service stopped");
-
-            } catch (Exception e) {
-                logger.severe(getServiceName() + " stop failed: " + e.getMessage());
-                state = ServiceState.FAILED;
             }
-        } finally {
-            stateLock.unlock();
+
+            cleanup();
+
+            state = ServiceState.STOPPED;
+            logger.info(getServiceName() + " service stopped");
+
+        } catch (Exception e) {
+            logger.severe(getServiceName() + " stop failed: " + e.getMessage());
+            state = ServiceState.FAILED;
         }
     }
 

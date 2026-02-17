@@ -1,12 +1,16 @@
 # UsbThief - Project Knowledge Base
 
 **Generated:** 2026-02-03
-**Last Updated:** 2026-02-16
+**Last Updated:** 2026-02-17
+**Commit:** f1fe3ad
+**Branch:** master
 **Java Version:** 24 (modular, with --enable-preview)
 **Module:** UsbThief
 
 ## OVERVIEW
-USB device monitoring and file copying utility for Windows. Detects USB drives, monitors file changes in real-time, and copies files using checksum-based deduplication. Features an extensible event system for device lifecycle notifications. **Priority-based task scheduling with adaptive load control and load-aware rate limiting.** **Full internationalization (i18n) support with hot language switching.** **Thread-based service architecture with sleep-based tick scheduling.**
+USB device monitoring and file copying utility for Windows. Detects USB drives, monitors file changes in real-time, and copies files using checksum-based deduplication. **Priority-based task scheduling with adaptive load control and load-aware rate limiting.** **Full internationalization (i18n) support with hot language switching.** **Thread-based service architecture with sleep-based tick scheduling.**
+
+> **Subdirectory AGENTS.md:** `src/com/superredrock/usbthief/core/`, `worker/`, `gui/`
 
 ## STRUCTURE
 ```

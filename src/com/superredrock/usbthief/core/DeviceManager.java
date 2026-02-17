@@ -6,8 +6,9 @@ import com.superredrock.usbthief.core.event.device.DeviceInsertedEvent;
 import com.superredrock.usbthief.core.event.device.DeviceRemovedEvent;
 import com.superredrock.usbthief.core.event.device.DeviceStateChangedEvent;
 import com.superredrock.usbthief.core.event.device.NewDeviceJoinedEvent;
-import com.superredrock.usbthief.worker.DeviceScanner;
+import com.superredrock.usbthief.worker.Sniffer;
 
+import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,7 +23,7 @@ public class DeviceManager extends Service {
     private static final String RECORD_DELIMITER = "||";
 
     private final Set<Device> devices = Collections.synchronizedSet(new HashSet<>());
-    private final Map<Device, DeviceScanner> activeScanners = new ConcurrentHashMap<>();
+    private final Map<Device, Sniffer> activeScanners = new ConcurrentHashMap<>();
     private final Set<DeviceRecord> deviceRecords = ConcurrentHashMap.newKeySet();
     private final FileSystem fileSystem = FileSystems.getDefault();
     private final EventBus eventBus;
@@ -169,17 +170,16 @@ public class DeviceManager extends Service {
             return;
         }
         
-        DeviceScanner scanner = new DeviceScanner(device, device.getFileStore());
+        Sniffer scanner = new Sniffer(device, device.getFileStore());
         activeScanners.put(device, scanner);
         scanner.start();
         logger.fine("Started scanner for device: " + device.getSerialNumber());
     }
 
     private void stopScanner(Device device) {
-        DeviceScanner scanner = activeScanners.remove(device);
+        Sniffer scanner = activeScanners.remove(device);
         if (scanner != null) {
-            scanner.interrupt();
-            scanner.stopMonitoring();
+            try {scanner.close();} catch (IOException _) {}
             logger.fine("Stopped scanner for device: " + device.getSerialNumber());
         }
     }
@@ -195,7 +195,7 @@ public class DeviceManager extends Service {
     }
 
     private boolean isScannerAlive(Device device) {
-        DeviceScanner scanner = activeScanners.get(device);
+        Sniffer scanner = activeScanners.get(device);
         return scanner != null && scanner.isAlive();
     }
 

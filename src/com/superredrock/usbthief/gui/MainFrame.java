@@ -315,6 +315,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
                 trayIcon.dispose();
                 logger.info("Tray icon disposed");
             }
+            this.setVisible(false);
 
             // Call unified shutdown logic through Main.quit()
             Main.quit();

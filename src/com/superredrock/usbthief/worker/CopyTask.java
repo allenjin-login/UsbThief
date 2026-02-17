@@ -45,6 +45,10 @@ public class CopyTask implements Callable<CopyResult> {
         speedProbeGroup.addProbe(taskProbe);
     }
 
+    public Path getProcessingPath() {
+        return processingPath;
+    }
+
     public static SpeedProbeGroup getSpeedProbeGroup() {
         return speedProbeGroup;
     }

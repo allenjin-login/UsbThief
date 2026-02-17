@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -79,5 +80,14 @@ public class PriorityRule {
             logger.log(Level.FINE, "无法获取文件大小: " + file, e);
             return 0; // If we can't get size, no adjustment
         }
+    }
+
+    public int calculatePriority(Callable<?> task) {
+        return switch (task){
+            case CopyTask copyTask -> calculatePriority(copyTask.getProcessingPath());
+            default -> DEFAULT_PRIORITY;
+        };
+
+
     }
 }

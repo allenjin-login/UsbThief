@@ -9,7 +9,9 @@ import com.superredrock.usbthief.core.config.ConfigSchema;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.PriorityQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -17,7 +19,7 @@ import java.util.logging.Logger;
 public class TaskScheduler extends Service {
     private static final Logger logger = Logger.getLogger(TaskScheduler.class.getName());
 
-    private final PriorityQueue<PriorityCopyTask> priorityQueue;
+    private final PriorityQueue<PriorityTask<?, ?>> priorityQueue;
     private final LoadEvaluator loadEvaluator;
     private final ExecutorService executor;
     private final PriorityRule priorityRule;
@@ -73,15 +75,20 @@ public class TaskScheduler extends Service {
         return "Adaptive priority scheduler with load-based task accumulation";
     }
 
-    public void submit(PriorityCopyTask task) {
+    public <R> PriorityTask<Callable<R>, R> submit(Callable<R> task) {
         ServiceState state = getServiceState();
         if (state == ServiceState.STOPPED || state == ServiceState.FAILED) {
-            throw new IllegalStateException("TaskScheduler is not running, state: " + state);
+            return null;
         }
 
+        int priority = priorityRule.calculatePriority(task);
+        PriorityTask<Callable<R>, R> priorityTask = new PriorityTask<>(task, priority);
+
         synchronized (priorityQueue) {
-            priorityQueue.offer(task);
+            priorityQueue.offer(priorityTask);
         }
+
+        return priorityTask;
     }
 
     private void handleHighLoad() {
@@ -99,7 +106,7 @@ public class TaskScheduler extends Service {
             logger.info("Load decreased - resuming submissions, accumulated tasks: " + queueDepth);
         }
 
-        List<PriorityCopyTask> batch = new ArrayList<>(batchSize);
+        List<PriorityTask<?, ?>> batch = new ArrayList<>(batchSize);
 
         synchronized (priorityQueue) {
             for (int i = 0; i < batchSize && !priorityQueue.isEmpty(); i++) {
@@ -123,7 +130,7 @@ public class TaskScheduler extends Service {
             logger.info("Load decreased - resuming submissions, accumulated tasks: " + queueDepth);
         }
 
-        List<PriorityCopyTask> allTasks = new ArrayList<>();
+        List<PriorityTask<?, ?>> allTasks = new ArrayList<>();
 
         synchronized (priorityQueue) {
             while (!priorityQueue.isEmpty()) {
@@ -140,10 +147,12 @@ public class TaskScheduler extends Service {
         dispatchTask(allTasks);
     }
 
-    private void dispatchTask(List<PriorityCopyTask> allTasks) {
-        for (PriorityCopyTask task : allTasks) {
+    @SuppressWarnings("unchecked")
+    private void dispatchTask(List<PriorityTask<?, ?>> allTasks) {
+        for (PriorityTask<?, ?> task : allTasks) {
             try {
-                executor.submit(task.unwrap());
+                Future<?> future = executor.submit((Callable<Object>) task.unwrap());
+                task.setFuture(future);
             } catch (RejectedExecutionException e) {
                 logger.warning("Task rejected during dispatch, re-queuing");
                 synchronized (priorityQueue) {
@@ -197,7 +206,7 @@ public class TaskScheduler extends Service {
         int drained = 0;
         synchronized (priorityQueue) {
             while (!priorityQueue.isEmpty()) {
-                PriorityCopyTask task = priorityQueue.poll();
+                PriorityTask<?, ?> task = priorityQueue.poll();
                 if (task != null) {
                     try {
                         executor.submit(task.unwrap());

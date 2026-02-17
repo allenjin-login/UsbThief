@@ -1,5 +1,6 @@
 package com.superredrock.usbthief.worker;
 
+import java.time.Instant;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
@@ -7,7 +8,8 @@ public class PriorityTask<T extends Callable<R>, R> implements Comparable<Priori
 
     private final T delegate;
     private final int priority;
-    private Future<R> future = null;
+    private Future<?> future = null;
+    private final Instant creationTime = Instant.now();
 
     public PriorityTask(T delegate, int priority) {
         this.delegate = delegate;
@@ -23,16 +25,20 @@ public class PriorityTask<T extends Callable<R>, R> implements Comparable<Priori
         return priority;
     }
 
-    public Future<R> getFuture() {
+    public Future<?> getFuture() {
         return future;
     }
 
-    public void setFuture(Future<R> future) {
+    public void setFuture(Future<?> future) {
         this.future = future;
     }
 
     @Override
     public int compareTo(PriorityTask<T, R> other) {
-        return Integer.compare(other.priority, this.priority);
+        int priorityCompare = Integer.compare(other.priority, this.priority);
+        if (priorityCompare != 0) {
+            return priorityCompare;
+        }
+        return this.creationTime.compareTo(other.creationTime);
     }
 }
