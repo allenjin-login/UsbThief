@@ -84,8 +84,11 @@ public class Sniffer extends Thread implements Closeable {
         ForkJoinTask<?> scan = scanPool.submit(
                 () -> {
                     try (Stream<Path> paths = Files.find(root, Integer.MAX_VALUE, filter).parallel()) {
-                        paths.peek(path -> EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, 0, device.getSerialNumber())))
-                                .forEach(path -> {
+                        paths.peek(path -> {
+                            long fileSize = 0;
+                            try {fileSize = Files.size(path);} catch (IOException _) {}
+                            EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, fileSize, device.getSerialNumber()));
+                        }).forEach(path -> {
                             if (Thread.currentThread().isInterrupted()) {
                                 throw new RuntimeException("Scan interrupted");
                             }
@@ -153,20 +156,22 @@ public class Sniffer extends Thread implements Closeable {
 
                     partitioned.getOrDefault(false, java.util.List.of())
                         .parallelStream()
-                        .forEach(this::submitCopyTask);
+                        .forEach(path -> {
+                            long fileSize = 0;
+                            try {
+                                fileSize = Files.size(path);
+                            } catch (IOException e) {
+                                logger.fine("Could not get file size for " + path + ": " + e.getMessage());
+                            }
+                            EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, fileSize, device.getSerialNumber()));
+                            submitCopyTask(path);
+                        });
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    logger.log(Level.WARNING,"",e);
                 }
-            }).join();
-        } catch (RuntimeException e) {
-            if (e.getCause() instanceof InterruptedException) {
-                logger.info("Directory scan interrupted: " + dir);
-                Thread.currentThread().interrupt();
-            } else if (e.getCause() instanceof IOException ioException) {
-                throw ioException;
-            } else {
-                throw e;
-            }
+            }).get();
+        }  catch (ExecutionException | InterruptedException e) {
+            logger.log(Level.WARNING,"Unknowable Exception, skip scanning " + dir,e);
         }
     }
 
