@@ -1,6 +1,11 @@
 <component name="ArtifactManager">
   <artifact type="jlink" name="runtime">
     <output-path>$PROJECT_DIR$/out/artifacts/runtime</output-path>
+    <properties id="jlink-properties">
+      <options>
+        <option name="compressionLevel" value="2" />
+      </options>
+    </properties>
     <root id="root" />
   </artifact>
 </component>
