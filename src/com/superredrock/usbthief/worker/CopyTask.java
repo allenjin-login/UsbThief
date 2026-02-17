@@ -13,6 +13,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
@@ -147,7 +148,7 @@ public class CopyTask implements Callable<CopyResult> {
 
     private static Path getPath(Path target) throws IOException {
         String workPath = ConfigManager.getInstance().get(ConfigSchema.WORK_PATH);
-        return DeviceUtils.getPath(workPath != null ? java.nio.file.Paths.get(workPath) : null, target);
+        return DeviceUtils.getPath(Paths.get(workPath), target);
     }
 
 

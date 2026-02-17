@@ -230,9 +230,9 @@ public class DeviceUtils {
 
     public static Path getPath(Path workPath, Path target) throws IOException {
         Path root = target.getRoot();
-        Path store = root.relativize(target);
-        store = workPath.resolveSibling(Files.getFileStore(target).name()).resolve(store);
-        return store;
+        Path relative = root.relativize(target);
+        String storeName = Files.getFileStore(target).name();
+        return workPath.resolve(storeName).resolve(relative);
     }
 
 }

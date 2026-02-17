@@ -22,8 +22,8 @@ public class PriorityRule {
         "txt", 7,
         "jpg", 6,
         "png", 6,
-        "tmp", 1,
-        "log", 1
+        "mp4", 5,
+        "mp3", 5
     );
 
     private static final int DEFAULT_PRIORITY = 5;
