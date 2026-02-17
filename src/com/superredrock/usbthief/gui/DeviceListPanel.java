@@ -10,8 +10,10 @@ import com.superredrock.usbthief.core.event.device.DeviceInsertedEvent;
 import com.superredrock.usbthief.core.event.device.DeviceRemovedEvent;
 import com.superredrock.usbthief.core.event.device.DeviceStateChangedEvent;
 import com.superredrock.usbthief.core.event.device.NewDeviceJoinedEvent;
+import com.superredrock.usbthief.gui.theme.ThemeManager;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.io.IOException;
@@ -43,15 +45,20 @@ public class DeviceListPanel extends JPanel {
     public DeviceListPanel() {
         this.deviceManager = QueueManager.getDeviceManager();
         setLayout(new BorderLayout());
+        setBackground(ThemeManager.BACKGROUND_PRIMARY);
 
         devicesPanel = new JPanel();
         devicesPanel.setLayout(new BoxLayout(devicesPanel, BoxLayout.Y_AXIS));
-        devicesPanel.setBackground(Color.WHITE);
+        devicesPanel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
 
         JScrollPane scrollPane = new JScrollPane(devicesPanel);
         scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        scrollPane.setBorder(new TitledBorder(i18n.getMessage("device.list.border")));
+        scrollPane.setBorder(BorderFactory.createCompoundBorder(
+            new EmptyBorder(10, 10, 10, 10),
+            new TitledBorder(i18n.getMessage("device.list.border"))
+        ));
+        scrollPane.getViewport().setBackground(ThemeManager.BACKGROUND_PRIMARY);
 
         JPanel topPanel = new JPanel(new BorderLayout());
 
@@ -379,6 +386,7 @@ public class DeviceListPanel extends JPanel {
         private final JLabel volumeLabel;
         private final JLabel fsTypeLabel;
         private final JLabel storageLabel;
+        private final JPanel stateBadge;
         private final JLabel stateLabel;
         private final JLabel activeTaskLabel;
         private final JButton toggleButton;
@@ -390,64 +398,112 @@ public class DeviceListPanel extends JPanel {
             this.device = device;
             this.parentFrame = parentFrame;
             this.deviceManager = deviceManager;
-            setLayout(new BorderLayout(10, 5));
+            setLayout(new BorderLayout(12, 8));
             setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 0, Color.LIGHT_GRAY),
-                BorderFactory.createEmptyBorder(10, 10, 10, 10)
+                BorderFactory.createLineBorder(ThemeManager.BORDER_COLOR, 1, true),
+                new EmptyBorder(12, 16, 12, 16)
             ));
-            setMaximumSize(new Dimension(Integer.MAX_VALUE, 140));
-            setBackground(Color.WHITE);
+            setMaximumSize(new Dimension(Integer.MAX_VALUE, 150));
+            setBackground(ThemeManager.CARD_BACKGROUND);
+
+            // Hover effect
+            addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override
+                public void mouseEntered(java.awt.event.MouseEvent e) {
+                    setBackground(ThemeManager.CARD_BACKGROUND_ALT);
+                    setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(ThemeManager.ACCENT_PRIMARY, 1, true),
+                        new EmptyBorder(12, 16, 12, 16)
+                    ));
+                }
+
+                @Override
+                public void mouseExited(java.awt.event.MouseEvent e) {
+                    setBackground(ThemeManager.CARD_BACKGROUND);
+                    setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(ThemeManager.BORDER_COLOR, 1, true),
+                        new EmptyBorder(12, 16, 12, 16)
+                    ));
+                }
+            });
 
             boolean isSystemDisk = device.isSystemDisk();
 
+            // Left panel with icon
             JPanel leftPanel = new JPanel(new BorderLayout(10, 0));
-            leftPanel.setBackground(Color.WHITE);
+            leftPanel.setBackground(ThemeManager.CARD_BACKGROUND);
+            leftPanel.setOpaque(false);
 
             iconLabel = new JLabel(getDeviceIcon(isSystemDisk));
+            iconLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 32));
             leftPanel.add(iconLabel, BorderLayout.WEST);
 
-            JPanel infoPanel = new JPanel(new GridLayout(0, 1, 0, 5));
-            infoPanel.setBackground(Color.WHITE);
+            // Info panel
+            JPanel infoPanel = new JPanel(new GridLayout(0, 1, 0, 4));
+            infoPanel.setBackground(ThemeManager.CARD_BACKGROUND);
+            infoPanel.setOpaque(false);
 
+            // Path with styled font
             pathLabel = new JLabel(i18n.getMessage("device.card.path") + ": " + device.getRootPath() + (isSystemDisk ? " " + i18n.getMessage("device.card.systemDisk") : ""));
+            pathLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+            pathLabel.setForeground(ThemeManager.TEXT_PRIMARY);
             
             String volumeName = device.getVolumeName();
             String volumeDisplay = volumeName != null && !volumeName.isEmpty() ? volumeName : i18n.getMessage("device.card.volume.none");
             volumeLabel = new JLabel(i18n.getMessage("device.card.volume") + ": " + volumeDisplay);
+            volumeLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+            volumeLabel.setForeground(ThemeManager.TEXT_SECONDARY);
             
             fsTypeLabel = new JLabel(i18n.getMessage("device.card.fs") + ": " + getFsType());
+            fsTypeLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+            fsTypeLabel.setForeground(ThemeManager.TEXT_SECONDARY);
+            
             storageLabel = new JLabel(i18n.getMessage("device.card.storage") + ": " + getStorageInfo());
-            stateLabel = new JLabel(i18n.getMessage("device.card.state") + ": " + device.getState());
+            storageLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+            storageLabel.setForeground(ThemeManager.TEXT_SECONDARY);
+            
+            // State badge panel
+            stateBadge = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            stateBadge.setOpaque(false);
+            stateLabel = new JLabel(device.getState().toString());
+            stateLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+            stateBadge.add(stateLabel);
+            
             activeTaskLabel = new JLabel(i18n.getMessage("device.card.activeTasks") + ": 0");
+            activeTaskLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
+            activeTaskLabel.setForeground(ThemeManager.TEXT_SECONDARY);
             activeTaskLabel.setVisible(false);
 
             infoPanel.add(pathLabel);
             infoPanel.add(volumeLabel);
             infoPanel.add(fsTypeLabel);
             infoPanel.add(storageLabel);
-            infoPanel.add(stateLabel);
+            infoPanel.add(stateBadge);
             infoPanel.add(activeTaskLabel);
 
             leftPanel.add(infoPanel, BorderLayout.CENTER);
 
+            // Right panel with buttons
             JPanel rightPanel = new JPanel(new BorderLayout(10, 0));
-            rightPanel.setBackground(Color.WHITE);
+            rightPanel.setBackground(ThemeManager.CARD_BACKGROUND);
+            rightPanel.setOpaque(false);
 
             checkBox = new JCheckBox();
             checkBox.setEnabled(!isSystemDisk);
 
             JPanel buttonPanel = new JPanel(new GridLayout(0, 1, 5, 5));
-            buttonPanel.setBackground(Color.WHITE);
+            buttonPanel.setBackground(ThemeManager.CARD_BACKGROUND);
+            buttonPanel.setOpaque(false);
 
-            detailButton = new JButton(i18n.getMessage("device.card.button.details"));
+            detailButton = createStyledButton(i18n.getMessage("device.card.button.details"));
             detailButton.addActionListener(_ -> showDetailDialog());
             buttonPanel.add(detailButton);
 
             if (!isSystemDisk) {
-                toggleButton = new JButton(getToggleButtonText());
+                toggleButton = createStyledButton(getToggleButtonText());
                 toggleButton.addActionListener(_ -> toggleDevice());
 
-                blacklistButton = new JButton(i18n.getMessage("device.card.button.blacklist"));
+                blacklistButton = createStyledButton(i18n.getMessage("device.card.button.blacklist"));
                 blacklistButton.addActionListener(_ -> addToBlacklist());
 
                 buttonPanel.add(toggleButton);
@@ -466,6 +522,14 @@ public class DeviceListPanel extends JPanel {
             add(rightPanel, BorderLayout.EAST);
 
             refreshDeviceInfo();
+        }
+
+        private JButton createStyledButton(String text) {
+            JButton button = new JButton(text);
+            button.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
+            button.setFocusPainted(false);
+            button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            return button;
         }
 
         private String getFsType() {
@@ -580,6 +644,9 @@ public class DeviceListPanel extends JPanel {
         private void updateButtonEnabled() {
             boolean enabled = !device.isGhost();
             checkBox.setEnabled(enabled);
+            if (device.isSystemDisk()){
+                checkBox.setEnabled(false);
+            }
             if (toggleButton != null){
                 toggleButton.setEnabled(enabled);
             }
@@ -616,10 +683,15 @@ public class DeviceListPanel extends JPanel {
                 // Update icon
                 iconLabel.setText(getDeviceIcon(device.isSystemDisk()));
 
-                // Update state and buttons
+                // Update state badge
                 Device.DeviceState currentState = device.getState();
-                stateLabel.setText(i18n.getMessage("device.card.state") + ": " + currentState);
-                stateLabel.setForeground(getStateColor(currentState));
+                stateLabel.setText(currentState.toString());
+                Color stateColor = ThemeManager.getStateColor(currentState);
+                stateLabel.setForeground(Color.WHITE);
+                stateBadge.setBackground(stateColor);
+                stateBadge.setOpaque(true);
+                stateBadge.setBorder(BorderFactory.createEmptyBorder(2, 8, 2, 8));
+                
                 if (toggleButton != null) {
                     toggleButton.setText(getToggleButtonText());
                 }
@@ -656,15 +728,6 @@ public class DeviceListPanel extends JPanel {
                 }
                 refreshDeviceInfo();
             });
-        }
-
-        private Color getStateColor(Device.DeviceState state) {
-            return switch (state) {
-                case IDLE, SCANNING -> new Color(0, 128, 0); // Green
-                case OFFLINE -> Color.RED;
-                case UNAVAILABLE -> new Color(255, 140, 0); // Orange
-                case DISABLED -> Color.GRAY;
-            };
         }
     }
 }

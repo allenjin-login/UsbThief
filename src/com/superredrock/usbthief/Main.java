@@ -6,6 +6,7 @@ import com.superredrock.usbthief.core.ServiceManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.gui.MainFrame;
+import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.statistics.Statistics;
 
 import java.nio.file.Files;
@@ -47,6 +48,9 @@ public class Main {
     }
 
     static void main() {
+        // Initialize FlatLeaf Look and Feel before any Swing components
+        ThemeManager.getInstance();
+
         ServiceManager serviceManager = ServiceManager.getInstance();
         serviceManager.loadServices();
 

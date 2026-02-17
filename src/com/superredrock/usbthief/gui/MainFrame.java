@@ -6,6 +6,8 @@ import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.Version;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.gui.theme.AppTheme;
+import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.worker.LoadEvaluator;
 import com.superredrock.usbthief.worker.LoadLevel;
 import com.superredrock.usbthief.worker.LoadScore;
@@ -13,6 +15,7 @@ import com.superredrock.usbthief.worker.TaskScheduler;
 import com.superredrock.usbthief.worker.CopyTask;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.util.List;
 import java.util.Locale;
@@ -66,9 +69,14 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         // Create main split pane
         JSplitPane mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, deviceListPanel, rightTabbedPane);
 
-        // Status bar
+        // Status bar with modern styling
         statusBar = new JLabel(i18n.getMessage("main.statusbar.ready"));
-        statusBar.setBorder(BorderFactory.createEtchedBorder());
+        statusBar.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(1, 0, 0, 0, ThemeManager.BORDER_COLOR),
+            new EmptyBorder(8, 12, 8, 12)
+        ));
+        statusBar.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+        statusBar.setForeground(ThemeManager.TEXT_SECONDARY);
 
         // Layout
         setLayout(new BorderLayout());
@@ -137,6 +145,13 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         filterConfigItem.addActionListener(_ -> FilterConfigDialog.showFilterConfigDialog(this));
         configMenu.add(filterConfigItem);
 
+        configMenu.addSeparator();
+
+        // Theme toggle menu item
+        JMenuItem themeItem = new JMenuItem(i18n.getMessage("theme.toggle"));
+        themeItem.addActionListener(_ -> toggleTheme());
+        configMenu.add(themeItem);
+
         JMenu helpMenu = new JMenu(i18n.getMessage("menu.help"));
         JMenuItem aboutItem = new JMenuItem(i18n.getMessage("menu.help.about"));
         aboutItem.addActionListener(_ -> showAbout());
@@ -167,6 +182,16 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     private void showPreferences() {
         ConfigDialog dialog = new ConfigDialog(this);
         dialog.setVisible(true);
+    }
+
+    /**
+     * Toggle between light and dark themes.
+     */
+    private void toggleTheme() {
+        ThemeManager.getInstance().toggleTheme();
+        // Update all UI components
+        SwingUtilities.updateComponentTreeUI(this);
+        logger.info("Theme toggled to: " + ThemeManager.getInstance().getCurrentTheme());
     }
 
     private void saveIndex() {

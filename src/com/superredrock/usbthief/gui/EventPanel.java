@@ -2,8 +2,10 @@ package com.superredrock.usbthief.gui;
 
 import com.superredrock.usbthief.core.event.Event;
 import com.superredrock.usbthief.core.event.EventBus;
+import com.superredrock.usbthief.gui.theme.ThemeManager;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -38,10 +40,10 @@ public class EventPanel extends JPanel {
     private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     private static final int MAX_EVENT_ENTRIES = 10000;
-    private static final Color INFO_COLOR = new Color(0, 100, 200);
-    private static final Color SUCCESS_COLOR = new Color(0, 128, 0);
-    private static final Color WARNING_COLOR = new Color(255, 140, 0);
-    private static final Color ERROR_COLOR = Color.RED;
+    private static final Color INFO_COLOR = ThemeManager.ACCENT_INFO;
+    private static final Color SUCCESS_COLOR = ThemeManager.ACCENT_SUCCESS;
+    private static final Color WARNING_COLOR = ThemeManager.ACCENT_WARNING;
+    private static final Color ERROR_COLOR = ThemeManager.ACCENT_ERROR;
 
     public EventPanel() {
         setLayout(new BorderLayout());

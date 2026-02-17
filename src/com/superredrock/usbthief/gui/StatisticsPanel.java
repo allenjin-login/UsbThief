@@ -1,9 +1,11 @@
 package com.superredrock.usbthief.gui;
 
 import com.superredrock.usbthief.core.SizeFormatter;
+import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.statistics.Statistics;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.table.AbstractTableModel;
 import java.awt.*;
@@ -36,7 +38,8 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
 
     public StatisticsPanel() {
         setLayout(new BorderLayout(10, 10));
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        setBackground(ThemeManager.BACKGROUND_PRIMARY);
+        setBorder(new EmptyBorder(15, 15, 15, 15));
 
         i18n.addLocaleChangeListener(this);
 
@@ -52,36 +55,77 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
     }
 
     private JPanel createPersistentPanel() {
-        JPanel panel = new JPanel(new GridLayout(2, 3, 10, 5));
-        panel.setBorder(new TitledBorder(i18n.getMessage("stats.persistent.border")));
+        JPanel panel = new JPanel(new GridLayout(2, 3, 12, 8));
+        panel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+            new TitledBorder(i18n.getMessage("stats.persistent.border")),
+            new EmptyBorder(10, 10, 10, 10)
+        ));
 
-        totalFilesLabel = new JLabel();
-        totalSizeLabel = new JLabel();
-        totalErrorsLabel = new JLabel();
-        totalFoldersLabel = new JLabel();
-        totalDevicesLabel = new JLabel();
+        totalFilesLabel = createStatLabel();
+        totalSizeLabel = createStatLabel();
+        totalErrorsLabel = createStatLabel();
+        totalFoldersLabel = createStatLabel();
+        totalDevicesLabel = createStatLabel();
 
-        panel.add(totalFilesLabel);
-        panel.add(totalSizeLabel);
-        panel.add(totalFoldersLabel);
-        panel.add(totalDevicesLabel);
-        panel.add(totalErrorsLabel);
+        panel.add(createStatCard("📊", totalFilesLabel));
+        panel.add(createStatCard("💾", totalSizeLabel));
+        panel.add(createStatCard("📁", totalFoldersLabel));
+        panel.add(createStatCard("🔌", totalDevicesLabel));
+        panel.add(createStatCard("❌", totalErrorsLabel));
+        panel.add(Box.createGlue());
 
         return panel;
     }
 
+    private JLabel createStatLabel() {
+        JLabel label = new JLabel();
+        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
+        label.setForeground(ThemeManager.TEXT_PRIMARY);
+        return label;
+    }
+
+    private JPanel createStatCard(String icon, JLabel valueLabel) {
+        JPanel card = new JPanel(new BorderLayout(8, 4));
+        card.setBackground(ThemeManager.CARD_BACKGROUND);
+        card.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(ThemeManager.BORDER_COLOR, 1, true),
+            new EmptyBorder(12, 16, 12, 16)
+        ));
+
+        JLabel iconLabel = new JLabel(icon);
+        iconLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 20));
+        iconLabel.setForeground(ThemeManager.ACCENT_PRIMARY);
+
+        card.add(iconLabel, BorderLayout.WEST);
+        card.add(valueLabel, BorderLayout.CENTER);
+
+        return card;
+    }
+
     private JPanel createSessionPanel() {
-        JPanel panel = new JPanel(new BorderLayout(5, 5));
-        panel.setBorder(new TitledBorder(i18n.getMessage("stats.session.border")));
+        JPanel panel = new JPanel(new BorderLayout(5, 10));
+        panel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+            new TitledBorder(i18n.getMessage("stats.session.border")),
+            new EmptyBorder(10, 10, 10, 10)
+        ));
 
         discoveredSizeLabel = new JLabel();
+        discoveredSizeLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+        discoveredSizeLabel.setForeground(ThemeManager.TEXT_PRIMARY);
+        
         copiedSizeLabel = new JLabel();
+        copiedSizeLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+        copiedSizeLabel.setForeground(ThemeManager.TEXT_PRIMARY);
 
         progressBar = new JProgressBar(0, 100);
         progressBar.setStringPainted(true);
-        progressBar.setPreferredSize(new Dimension(0, 18));
+        progressBar.setPreferredSize(new Dimension(0, 24));
+        progressBar.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
 
         JPanel labelsPanel = new JPanel(new GridLayout(2, 1, 5, 5));
+        labelsPanel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
         labelsPanel.add(discoveredSizeLabel);
         labelsPanel.add(copiedSizeLabel);
 
@@ -93,14 +137,21 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
 
     private JPanel createExtensionPanel() {
         JPanel panel = new JPanel(new BorderLayout());
-        panel.setBorder(new TitledBorder(i18n.getMessage("stats.extension.border")));
+        panel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+            new TitledBorder(i18n.getMessage("stats.extension.border")),
+            new EmptyBorder(10, 10, 10, 10)
+        ));
 
         extensionModel = new ExtensionTableModel();
         JTable extensionTable = new JTable(extensionModel);
         extensionTable.setAutoCreateRowSorter(true);
+        extensionTable.setRowHeight(24);
+        extensionTable.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
 
         JScrollPane scrollPane = new JScrollPane(extensionTable);
         scrollPane.setPreferredSize(new Dimension(200, 150));
+        scrollPane.setBackground(ThemeManager.CARD_BACKGROUND);
 
         panel.add(scrollPane, BorderLayout.CENTER);
 

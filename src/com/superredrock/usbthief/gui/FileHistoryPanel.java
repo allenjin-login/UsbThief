@@ -5,9 +5,11 @@ import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
 import com.superredrock.usbthief.core.SizeFormatter;
+import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.index.FileHistoryRecord;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
