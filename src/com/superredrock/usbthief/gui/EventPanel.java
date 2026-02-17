@@ -69,7 +69,7 @@ public class EventPanel extends JPanel {
         scrollPane.setBorder(new TitledBorder(i18n.getMessage("event.border")));
 
         // Count label
-        countLabel = new JLabel(String.format(i18n.getMessage("event.count"), 0, 0));
+        countLabel = new JLabel(i18n.getMessage("event.count", 0, 0));
 
         // Layout
         add(controlPanel, BorderLayout.NORTH);
@@ -220,7 +220,7 @@ public class EventPanel extends JPanel {
     private void updateCountLabel() {
         int filteredCount = eventTable.getRowCount();
         int totalCount = tableModel.getRowCount();
-        countLabel.setText(String.format(i18n.getMessage("event.count"), filteredCount, totalCount));
+        countLabel.setText(i18n.getMessage("event.count", filteredCount, totalCount));
     }
 
     public void clear() {
@@ -237,7 +237,7 @@ public class EventPanel extends JPanel {
             searchLabel.setText(i18n.getMessage("event.search.label"));
             searchField.setToolTipText(i18n.getMessage("event.search.tooltip"));
             clearButton.setText(i18n.getMessage("event.clear.button"));
-            countLabel.setText(String.format(i18n.getMessage("event.count"), eventTable.getRowCount(), tableModel.getRowCount()));
+            countLabel.setText(i18n.getMessage("event.count", eventTable.getRowCount(), tableModel.getRowCount()));
             tableModel.fireTableStructureChanged();
             logger.info("EventPanel language refreshed");
         });

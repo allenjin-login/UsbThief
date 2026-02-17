@@ -94,7 +94,7 @@ public class FileHistoryPanel extends JPanel {
         scrollPane.setBorder(new TitledBorder(i18n.getMessage("filehistory.border")));
 
         // Count label
-        countLabel = new JLabel(String.format(i18n.getMessage("filehistory.count"), 0, 0));
+        countLabel = new JLabel(i18n.getMessage("filehistory.count", 0, 0));
 
         // Layout
         add(searchPanel, BorderLayout.NORTH);
@@ -141,7 +141,7 @@ public class FileHistoryPanel extends JPanel {
     private void updateCountLabel() {
         int filteredCount = historyTable.getRowCount();
         int totalCount = tableModel.getRowCount();
-        countLabel.setText(String.format(i18n.getMessage("filehistory.count"), filteredCount, totalCount));
+        countLabel.setText(i18n.getMessage("filehistory.count", filteredCount, totalCount));
     }
 
     public void refreshLanguage() {
@@ -152,7 +152,7 @@ public class FileHistoryPanel extends JPanel {
             searchField.setToolTipText(i18n.getMessage("filehistory.search.tooltip"));
             searchButton.setText(i18n.getMessage("filehistory.search.button"));
             clearButton.setText(i18n.getMessage("filehistory.clear.button"));
-            countLabel.setText(String.format(i18n.getMessage("filehistory.count"), historyTable.getRowCount(), tableModel.getRowCount()));
+            countLabel.setText(i18n.getMessage("filehistory.count", historyTable.getRowCount(), tableModel.getRowCount()));
             tableModel.fireTableStructureChanged();
             logger.info("FileHistoryPanel language refreshed");
         });

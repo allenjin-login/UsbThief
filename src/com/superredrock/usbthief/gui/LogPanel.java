@@ -138,7 +138,7 @@ public class LogPanel extends JPanel {
         scrollPane.setBorder(new TitledBorder(i18n.getMessage("log.border")));
 
         // Count label
-        countLabel = new JLabel(String.format(i18n.getMessage("log.count"), 0, 0));
+        countLabel = new JLabel(i18n.getMessage("log.count", 0, 0));
 
         // Layout
         add(controlPanel, BorderLayout.NORTH);
@@ -166,7 +166,7 @@ public class LogPanel extends JPanel {
 
     // Index event handlers
     private void onFileIndexed(FileIndexedEvent event) {
-        String message = String.format(i18n.getMessage("log.message.indexed"),
+        String message = i18n.getMessage("log.message.indexed",
             event.filePath().getFileName(),
             SizeFormatter.format(event.fileSize()),
             event.totalIndexed());
@@ -174,33 +174,33 @@ public class LogPanel extends JPanel {
     }
 
     private void onDuplicateDetected(DuplicateDetectedEvent event) {
-        String message = String.format(i18n.getMessage("log.message.duplicate"), event.filePath().getFileName());
+        String message = i18n.getMessage("log.message.duplicate", event.filePath().getFileName());
         log(message, LogLevel.WARNING);
     }
 
     private void onIndexLoaded(IndexLoadedEvent event) {
-        String message = String.format(i18n.getMessage("log.message.indexLoaded"), event.loadedCount());
+        String message = i18n.getMessage("log.message.indexLoaded", event.loadedCount());
         log(message, LogLevel.INFO);
     }
 
     private void onIndexSaved(IndexSavedEvent event) {
-        String message = String.format(i18n.getMessage("log.message.indexSaved"), event.savedCount());
+        String message = i18n.getMessage("log.message.indexSaved", event.savedCount());
         log(message, LogLevel.INFO);
     }
 
     // Device event handlers
     private void onDeviceInserted(DeviceInsertedEvent event) {
-        String message = String.format(i18n.getMessage("log.message.deviceInserted"), event.device().getRootPath());
+        String message = i18n.getMessage("log.message.deviceInserted", event.device().getRootPath());
         log(message, LogLevel.INFO);
     }
 
     private void onDeviceRemoved(DeviceRemovedEvent event) {
-        String message = String.format(i18n.getMessage("log.message.deviceRemoved"), event.device().getRootPath());
+        String message = i18n.getMessage("log.message.deviceRemoved", event.device().getRootPath());
         log(message, LogLevel.WARNING);
     }
 
     private void onDeviceStateChanged(DeviceStateChangedEvent event) {
-        String message = String.format(i18n.getMessage("log.message.deviceStateChanged"), event.oldState(), event.newState());
+        String message = i18n.getMessage("log.message.deviceStateChanged", event.oldState(), event.newState());
         log(message, LogLevel.INFO);
     }
 
@@ -281,7 +281,7 @@ public class LogPanel extends JPanel {
     private void updateCountLabel() {
         int filteredCount = logTable.getRowCount();
         int totalCount = tableModel.getRowCount();
-        countLabel.setText(String.format(i18n.getMessage("log.count"), filteredCount, totalCount));
+        countLabel.setText(i18n.getMessage("log.count", filteredCount, totalCount));
     }
 
     private static class LogTableModel extends AbstractTableModel {

@@ -79,7 +79,7 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
 
         progressBar = new JProgressBar(0, 100);
         progressBar.setStringPainted(true);
-        progressBar.setPreferredSize(new Dimension(0, 25));
+        progressBar.setPreferredSize(new Dimension(0, 18));
 
         JPanel labelsPanel = new JPanel(new GridLayout(2, 1, 5, 5));
         labelsPanel.add(discoveredSizeLabel);
