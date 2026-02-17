@@ -131,6 +131,12 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         clearStatsItem.addActionListener(_ -> clearStatistics());
         configMenu.add(clearStatsItem);
 
+        configMenu.addSeparator();
+
+        JMenuItem filterConfigItem = new JMenuItem(i18n.getMessage("filter.menu.item"));
+        filterConfigItem.addActionListener(_ -> FilterConfigDialog.showFilterConfigDialog(this));
+        configMenu.add(filterConfigItem);
+
         JMenu helpMenu = new JMenu(i18n.getMessage("menu.help"));
         JMenuItem aboutItem = new JMenuItem(i18n.getMessage("menu.help.about"));
         aboutItem.addActionListener(_ -> showAbout());

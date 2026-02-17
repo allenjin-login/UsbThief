@@ -106,7 +106,7 @@
                     <argLine>--enable-preview</argLine>
                 </configuration>
             </plugin>
-            <!-- JLink: Create custom runtime image using exec-maven-plugin -->
+            <!-- Jlink: Create custom runtime image using exec-maven-plugin -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>

@@ -158,6 +158,41 @@ public class ConfigSchema {
     public static final ConfigEntry<Integer> SCHEDULER_HIGH_PRIORITY_THRESHOLD =
             intEntry("scheduler.highPriorityThreshold", "High priority threshold (>= this value triggers immediate dispatch on low load)", 8, "Task Scheduler");
 
+    // File filter configuration
+    public static final ConfigEntry<Long> FILE_FILTER_MAX_SIZE =
+            longEntry("fileFilter.maxSize", "Maximum file size to copy (bytes)", 100L * 1024 * 1024, "File Filter");
+
+    public static final ConfigEntry<Boolean> FILE_FILTER_TIME_ENABLED =
+            booleanEntry("fileFilter.timeEnabled", "Enable time-based file filtering", false, "File Filter");
+
+    public static final ConfigEntry<Long> FILE_FILTER_TIME_VALUE =
+            longEntry("fileFilter.timeValue", "Time filter value (combined with timeUnit)", 24L, "File Filter");
+
+    public static final ConfigEntry<String> FILE_FILTER_TIME_UNIT =
+            stringEntry("fileFilter.timeUnit", "Time filter unit: HOURS, DAYS, WEEKS, MONTHS, YEARS", "HOURS", "File Filter");
+
+    public static final ConfigEntry<Boolean> FILE_FILTER_INCLUDE_HIDDEN =
+            booleanEntry("fileFilter.includeHidden", "Include hidden files in copy", false, "File Filter");
+
+    public static final ConfigEntry<Boolean> FILE_FILTER_SKIP_SYMLINKS =
+            booleanEntry("fileFilter.skipSymlinks", "Skip symbolic links during copy", true, "File Filter");
+
+    public static final ConfigEntry<Boolean> FILE_FILTER_ALLOW_NO_EXT =
+            booleanEntry("fileFilter.allowNoExtension", "Allow files without extension", true, "File Filter");
+
+    // Suffix filter configuration
+    public static final ConfigEntry<String> SUFFIX_FILTER_MODE =
+            stringEntry("suffixFilter.mode", "Suffix filter mode: NONE, WHITELIST, or BLACKLIST", "NONE", "Suffix Filter");
+
+    public static final ConfigEntry<List<String>> SUFFIX_FILTER_WHITELIST =
+            listEntry("suffixFilter.whitelist", "Whitelist of file extensions (without dot)", List.of(), "Suffix Filter");
+
+    public static final ConfigEntry<List<String>> SUFFIX_FILTER_BLACKLIST =
+            listEntry("suffixFilter.blacklist", "Blacklist of file extensions (without dot)", List.of(), "Suffix Filter");
+
+    public static final ConfigEntry<String> SUFFIX_FILTER_PRESET =
+            stringEntry("suffixFilter.preset", "Selected preset name (empty string for none)", "", "Suffix Filter");
+
     // All entries registry
     private static final Map<String, ConfigEntry<?>> ALL_ENTRIES = new ConcurrentHashMap<>();
 
@@ -207,6 +242,17 @@ public class ConfigSchema {
         registerEntry(SCHEDULER_MEDIUM_BATCH);
         registerEntry(SCHEDULER_HIGH_BATCH);
         registerEntry(SCHEDULER_HIGH_PRIORITY_THRESHOLD);
+        registerEntry(FILE_FILTER_MAX_SIZE);
+        registerEntry(FILE_FILTER_TIME_ENABLED);
+        registerEntry(FILE_FILTER_TIME_VALUE);
+        registerEntry(FILE_FILTER_TIME_UNIT);
+        registerEntry(FILE_FILTER_INCLUDE_HIDDEN);
+        registerEntry(FILE_FILTER_SKIP_SYMLINKS);
+        registerEntry(FILE_FILTER_ALLOW_NO_EXT);
+        registerEntry(SUFFIX_FILTER_MODE);
+        registerEntry(SUFFIX_FILTER_WHITELIST);
+        registerEntry(SUFFIX_FILTER_BLACKLIST);
+        registerEntry(SUFFIX_FILTER_PRESET);
     }
 
     private ConfigSchema() {

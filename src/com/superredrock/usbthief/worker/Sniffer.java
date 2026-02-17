@@ -6,6 +6,8 @@ import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.worker.FileDiscoveredEvent;
+import com.superredrock.usbthief.core.filter.BasicFileFilter;
+import com.superredrock.usbthief.core.filter.SuffixFilter;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -79,16 +81,18 @@ public class Sniffer extends Thread implements Closeable {
 
     private void performInitialScan() throws IOException {
         logger.info("Scanning Disk " + root);
-        BiPredicate<Path, BasicFileAttributes> filter = createFileFilter();
+        BiPredicate<Path, BasicFileAttributes> filter = new BasicFileFilter(ConfigManager.getInstance());
+        SuffixFilter suffixFilter = new SuffixFilter(ConfigManager.getInstance());
 
         ForkJoinTask<?> scan = scanPool.submit(
                 () -> {
                     try (Stream<Path> paths = Files.find(root, Integer.MAX_VALUE, filter).parallel()) {
-                        paths.peek(path -> {
+                        paths.filter(suffixFilter.asPredicate())
+                                .peek(path -> {
                             long fileSize = 0;
                             try {fileSize = Files.size(path);} catch (IOException _) {}
-                            EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, fileSize, device.getSerialNumber()));
-                        }).forEach(path -> {
+                            EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, fileSize, device.getSerialNumber()));})
+                                .forEach(path -> {
                             if (Thread.currentThread().isInterrupted()) {
                                 throw new RuntimeException("Scan interrupted");
                             }
@@ -109,19 +113,6 @@ public class Sniffer extends Thread implements Closeable {
         logger.info("Initial scan completed for " + root);
     }
 
-    private BiPredicate<Path, BasicFileAttributes> createFileFilter() {
-        long maxSize = ConfigManager.getInstance().get(ConfigSchema.MAX_FILE_SIZE);
-        return (path, attrs) -> {
-            try {
-                if (Files.isHidden(path)) return false;
-            } catch (IOException e) {
-                return false;
-            }
-            if (!Files.isReadable(path)) return false;
-
-            return !attrs.isRegularFile() || attrs.size() > 0 && attrs.size() <= maxSize;
-        };
-    }
 
     private void processDirectorySafely(Path dir) {
         try {
@@ -142,11 +133,12 @@ public class Sniffer extends Thread implements Closeable {
     private void scanNewDirectory(Path dir) throws IOException {
         registerDirectoryWatch(dir);
 
-        BiPredicate<Path, BasicFileAttributes> filter = createFileFilter();
+        BiPredicate<Path, BasicFileAttributes> filter = new BasicFileFilter(ConfigManager.getInstance());
+        SuffixFilter suffixFilter = new SuffixFilter(ConfigManager.getInstance());
 
         try {
             scanPool.submit(() -> {
-                try (Stream<Path> paths = Files.find(dir, Integer.MAX_VALUE, filter).parallel()) {
+                try (Stream<Path> paths = Files.find(dir, Integer.MAX_VALUE, filter).filter(suffixFilter.asPredicate()).parallel()) {
                     Map<Boolean, java.util.List<Path>> partitioned = paths.collect(
                         Collectors.partitioningBy(Files::isDirectory)
                     );
