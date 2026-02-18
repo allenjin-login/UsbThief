@@ -124,7 +124,6 @@ public class BasicFileFilter implements FileFilter {
         ZonedDateTime now = ZonedDateTime.now();
 
         return switch (unit) {
-            case UNIT_HOURS -> Instant.now().minus(value, ChronoUnit.HOURS);
             case UNIT_DAYS -> Instant.now().minus(value, ChronoUnit.DAYS);
             case UNIT_WEEKS -> now.minusWeeks(value).toInstant();
             case UNIT_MONTHS -> now.minusMonths(value).toInstant();

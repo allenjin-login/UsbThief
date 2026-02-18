@@ -14,7 +14,7 @@ import java.util.logging.Logger;
 import java.util.prefs.Preferences;
 
 public final class Statistics {
-    protected static final Logger logger = Logger.getLogger(Statistics.class.getName());
+    private static final Logger logger = Logger.getLogger(Statistics.class.getName());
     private static volatile Statistics INSTANCE;
 
     private static final String KEY_TOTAL_FILES = "totalFilesCopied";
@@ -88,7 +88,9 @@ public final class Statistics {
 
                 String fileName = event.sourcePath().getFileName().toString();
                 String extension = getFileExtension(fileName);
-                extensionCounts.computeIfAbsent(extension, _ -> new AtomicLong(0)).incrementAndGet();
+                if (extension != null) {
+                    extensionCounts.computeIfAbsent(extension, _ -> new AtomicLong(0)).incrementAndGet();
+                }
                 markDirty();
             } else if (event.isFailure()) {
                 totalErrors.incrementAndGet();
@@ -98,11 +100,15 @@ public final class Statistics {
     }
 
     private String getFileExtension(String fileName) {
+        // Skip hidden files (starting with .)
+        if (fileName.startsWith(".")) {
+            return null;
+        }
         int dotIndex = fileName.lastIndexOf('.');
         if (dotIndex > 0 && dotIndex < fileName.length() - 1) {
             return fileName.substring(dotIndex + 1).toLowerCase();
         }
-        return "unknown";
+        return null;
     }
 
     private void markDirty() {

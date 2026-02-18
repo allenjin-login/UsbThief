@@ -7,7 +7,7 @@
     <groupId>com.superredrock</groupId>
     <artifactId>UsbThief</artifactId>
     <!-- Version: major.minor.patch (SemVer) -->
-    <version>1.0.0</version>
+    <version>1.0.1</version>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -18,11 +18,11 @@
         <!-- Version components (for resource filtering and Launch4j) -->
         <project.version.major>1</project.version.major>
         <project.version.minor>0</project.version.minor>
-        <project.version.patch>0</project.version.patch>
+        <project.version.patch>1</project.version.patch>
         <build.timestamp>${maven.build.timestamp}</build.timestamp>
         <maven.build.timestamp.format>yyyyMMdd</maven.build.timestamp.format>
         <!-- Jlink configuration -->
-        <jlink.image.name>usbthief</jlink.image.name>
+        <jlink.image.name>runtime</jlink.image.name>
         <jlink.main.class>com.superredrock.usbthief.Main</jlink.main.class>
     </properties>
 
@@ -39,15 +39,10 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- FlatLaf - Modern Swing Look and Feel -->
+        <!-- FlatLeaf - Modern Swing Look and Feel -->
         <dependency>
             <groupId>com.formdev</groupId>
             <artifactId>flatlaf</artifactId>
-            <version>3.5.4</version>
-        </dependency>
-        <dependency>
-            <groupId>com.formdev</groupId>
-            <artifactId>flatlaf-extras</artifactId>
             <version>3.5.4</version>
         </dependency>
         <dependency>
@@ -99,6 +94,25 @@
             </resource>
         </resources>
         <plugins>
+            <!-- Copy dependencies for jlink module path -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.8.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/libs</outputDirectory>
+                            <includeScope>runtime</includeScope>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -133,12 +147,12 @@
                             <executable>${java.home}/bin/jlink</executable>
                             <workingDirectory>${project.build.directory}</workingDirectory>
                             <arguments>
-                                <!-- Module path: JDK jmods + compiled classes -->
+                                <!-- Module path: JDK jmods + compiled classes + dependencies -->
                                 <argument>--module-path</argument>
-                                <argument>${java.home}/jmods${path.separator}${project.build.outputDirectory}</argument>
-                                <!-- Add modules -->
+                                <argument>${java.home}/jmods${path.separator}${project.build.outputDirectory}${path.separator}${project.build.directory}/libs</argument>
+                                <!-- Add modules (including transitive dependencies) -->
                                 <argument>--add-modules</argument>
-                                <argument>UsbThief</argument>
+                                <argument>UsbThief,com.formdev.flatlaf</argument>
                                 <!-- Output directory -->
                                 <argument>--output</argument>
                                 <argument>${project.build.directory}/${jlink.image.name}</argument>
@@ -168,7 +182,7 @@
                             <workingDirectory>${project.build.directory}/${jlink.image.name}/bin</workingDirectory>
                             <arguments>
                                 <argument>-Command</argument>
-                                <argument>(Get-Content usbthief.bat) -replace 'set JLINK_VM_OPTIONS=', 'set JLINK_VM_OPTIONS=--enable-preview' | Set-Content usbthief.bat</argument>
+                                <argument>(Get-Content runtime.bat) -replace 'set JLINK_VM_OPTIONS=', 'set JLINK_VM_OPTIONS=--enable-preview' | Set-Content runtime.bat</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -184,7 +198,7 @@
                             <workingDirectory>${project.build.directory}/${jlink.image.name}/bin</workingDirectory>
                             <arguments>
                                 <argument>-Command</argument>
-                                <argument>(Get-Content usbthief) -replace 'JLINK_VM_OPTIONS=', 'JLINK_VM_OPTIONS=--enable-preview' | Set-Content usbthief</argument>
+                                <argument>(Get-Content runtime) -replace 'JLINK_VM_OPTIONS=', 'JLINK_VM_OPTIONS=--enable-preview' | Set-Content runtime</argument>
                             </arguments>
                         </configuration>
                     </execution>

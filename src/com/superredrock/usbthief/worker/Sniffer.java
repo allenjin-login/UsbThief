@@ -37,7 +37,7 @@ public class Sniffer extends Thread implements Closeable {
      * Dedicated ForkJoinPool for parallel file scanning.
      * Allows interrupt via shutdownNow() during initial scan.
      */
-    private static final ForkJoinPool scanPool = new ForkJoinPool();
+    private static final ForkJoinPool scanPool = ForkJoinPool.commonPool();
 
     public Sniffer(Device device, FileStore rootStore) {
         super(QueueManager.getDiskScanners(), "DiskScanner: " + rootStore.name());

@@ -13,7 +13,7 @@ public final class Version {
     
     private static final Logger logger = Logger.getLogger(Version.class.getName());
     
-    private static final String VERSION_FILE = "/version.properties";
+    private static final String VERSION_FILE = "version.properties";
     
     private static final String MAJOR;
     private static final String MINOR;
