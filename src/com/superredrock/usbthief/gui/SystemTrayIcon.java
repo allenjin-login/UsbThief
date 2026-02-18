@@ -79,7 +79,7 @@ public class SystemTrayIcon {
 
         trayIcon.setImageAutoSize(true);
 
-        trayIcon.addActionListener((ActionEvent e) -> {
+        trayIcon.addActionListener((ActionEvent _) -> {
             logger.info("Tray icon double-clicked");
             mainFrame.toggleWindowVisibility();
         });
@@ -96,26 +96,23 @@ public class SystemTrayIcon {
 
     /**
      * Create tray icon image from resources.
-     * Tries to load icon.png or icon.gif from classpath.
+     * Tries to load icon.png, icon.gif, or icon.ico from classpath.
+     * Note: ICO format is not natively supported by Java Swing, prefer PNG.
      */
     private Image createTrayIconImage() {
-        // Try to load icon from resources
-        try {
-            ImageIcon icon = new ImageIcon(Objects.requireNonNull(getClass().getResource("/icon.png")));
-            if (icon.getIconWidth() > 0) {
-                return icon.getImage();
-            }
-        } catch (Exception e) {
-            // icon.png not found, try alternative
-        }
+        // Try to load icon from resources (PNG preferred, then GIF, then ICO)
+        String[] iconNames = {"icon.png", "icon.gif", "icon.ico"};
 
-        try {
-            ImageIcon icon = new ImageIcon(Objects.requireNonNull(getClass().getResource("/icon.gif")));
-            if (icon.getIconWidth() > 0) {
-                return icon.getImage();
+        for (String name : iconNames) {
+            try {
+                ImageIcon icon = new ImageIcon(Objects.requireNonNull(getClass().getResource(name)));
+                if (icon.getIconWidth() > 0) {
+                    logger.fine("Loaded tray icon: " + name);
+                    return icon.getImage();
+                }
+            } catch (Exception _) {
+                // Continue to next format
             }
-        } catch (Exception e) {
-            // icon.gif not found
         }
 
         return null;

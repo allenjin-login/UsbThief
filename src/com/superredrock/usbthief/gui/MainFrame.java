@@ -17,9 +17,13 @@ import com.superredrock.usbthief.worker.CopyTask;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.logging.Logger;
+import javax.imageio.ImageIO;
 
 public class MainFrame extends JFrame implements I18NManager.LocaleChangeListener, I18NManager.LanguageListChangeListener {
 
@@ -44,6 +48,9 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1200, 800);
         setLocationRelativeTo(null);
+
+        // Set window icon
+        setWindowIcon();
 
         // Create menu bar
         menuBar = new JMenuBar();
@@ -102,6 +109,39 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
         // Initialize system tray icon
         initializeSystemTray();
+    }
+
+    /**
+     * Set window icon from resource.
+     * Tries to load App.png or App.ico from classpath.
+     */
+    private void setWindowIcon() {
+        try {
+            // Try PNG first (better Java support)
+            java.net.URL iconUrl = getClass().getResource("App.png");
+            if (iconUrl != null) {
+                BufferedImage image = ImageIO.read(iconUrl);
+                if (image != null) {
+                    setIconImage(image);
+                    logger.fine("Window icon loaded from App.png");
+                    return;
+                }
+            }
+        } catch (IOException e) {
+            logger.warning("Failed to load window icon: " + e.getMessage());
+        }
+
+        // Fallback: create a simple default icon
+        BufferedImage defaultIcon = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = defaultIcon.createGraphics();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2d.setColor(new Color(52, 152, 219));
+        g2d.fillRoundRect(4, 4, 24, 24, 6, 6);
+        g2d.setColor(Color.WHITE);
+        g2d.fillRect(10, 12, 12, 8);
+        g2d.dispose();
+        setIconImage(defaultIcon);
+        logger.fine("Using default window icon");
     }
 
     private void createMenus() {

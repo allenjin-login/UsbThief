@@ -232,7 +232,8 @@ public class DeviceUtils {
         Path root = target.getRoot();
         Path relative = root.relativize(target);
         String storeName = Files.getFileStore(target).name();
-        return workPath.resolve(storeName).resolve(relative);
+        Device device = QueueManager.getDeviceManager().getDevice(target);
+        return workPath.resolve(storeName + "_" + device.getSerialNumber()).resolve(relative);
     }
 
 }

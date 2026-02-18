@@ -1,5 +1,8 @@
 package com.superredrock.usbthief.core;
 
+import com.superredrock.usbthief.core.config.ConfigManager;
+import com.superredrock.usbthief.core.config.ConfigSchema;
+
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.Objects;
@@ -54,14 +57,15 @@ public class Device {
                 fs = Files.getFileStore(rootPath);
                 volName = fs.name();
                 initialState = DeviceState.IDLE;
-                
                 String fsType = fs.type();
-                if (!fsType.equals("exFAT") && !fsType.equals("FAT32")) {
+                Path workPath = Paths.get(ConfigManager.getInstance().get(ConfigSchema.WORK_PATH));
+                if (fsType.equals("NTFS") || fsType.equals("ReFS") || fs.equals(Files.getFileStore(workPath))) {
                     sysDisk = true;
                     initialState = DeviceState.DISABLED;
                 }
             } catch (IOException e) {
                 logger.fine("Failed to get FileStore for " + rootPath + ": " + e.getMessage());
+                initialState = DeviceState.UNAVAILABLE;
             }
         }
         

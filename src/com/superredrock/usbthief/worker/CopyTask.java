@@ -11,10 +11,10 @@ import com.superredrock.usbthief.index.CheckSum;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.DosFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
@@ -95,6 +95,7 @@ public class CopyTask implements Callable<CopyResult> {
                     bytesCopied = size;
                 } else {
                     Files.createDirectories(destinationPath.getParent());
+                    BasicFileAttributes attributes = Files.readAttributes(processingPath, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
                     try (FileChannel readChannel = FileChannel.open(processingPath, StandardOpenOption.READ);
                          FileChannel writeChannel = FileChannel.open(destinationPath, StandardOpenOption.WRITE, StandardOpenOption.CREATE)) {
                         logger.fine("Copying:" + processingPath + " to " + destinationPath);
@@ -122,6 +123,10 @@ public class CopyTask implements Callable<CopyResult> {
                             buffer.clear();
                         }
                     }
+                    
+                    // Copy file attributes (timestamps, read-only, etc.)
+                    copyFileAttributes(processingPath, destinationPath, attributes);
+                    
                     // Add to index (checksum + history) - FileIndexedEvent will be dispatched by Index.addFile()
                     QueueManager.getIndex().addFile(hash, processingPath, size);
                 }
@@ -150,9 +155,44 @@ public class CopyTask implements Callable<CopyResult> {
         return result;
     }
 
+    /**
+     * Copies file attributes from source to destination.
+     * Includes timestamps (modified, access, creation) and DOS attributes (readonly, hidden, etc.).
+     */
+    private static void copyFileAttributes(Path source, Path destination, BasicFileAttributes sourceAttrs) {
+        try {
+            // Copy timestamps
+            FileTime lastModified = sourceAttrs.lastModifiedTime();
+            FileTime lastAccess = sourceAttrs.lastAccessTime();
+            FileTime creation = sourceAttrs.creationTime();
+            
+            Files.setAttribute(destination, "basic:lastModifiedTime", lastModified);
+            Files.setAttribute(destination, "basic:lastAccessTime", lastAccess);
+            //Files.setAttribute(destination, "basic:creationTime", creation);
+            
+            logger.fine("Copied timestamps: modified=" + lastModified + ", access=" + lastAccess + ", creation=" + creation);
+            
+            // Try to copy DOS attributes (Windows)
+            try {
+                DosFileAttributes dosAttrs = Files.readAttributes(source, DosFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+                Files.setAttribute(destination, "dos:readonly", dosAttrs.isReadOnly());
+                Files.setAttribute(destination, "dos:hidden", dosAttrs.isHidden());
+                Files.setAttribute(destination, "dos:system", dosAttrs.isSystem());
+                Files.setAttribute(destination, "dos:archive", dosAttrs.isArchive());
+                logger.fine("Copied DOS attributes: readonly=" + dosAttrs.isReadOnly() + ", hidden=" + dosAttrs.isHidden());
+            } catch (UnsupportedOperationException e) {
+                // Not a DOS filesystem (e.g., Linux), ignore
+                logger.fine("DOS attributes not supported on this filesystem");
+            }
+            
+        } catch (IOException e) {
+            logger.warning("Failed to copy file attributes: " + e.getMessage());
+        }
+    }
+
     private static Path getPath(Path target) throws IOException {
-        String workPath = ConfigManager.getInstance().get(ConfigSchema.WORK_PATH);
-        return DeviceUtils.getPath(Paths.get(workPath), target);
+        Path workPath = Paths.get(ConfigManager.getInstance().get(ConfigSchema.WORK_PATH));
+        return DeviceUtils.getPath(workPath, target);
     }
 
 

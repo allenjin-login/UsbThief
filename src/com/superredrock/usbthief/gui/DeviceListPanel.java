@@ -581,11 +581,14 @@ public class DeviceListPanel extends JPanel {
         }
 
         private void addToBlacklist() {
-            if (device.isGhost()) {
-                return;
-            }
             String serialNumber = device.getSerialNumber();
-            String devicePath = device.getRootPath().toString();
+            String devicePath;
+            if (device.isGhost()) {
+                devicePath = "?";
+            }else {
+                devicePath = device.getRootPath().toString();
+            }
+
 
             int confirm = JOptionPane.showConfirmDialog(
                     parentFrame,
@@ -650,9 +653,10 @@ public class DeviceListPanel extends JPanel {
             if (toggleButton != null){
                 toggleButton.setEnabled(enabled);
             }
-            if (blacklistButton != null){
-                blacklistButton.setEnabled(enabled);
-            }
+
+            // if (blacklistButton != null){
+            //    blacklistButton.setEnabled(enabled);
+            // }
 
         }
 
