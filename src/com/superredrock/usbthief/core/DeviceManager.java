@@ -6,7 +6,10 @@ import com.superredrock.usbthief.core.event.device.DeviceInsertedEvent;
 import com.superredrock.usbthief.core.event.device.DeviceRemovedEvent;
 import com.superredrock.usbthief.core.event.device.DeviceStateChangedEvent;
 import com.superredrock.usbthief.core.event.device.NewDeviceJoinedEvent;
+import com.superredrock.usbthief.core.event.storage.StorageLevel;
 import com.superredrock.usbthief.worker.Sniffer;
+import com.superredrock.usbthief.worker.SnifferLifecycleManager;
+import com.superredrock.usbthief.worker.StorageController;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -25,9 +28,11 @@ public class DeviceManager extends Service {
     private final Set<Device> devices = Collections.synchronizedSet(new HashSet<>());
     private final Map<Device, Sniffer> activeScanners = new ConcurrentHashMap<>();
     private final Set<DeviceRecord> deviceRecords = ConcurrentHashMap.newKeySet();
+    private final Set<Device> pausedDevices = ConcurrentHashMap.newKeySet();
     private final FileSystem fileSystem = FileSystems.getDefault();
     private final EventBus eventBus;
     private final Preferences prefs = Preferences.userNodeForPackage(DeviceManager.class);
+    private final StorageController storageController = StorageController.getInstance();
 
     protected static final Logger logger = Logger.getLogger(DeviceManager.class.getName());
 
@@ -45,6 +50,18 @@ public class DeviceManager extends Service {
     @Override
     protected void tick() {
         logger.fine("DeviceManager tick");
+
+        // Check storage status and manage scanners accordingly
+        StorageLevel level = storageController.getStorageLevel();
+
+        if (level == StorageLevel.CRITICAL) {
+            // Pause all active scanners due to critical storage
+            pauseAllScanners();
+        } else if (level == StorageLevel.OK && hasPausedScanners()) {
+            // Resume paused scanners when storage is OK
+            resumeAllScanners();
+        }
+
         if (!checkInterrupt()) {
             detectNewDevices();
         }
@@ -73,6 +90,7 @@ public class DeviceManager extends Service {
         stopAllScanners();
         devices.clear();
         activeScanners.clear();
+        pausedDevices.clear();
     }
 
     @Override
@@ -156,6 +174,11 @@ public class DeviceManager extends Service {
                     device.setState(Device.DeviceState.IDLE);
                 }
             }
+            case PAUSED -> {
+                if (isScannerRunning(device)) {
+                    stopScanner(device);
+                }
+            }
             case DISABLED -> {
                 if (isScannerRunning(device)) {
                     stopScanner(device);
@@ -188,6 +211,96 @@ public class DeviceManager extends Service {
         for (Device device : new HashSet<>(activeScanners.keySet())) {
             stopScanner(device);
         }
+    }
+
+    // ==================== Storage-Based Scanner Control ====================
+
+    /**
+     * Pause the scanner for a specific device.
+     * Sets the device state to PAUSED and stops the scanner if running.
+     * Tracks the device as paused by storage constraints.
+     *
+     * @param device the device whose scanner should be paused
+     */
+    public void pauseScanner(Device device) {
+        if (device == null || device.isGhost()) {
+            return;
+        }
+
+        logger.fine("Pausing scanner for device: " + device.getSerialNumber());
+
+        // Stop the scanner if running
+        if (isScannerRunning(device)) {
+            stopScanner(device);
+        }
+
+        // Set device state to PAUSED
+        device.setState(Device.DeviceState.PAUSED);
+
+        // Track as paused by storage
+        pausedDevices.add(device);
+    }
+
+    /**
+     * Resume the scanner for a specific device.
+     * Sets the device state to IDLE, allowing the scanner to restart.
+     * Removes the device from the paused-by-storage tracking.
+     *
+     * @param device the device whose scanner should be resumed
+     */
+    public void resumeScanner(Device device) {
+        if (device == null || device.isGhost()) {
+            return;
+        }
+
+        logger.fine("Resuming scanner for device: " + device.getSerialNumber());
+
+        // Only resume if it was paused (not user-disabled)
+        if (device.getState() == Device.DeviceState.PAUSED) {
+            device.setState(Device.DeviceState.IDLE);
+            pausedDevices.remove(device);
+        }
+    }
+
+    /**
+     * Pause all active scanners due to storage constraints.
+     * Only affects devices that are not already disabled or ghost.
+     */
+    public void pauseAllScanners() {
+        synchronized (devices) {
+            for (Device device : devices) {
+                if (!device.isGhost() &&
+                    device.getState() != Device.DeviceState.DISABLED &&
+                    device.getState() != Device.DeviceState.PAUSED) {
+                    pauseScanner(device);
+                }
+            }
+        }
+        logger.info("Paused all scanners due to storage constraints. Paused devices: " + pausedDevices.size());
+    }
+
+    /**
+     * Resume all scanners that were paused by storage constraints.
+     * Only affects devices that were paused (not user-disabled).
+     */
+    public void resumeAllScanners() {
+        // Create a copy to avoid ConcurrentModificationException
+        Set<Device> devicesToResume = Set.copyOf(pausedDevices);
+
+        for (Device device : devicesToResume) {
+            resumeScanner(device);
+        }
+
+        logger.info("Resumed all scanners after storage recovery. Resumed devices: " + devicesToResume.size());
+    }
+
+    /**
+     * Check if any devices are currently paused due to storage constraints.
+     *
+     * @return true if there are paused devices, false otherwise
+     */
+    public boolean hasPausedScanners() {
+        return !pausedDevices.isEmpty();
     }
 
     private boolean isScannerRunning(Device device) {
@@ -401,5 +514,27 @@ public class DeviceManager extends Service {
     protected void onNewDeviceJoined(Device device) {
         logger.info("New device joined (first time): " + device.getSerialNumber());
         eventBus.dispatch(new NewDeviceJoinedEvent(device));
+    }
+
+    // ==================== Test Helper Methods ====================
+
+    /**
+     * Test helper: Add a device directly to the devices set without triggering events.
+     * This is package-private for testing purposes only.
+     *
+     * @param device the device to add
+     */
+    void addTestDevice(Device device) {
+        if (device != null) {
+            devices.add(device);
+        }
+    }
+
+    /**
+     * Test helper: Call the tick() method directly for testing.
+     * This is package-private for testing purposes only.
+     */
+    void testTick() {
+        tick();
     }
 }
