@@ -23,7 +23,8 @@ public class Device {
         UNAVAILABLE,   // Device exists but inaccessible (AccessDeniedException / IOException)
         IDLE,          // Ready, no active operations
         SCANNING,      // Scanner is running
-        DISABLED       // Manually disabled by user
+        PAUSED,        // Temporarily paused due to storage constraints (system-controlled, can auto-resume)
+        DISABLED       // Manually disabled by user (user-controlled, requires manual action)
     }
 
     protected static final Logger logger = Logger.getLogger(Device.class.getName());
@@ -59,7 +60,8 @@ public class Device {
                 initialState = DeviceState.IDLE;
                 String fsType = fs.type();
                 Path workPath = Paths.get(ConfigManager.getInstance().get(ConfigSchema.WORK_PATH));
-                if (fsType.equals("NTFS") || fsType.equals("ReFS") || fs.equals(Files.getFileStore(workPath))) {
+                //
+                if (fsType.equals("NTFS") || fsType.equals("ReFS") ||fs.equals(Files.getFileStore(workPath))) {
                     sysDisk = true;
                     initialState = DeviceState.DISABLED;
                 }

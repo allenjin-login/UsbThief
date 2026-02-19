@@ -14,6 +14,7 @@
         <maven.compiler.source>24</maven.compiler.source>
         <maven.compiler.target>24</maven.compiler.target>
         <junit.version>5.11.4</junit.version>
+        <mockito.version>5.15.2</mockito.version>
         <!-- Version components (for resource filtering and Launch4j) -->
         <project.version.major>1</project.version.major>
         <project.version.minor>0</project.version.minor>
@@ -57,12 +58,14 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
+            <!--suppress UnresolvedMavenProperty -->
             <version>${mockito.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-junit-jupiter</artifactId>
+            <!--suppress UnresolvedMavenProperty -->
             <version>${mockito.version}</version>
             <scope>test</scope>
         </dependency>

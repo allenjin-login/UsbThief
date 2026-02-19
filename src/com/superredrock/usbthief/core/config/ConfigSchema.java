@@ -104,6 +104,13 @@ public class ConfigSchema {
     public static final ConfigEntry<Boolean> ALWAYS_HIDDEN =
             booleanEntry("gui.alwaysHidden", "Always keep window hidden (start hidden and minimize to tray only)", false, "Window");
 
+    // Minimize/Close to tray behavior configuration
+    public static final ConfigEntry<String> MINIMIZE_ACTION =
+            stringEntry("gui.minimizeAction", "Action when minimizing: ASK, MINIMIZE_TO_TRAY, MINIMIZE_NORMAL", "ASK", "Window");
+
+    public static final ConfigEntry<String> CLOSE_ACTION =
+            stringEntry("gui.closeAction", "Action when closing: ASK, MINIMIZE_TO_TRAY, EXIT", "ASK", "Window");
+
     // Blacklist configuration
     @Deprecated
     public static final ConfigEntry<List<String>> DEVICE_BLACKLIST =
@@ -193,6 +200,28 @@ public class ConfigSchema {
     public static final ConfigEntry<String> SUFFIX_FILTER_PRESET =
             stringEntry("suffixFilter.preset", "Selected preset name (empty string for none)", "", "Suffix Filter");
 
+    // Storage management configuration
+    public static final ConfigEntry<Long> STORAGE_RESERVED_BYTES =
+            longEntry("storage.reservedBytes", "Minimum free space to preserve (bytes)", 10L * 1024 * 1024 * 1024, "Storage Management");
+
+    public static final ConfigEntry<Long> STORAGE_MAX_BYTES =
+            longEntry("storage.maxBytes", "Maximum space for copied files (bytes)", 100L * 1024 * 1024 * 1024, "Storage Management");
+
+    public static final ConfigEntry<Integer> SNIFFER_WAIT_NORMAL_MINUTES =
+            intEntry("sniffer.waitNormalMinutes", "Wait time after normal completion (minutes)", 30, "Storage Management");
+
+    public static final ConfigEntry<Integer> SNIFFER_WAIT_ERROR_MINUTES =
+            intEntry("sniffer.waitErrorMinutes", "Wait time after error (minutes)", 5, "Storage Management");
+
+    public static final ConfigEntry<String> RECYCLER_STRATEGY =
+            stringEntry("recycler.strategy", "Recycler strategy: TIME_FIRST, SIZE_FIRST, or AUTO", "AUTO", "Storage Management");
+
+    public static final ConfigEntry<Integer> RECYCLER_PROTECTED_AGE_HOURS =
+            intEntry("recycler.protectedAgeHours", "Protect files newer than X hours from deletion", 1, "Storage Management");
+
+    public static final ConfigEntry<Boolean> STORAGE_WARNING_ENABLED =
+            booleanEntry("storage.warningEnabled", "Log warning when storage space is critical", true, "Storage Management");
+
     // All entries registry
     private static final Map<String, ConfigEntry<?>> ALL_ENTRIES = new ConcurrentHashMap<>();
 
@@ -227,6 +256,8 @@ public class ConfigSchema {
         registerEntry(START_HIDDEN);
         registerEntry(SHOW_IN_TASKBAR);
         registerEntry(ALWAYS_HIDDEN);
+        registerEntry(MINIMIZE_ACTION);
+        registerEntry(CLOSE_ACTION);
         registerEntry(PRIORITY_RULES);
         registerEntry(SCHEDULER_INITIAL_DELAY_MS);
         registerEntry(SCHEDULER_TICK_INTERVAL_MS);
@@ -253,6 +284,13 @@ public class ConfigSchema {
         registerEntry(SUFFIX_FILTER_WHITELIST);
         registerEntry(SUFFIX_FILTER_BLACKLIST);
         registerEntry(SUFFIX_FILTER_PRESET);
+        registerEntry(STORAGE_RESERVED_BYTES);
+        registerEntry(STORAGE_MAX_BYTES);
+        registerEntry(SNIFFER_WAIT_NORMAL_MINUTES);
+        registerEntry(SNIFFER_WAIT_ERROR_MINUTES);
+        registerEntry(RECYCLER_STRATEGY);
+        registerEntry(RECYCLER_PROTECTED_AGE_HOURS);
+        registerEntry(STORAGE_WARNING_ENABLED);
     }
 
     private ConfigSchema() {

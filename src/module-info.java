@@ -18,6 +18,7 @@ module UsbThief {
     exports com.superredrock.usbthief.gui;
     exports com.superredrock.usbthief.gui.theme;
     exports com.superredrock.usbthief.gui.components;
+    exports com.superredrock.usbthief.worker;
     exports com.superredrock.usbthief.statistics;
 
     // Register Service implementations using Java module system
