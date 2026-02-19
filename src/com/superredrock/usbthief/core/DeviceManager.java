@@ -174,12 +174,7 @@ public class DeviceManager extends Service {
                     device.setState(Device.DeviceState.IDLE);
                 }
             }
-            case PAUSED -> {
-                if (isScannerRunning(device)) {
-                    stopScanner(device);
-                }
-            }
-            case DISABLED -> {
+            case PAUSED, DISABLED -> {
                 if (isScannerRunning(device)) {
                     stopScanner(device);
                 }

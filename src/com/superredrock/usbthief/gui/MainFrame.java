@@ -179,6 +179,10 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         clearStatsItem.addActionListener(_ -> clearStatistics());
         configMenu.add(clearStatsItem);
 
+        JMenuItem storageItem = new JMenuItem(i18n.getMessage("menu.config.storageManagement"));
+        storageItem.addActionListener(_ -> showStorageManagement());
+        configMenu.add(storageItem);
+
         configMenu.addSeparator();
 
         JMenuItem filterConfigItem = new JMenuItem(i18n.getMessage("filter.menu.item"));
@@ -221,6 +225,25 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
     private void showPreferences() {
         ConfigDialog dialog = new ConfigDialog(this);
+        dialog.setVisible(true);
+    }
+
+    private void showStorageManagement() {
+        JDialog dialog = new JDialog(this, i18n.getMessage("storage.title"), true);
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+
+        StorageManagementPanel panel = new StorageManagementPanel();
+        dialog.add(panel);
+
+        dialog.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosed(java.awt.event.WindowEvent e) {
+                panel.cleanup();
+            }
+        });
+
+        dialog.setSize(500, 600);
+        dialog.setLocationRelativeTo(this);
         dialog.setVisible(true);
     }
 

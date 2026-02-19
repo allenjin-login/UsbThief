@@ -172,8 +172,7 @@ public class ThemeManager {
             case SCANNING -> DEVICE_SCANNING;
             case OFFLINE -> DEVICE_OFFLINE;
             case UNAVAILABLE -> DEVICE_UNAVAILABLE;
-            case PAUSED -> DEVICE_DISABLED;
-            case DISABLED -> DEVICE_DISABLED;
+            case PAUSED, DISABLED -> DEVICE_DISABLED;
         };
     }
 
