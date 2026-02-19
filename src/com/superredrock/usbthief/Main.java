@@ -5,6 +5,11 @@ import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.ServiceManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.event.EventBus;
+import com.superredrock.usbthief.core.event.storage.EmptyFoldersDeletedEvent;
+import com.superredrock.usbthief.core.event.storage.FilesRecycledEvent;
+import com.superredrock.usbthief.core.event.storage.StorageLowEvent;
+import com.superredrock.usbthief.core.event.storage.StorageRecoveredEvent;
 import com.superredrock.usbthief.gui.MainFrame;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.statistics.Statistics;
@@ -65,6 +70,8 @@ public class Main {
 
         QueueManager.getIndex().load();
 
+        // Register logging listeners for storage events
+        registerStorageEventListeners();
 
         // 启动所有服务
         serviceManager.startAll();
@@ -72,6 +79,34 @@ public class Main {
         // 显示主窗口
         MainFrame.launch();
 
+    }
+
+    /**
+     * Registers default logging listeners for storage events.
+     * These listeners log key storage events for monitoring and debugging.
+     */
+    private static void registerStorageEventListeners() {
+        EventBus eventBus = EventBus.getInstance();
+
+        // Register listener for storage low events
+        eventBus.register(StorageLowEvent.class, event -> {
+            logger.warning("Storage low: " + event.freeBytes() + " bytes free, threshold: " + event.thresholdBytes() + " bytes, level: " + event.level());
+        });
+
+        // Register listener for storage recovered events
+        eventBus.register(StorageRecoveredEvent.class, event -> {
+            logger.info("Storage recovered: " + event.freeBytes() + " bytes free");
+        });
+
+        // Register listener for files recycled events
+        eventBus.register(FilesRecycledEvent.class, event -> {
+            logger.info("Files recycled: " + event.fileCount() + " files (strategy: " + event.strategy() + "), " + event.bytesFreed() + " bytes freed");
+        });
+
+        // Register listener for empty folders deleted events
+        eventBus.register(EmptyFoldersDeletedEvent.class, event -> {
+            logger.info("Empty folders deleted: " + event.count() + " folders");
+        });
     }
 
     public static void quit() {

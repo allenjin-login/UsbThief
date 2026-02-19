@@ -81,71 +81,87 @@ public class CopyTask implements Callable<CopyResult> {
         Path destinationPath = null;
         CopyResult result = CopyResult.SUCCESS;
 
-        try {
-            size = Files.size(processingPath);
-            destinationPath = getPath(processingPath);
+        // Space check at start - skip copy if storage is CRITICAL
+        StorageController storage = StorageController.getInstance();
+        if (storage.isStorageCritical()) {
+            logger.warning("Storage critical, skipping copy: " + processingPath);
+            result = CopyResult.SKIPPED;
+        } else {
+            try {
+                size = Files.size(processingPath);
+                destinationPath = getPath(processingPath);
 
-            if (Files.isDirectory(processingPath)){
-                Files.createDirectories(destinationPath);
-            }else {
-                CheckSum hash = CheckSum.verify(processingPath);
-                if (QueueManager.getIndex().checkDuplicate(processingPath, hash)){
-                    logger.info("Path Ignore: " + processingPath);
-                    // File already exists in index - treat as success (no copy needed)
-                    bytesCopied = size;
+                // Check if file fits in available space with 10% buffer
+                StorageController.StorageStatus status = storage.getStorageStatus();
+                long availableWithBuffer = (long) (status.freeBytes() * 0.9);
+                if (size > availableWithBuffer) {
+                    logger.warning("File too large for available space (size: " + size +
+                        ", available with buffer: " + availableWithBuffer + "), skipping copy: " + processingPath);
+                    result = CopyResult.SKIPPED;
                 } else {
-                    Files.createDirectories(destinationPath.getParent());
-                    BasicFileAttributes attributes = Files.readAttributes(processingPath, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-                    try (FileChannel readChannel = FileChannel.open(processingPath, StandardOpenOption.READ);
-                         FileChannel writeChannel = FileChannel.open(destinationPath, StandardOpenOption.WRITE, StandardOpenOption.CREATE)) {
-                        logger.fine("Copying:" + processingPath + " to " + destinationPath);
-                        while (readChannel.read(buffer) != -1) {
-                            if (Thread.currentThread().isInterrupted()){
-                                return CopyResult.CANCEL;
-                            }
-                            buffer.flip();
-                            int bytesWritten = writeChannel.write(buffer);
-                            bytesCopied += bytesWritten;
-                            taskProbe.record(bytesWritten);  // Record to task-specific probe
-                            getRateLimiter().acquire(bytesWritten);
+                    // File fits - proceed with copy
+                    if (Files.isDirectory(processingPath)){
+                        Files.createDirectories(destinationPath);
+                    }else {
+                        CheckSum hash = CheckSum.verify(processingPath);
+                        if (QueueManager.getIndex().checkDuplicate(processingPath, hash)){
+                            logger.info("Path Ignore: " + processingPath);
+                            // File already exists in index - treat as success (no copy needed)
+                            bytesCopied = size;
+                        } else {
+                            Files.createDirectories(destinationPath.getParent());
+                            BasicFileAttributes attributes = Files.readAttributes(processingPath, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+                            try (FileChannel readChannel = FileChannel.open(processingPath, StandardOpenOption.READ);
+                                 FileChannel writeChannel = FileChannel.open(destinationPath, StandardOpenOption.WRITE, StandardOpenOption.CREATE)) {
+                                logger.fine("Copying:" + processingPath + " to " + destinationPath);
+                                while (readChannel.read(buffer) != -1) {
+                                    if (Thread.currentThread().isInterrupted()){
+                                        return CopyResult.CANCEL;
+                                    }
+                                    buffer.flip();
+                                    int bytesWritten = writeChannel.write(buffer);
+                                    bytesCopied += bytesWritten;
+                                    taskProbe.record(bytesWritten);  // Record to task-specific probe
+                                    getRateLimiter().acquire(bytesWritten);
 
-                            long now = System.currentTimeMillis();
-                            long lastLog = lastLogTime.get();
-                            if (now - lastLog >= LOG_INTERVAL_MS) {
-                                if (lastLogTime.compareAndSet(lastLog, now)) {
-                                    double speed = speedProbeGroup.getTotalSpeed();
-                                    logger.info(String.format("Copying: %s - Global: %.2f MB/s",
-                                        processingPath.getFileName(),
-                                        speed));
+                                    long now = System.currentTimeMillis();
+                                    long lastLog = lastLogTime.get();
+                                    if (now - lastLog >= LOG_INTERVAL_MS) {
+                                        if (lastLogTime.compareAndSet(lastLog, now)) {
+                                            double speed = speedProbeGroup.getTotalSpeed();
+                                            logger.info(String.format("Copying: %s - Global: %.2f MB/s",
+                                                processingPath.getFileName(),
+                                                speed));
+                                        }
+                                    }
+
+                                    buffer.clear();
                                 }
                             }
 
-                            buffer.clear();
-                        }
-                    }
-                    
-                    // Copy file attributes (timestamps, read-only, etc.)
-                    copyFileAttributes(processingPath, destinationPath, attributes);
-                    
+                            // Copy file attributes (timestamps, read-only, etc.)
+                            copyFileAttributes(processingPath, destinationPath, attributes);
+
                     // Add to index (checksum + history) - FileIndexedEvent will be dispatched by Index.addFile()
                     QueueManager.getIndex().addFile(hash, processingPath, size);
                 }
+                }
             }
-
         } catch (IOException | InterruptedException e) {
-            result = CopyResult.FAIL;
-            logger.log(Level.WARNING,"Fail Copy" ,e);
-        } finally {
-            buffer.clear();
-            // Dispatch CopyCompletedEvent
-            EventBus.getInstance().dispatch(new CopyCompletedEvent(
-                    processingPath,
-                    destinationPath,
-                    size,
-                    bytesCopied,
-                    result,
-                    deviceSerial
-            ));
+                result = CopyResult.FAIL;
+                logger.log(Level.WARNING,"Fail Copy" ,e);
+            } finally {
+                buffer.clear();
+                // Dispatch CopyCompletedEvent
+                EventBus.getInstance().dispatch(new CopyCompletedEvent(
+                        processingPath,
+                        destinationPath,
+                        size,
+                        bytesCopied,
+                        result,
+                        deviceSerial
+                ));
+            }
         }
 
         // Check for interruption after finally (in case interruption occurred during file operations)

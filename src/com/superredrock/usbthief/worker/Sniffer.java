@@ -22,6 +22,8 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.superredrock.usbthief.worker.SnifferLifecycleManager;
+
 public class Sniffer extends Thread implements Closeable {
     protected static final Logger logger = Logger.getLogger(Sniffer.class.getName());
 
@@ -58,15 +60,18 @@ public class Sniffer extends Thread implements Closeable {
         try {performInitialScan();}
         catch (IOException e) {
             logger.severe("Error while scanning disk: " + e.getMessage());
+            SnifferLifecycleManager.getInstance().scheduleRestart(device, SnifferLifecycleManager.RestartReason.ERROR);
             return;
         }
 
         if (Thread.currentThread().isInterrupted()) {
+            SnifferLifecycleManager.getInstance().scheduleRestart(device, SnifferLifecycleManager.RestartReason.NORMAL_COMPLETION);
             return;
         }
 
         if (!ConfigManager.getInstance().get(ConfigSchema.WATCH_ENABLED)) {
             logger.info("File monitoring disabled, scanner finished");
+            SnifferLifecycleManager.getInstance().scheduleRestart(device, SnifferLifecycleManager.RestartReason.NORMAL_COMPLETION);
             return;
         }
 
@@ -171,6 +176,8 @@ public class Sniffer extends Thread implements Closeable {
         Thread resetThread = getResetThread();
         resetThread.start();
 
+        SnifferLifecycleManager.RestartReason exitReason = SnifferLifecycleManager.RestartReason.NORMAL_COMPLETION;
+
         try {
             while (running && !Thread.currentThread().isInterrupted()) {
                 WatchKey key = monitor.take();
@@ -200,9 +207,11 @@ public class Sniffer extends Thread implements Closeable {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
             logger.severe("Error in monitoring loop: " + e.getMessage());
+            exitReason = SnifferLifecycleManager.RestartReason.ERROR;
         } finally {
             running = false;
             closeWatchService();
+            SnifferLifecycleManager.getInstance().scheduleRestart(device, exitReason);
         }
     }
 
