@@ -20,8 +20,8 @@ public class Toast extends JPanel {
      * Toast type enumeration with corresponding colors and icons.
      */
     public enum Type {
-        SUCCESS(ThemeManager.TOAST_SUCCESS_BG, ThemeManager.TOAST_SUCCESS_BORDER, ThemeManager.ACCENT_SUCCESS, "\u2713"),
-        ERROR(ThemeManager.TOAST_ERROR_BG, ThemeManager.TOAST_ERROR_BORDER, ThemeManager.ACCENT_ERROR, "\u2715"),
+        SUCCESS(ThemeManager.TOAST_SUCCESS_BG, ThemeManager.TOAST_SUCCESS_BORDER, ThemeManager.ACCENT_SUCCESS, "✓"),
+        ERROR(ThemeManager.TOAST_ERROR_BG, ThemeManager.TOAST_ERROR_BORDER, ThemeManager.ACCENT_ERROR, "✕"),
         WARNING(ThemeManager.TOAST_WARNING_BG, ThemeManager.TOAST_WARNING_BORDER, ThemeManager.ACCENT_WARNING, "!"),
         INFO(ThemeManager.TOAST_INFO_BG, ThemeManager.TOAST_INFO_BORDER, ThemeManager.ACCENT_INFO, "i");
 
@@ -51,7 +51,7 @@ public class Toast extends JPanel {
     private final Window parentWindow;
 
     private Timer dismissTimer;
-    private float opacity = 0f;
+    private final float opacity = 0f;
     private int slideOffset;
 
     /**

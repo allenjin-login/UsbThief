@@ -8,7 +8,6 @@ import com.superredrock.usbthief.core.event.device.DeviceStateChangedEvent;
 import com.superredrock.usbthief.core.event.device.NewDeviceJoinedEvent;
 import com.superredrock.usbthief.core.event.storage.StorageLevel;
 import com.superredrock.usbthief.worker.Sniffer;
-import com.superredrock.usbthief.worker.SnifferLifecycleManager;
 import com.superredrock.usbthief.worker.StorageController;
 
 import java.io.IOException;
@@ -432,7 +431,11 @@ public class DeviceManager extends Service {
     }
 
     public Device getDevice(Path path) {
-        return findDevice(device -> !device.isGhost() && path.startsWith(device.getRootPath()));
+        if (!path.isAbsolute()){
+            path = path.toAbsolutePath();
+        }
+        Path finalPath = path;
+        return findDevice(device -> !device.isGhost() && finalPath.startsWith(device.getRootPath()));
     }
 
     public Device getDevice(FileStore store) {
@@ -477,6 +480,40 @@ public class DeviceManager extends Service {
             deviceRecords.add(new DeviceRecord(serial, volumeName.trim()));
             saveDeviceRecords();
         }
+    }
+
+    /**
+     * Remove a device from the device list.
+     * Stops the scanner, removes from device set, and clears persistence record.
+     * The device will be detected again when reconnected.
+     *
+     * @param device the device to remove
+     */
+    public void removeDevice(Device device) {
+        if (device == null) {
+            return;
+        }
+
+        String serial = device.getSerialNumber();
+        logger.info("Removing device: " + serial);
+
+        // Stop scanner if running
+        stopScanner(device);
+
+        // Remove from devices set
+        devices.remove(device);
+
+        // Remove from paused devices if present
+        pausedDevices.remove(device);
+
+        // Remove device record from persistence
+        deviceRecords.removeIf(r -> r.serialNumber().equals(serial));
+        saveDeviceRecords();
+
+        // Dispatch removal event
+        onDeviceRemoved(device);
+
+        logger.info("Device removed: " + serial);
     }
 
     // ==================== Helper Methods ====================

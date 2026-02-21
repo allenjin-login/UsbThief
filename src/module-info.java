@@ -27,5 +27,6 @@ module UsbThief {
     provides Service
             with com.superredrock.usbthief.index.Index,
                 com.superredrock.usbthief.core.DeviceManager,
-                com.superredrock.usbthief.worker.TaskScheduler;
+                com.superredrock.usbthief.worker.TaskScheduler,
+                    com.superredrock.usbthief.worker.RecyclerService;
 }

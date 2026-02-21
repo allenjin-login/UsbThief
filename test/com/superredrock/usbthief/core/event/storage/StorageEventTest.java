@@ -92,8 +92,7 @@ class StorageEventTest {
                 StorageLevel.LOW
         );
 
-        assertTrue(event instanceof Event);
-        assertNotNull(event.timestamp());
+        assertInstanceOf(Event.class, event);
         assertNotNull(event.description());
         assertTrue(event.timestamp() > 0);
         assertTrue(event.description().contains("StorageLowEvent"));
@@ -154,7 +153,7 @@ class StorageEventTest {
                 TEST_FREE_BYTES
         );
 
-        assertTrue(event instanceof Event);
+        assertInstanceOf(Event.class, event);
         assertNotNull(event.timestamp());
         assertNotNull(event.description());
         assertTrue(event.timestamp() > 0);
@@ -208,7 +207,7 @@ class StorageEventTest {
 
         FilesRecycledEvent event = new FilesRecycledEvent(files, 1024, RecycleStrategy.SIZE_FIRST);
 
-        assertTrue(event instanceof Event);
+        assertInstanceOf(Event.class, event);
         assertNotNull(event.timestamp());
         assertNotNull(event.description());
         assertTrue(event.timestamp() > 0);
@@ -281,7 +280,7 @@ class StorageEventTest {
 
         EmptyFoldersDeletedEvent event = new EmptyFoldersDeletedEvent(folders, 1);
 
-        assertTrue(event instanceof Event);
+        assertInstanceOf(Event.class, event);
         assertNotNull(event.timestamp());
         assertNotNull(event.description());
         assertTrue(event.timestamp() > 0);

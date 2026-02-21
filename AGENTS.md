@@ -168,7 +168,7 @@ private Type mutableField;
 
 ### Logging Pattern
 ```java
-protected static final Logger logger = Logger.getLogger(ClassName.class.getName());
+private static final Logger logger = Logger.getLogger(ClassName.class.getName());
 
 // Usage
 logger.fine("Detailed debug info");
@@ -309,10 +309,10 @@ try (FileChannel readChannel = FileChannel.open(path, StandardOpenOption.READ);
 
 ### Abstract Methods
 ```java
-protected abstract void tick();              // Core tick logic (replaces run())
+private abstract void tick();              // Core tick logic (replaces run())
 protected abstract long getTickIntervalMs(); // Hard-coded tick interval in milliseconds
 public abstract String getServiceName();        // Service name (renamed to avoid Thread.getName() conflict)
-public abstract String getDescription();        // Service description
+public abstract String getDescription();        // Service descripti
 ```
 
 ### Service Lifecycle

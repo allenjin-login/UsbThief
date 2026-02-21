@@ -75,7 +75,7 @@ public class ConfigSchema {
             longEntry("copyRateBurstSize", "Copy rate burst size in bytes", 16L * 1024 * 1024, "Rate Limiting");
 
     public static final ConfigEntry<Boolean> RATE_LIMITER_LOAD_ADJUSTMENT_ENABLED =
-            booleanEntry("rateLimiter.loadAdjustmentEnabled", "Enable load-aware rate limit adjustment", true, "Rate Limiting");
+            booleanEntry("rateLimiter.loadAdjustmentEnabled", "Enable load-aware rate limit adjustment", false, "Rate Limiting");
 
     public static final ConfigEntry<Long> COPY_RATE_LIMIT_BASE =
             longEntry("copyRateLimitBase", "Base copy rate limit in bytes per second (0 = no limit)", 0L, "Rate Limiting");
@@ -101,8 +101,6 @@ public class ConfigSchema {
     public static final ConfigEntry<Boolean> SHOW_IN_TASKBAR =
             booleanEntry("gui.showInTaskbar", "Show window in taskbar", true, "Window");
 
-    public static final ConfigEntry<Boolean> ALWAYS_HIDDEN =
-            booleanEntry("gui.alwaysHidden", "Always keep window hidden (start hidden and minimize to tray only)", false, "Window");
 
     // Minimize/Close to tray behavior configuration
     public static final ConfigEntry<String> MINIMIZE_ACTION =
@@ -110,6 +108,9 @@ public class ConfigSchema {
 
     public static final ConfigEntry<String> CLOSE_ACTION =
             stringEntry("gui.closeAction", "Action when closing: ASK, MINIMIZE_TO_TRAY, EXIT", "ASK", "Window");
+
+    public static final ConfigEntry<Boolean> CLOSE_ACTION_REMEMBER =
+            booleanEntry("gui.closeActionRemember", "Remember the close action choice", false, "Window");
 
     // Blacklist configuration
     @Deprecated
@@ -255,9 +256,9 @@ public class ConfigSchema {
         registerEntry(DEVICE_BLACKLIST_BY_SERIAL);
         registerEntry(START_HIDDEN);
         registerEntry(SHOW_IN_TASKBAR);
-        registerEntry(ALWAYS_HIDDEN);
         registerEntry(MINIMIZE_ACTION);
         registerEntry(CLOSE_ACTION);
+        registerEntry(CLOSE_ACTION_REMEMBER);
         registerEntry(PRIORITY_RULES);
         registerEntry(SCHEDULER_INITIAL_DELAY_MS);
         registerEntry(SCHEDULER_TICK_INTERVAL_MS);

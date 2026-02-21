@@ -5,11 +5,9 @@ import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
 import com.superredrock.usbthief.core.SizeFormatter;
-import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.index.FileHistoryRecord;
 
 import javax.swing.*;
-import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -27,9 +25,9 @@ public class FileHistoryPanel extends JPanel {
     private final HistoryTableModel tableModel;
     private final TableRowSorter<HistoryTableModel> sorter;
     private final JTextField searchField;
-    private JLabel searchLabel;
-    private JButton searchButton;
-    private JButton clearButton;
+    private final JLabel searchLabel;
+    private final JButton searchButton;
+    private final JButton clearButton;
     private final JLabel countLabel;
     private final JScrollPane scrollPane;
 

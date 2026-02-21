@@ -50,8 +50,8 @@ public class SystemTrayIcon {
 
         popup.addSeparator();
 
-        boolean alwaysHidden = ConfigManager.getInstance().get(ConfigSchema.ALWAYS_HIDDEN);
-        alwaysHideItem = new MenuItem("Always Hide: " + (alwaysHidden ? "Yes" : "No"));
+        boolean alwaysHidden = ConfigManager.getInstance().get(ConfigSchema.START_HIDDEN);
+        alwaysHideItem = new MenuItem("Start Hide: " + (alwaysHidden ? "Yes" : "No"));
         alwaysHideItem.addActionListener(this::toggleAlwaysHidden);
         popup.add(alwaysHideItem);
 
@@ -74,7 +74,7 @@ public class SystemTrayIcon {
         }
 
         int iconSize = systemTray.getTrayIconSize().width;
-        Image scaledImage = trayImage.getScaledInstance(iconSize, iconSize, Image.SCALE_SMOOTH);
+        Image scaledImage = trayImage.getScaledInstance(iconSize, iconSize, Image.SCALE_DEFAULT);
         trayIcon = new TrayIcon(scaledImage, "UsbThief - USB Device Monitor", popup);
 
         trayIcon.setImageAutoSize(true);
@@ -151,20 +151,12 @@ public class SystemTrayIcon {
     }
 
     /**
-     * Hide window (one-way action).
-     */
-    private void hideWindow(ActionEvent e) {
-        mainFrame.hideWindow();
-        updateMenuItems();
-    }
-
-    /**
      * Toggle "Always Hidden" setting.
      */
     private void toggleAlwaysHidden(ActionEvent e) {
-        boolean currentValue = ConfigManager.getInstance().get(ConfigSchema.ALWAYS_HIDDEN);
+        boolean currentValue = ConfigManager.getInstance().get(ConfigSchema.START_HIDDEN);
         boolean newValue = !currentValue;
-        ConfigManager.getInstance().set(ConfigSchema.ALWAYS_HIDDEN, newValue);
+        ConfigManager.getInstance().set(ConfigSchema.START_HIDDEN, newValue);
 
         alwaysHideItem.setLabel("Always Hide: " + (newValue ? "Yes" : "No"));
 
@@ -220,7 +212,7 @@ public class SystemTrayIcon {
 
         trayIcon.setToolTip("UsbThief - USB Device Monitor");
 
-        boolean alwaysHidden = ConfigManager.getInstance().get(ConfigSchema.ALWAYS_HIDDEN);
+        boolean alwaysHidden = ConfigManager.getInstance().get(ConfigSchema.START_HIDDEN);
         showHideItem.setLabel(mainFrame.isVisible() ? "Hide Window" : "Show Window");
         alwaysHideItem.setLabel("Always Hide: " + (alwaysHidden ? "Yes" : "No"));
         scanItem.setLabel("Pause Scanning");

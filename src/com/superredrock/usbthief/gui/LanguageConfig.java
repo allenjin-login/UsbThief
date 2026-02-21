@@ -19,7 +19,7 @@ public class LanguageConfig {
     private static final String HIDDEN_SUFFIX = ".hidden";
 
     private final Properties config = new Properties();
-    private Path configPath;
+    private final Path configPath;
 
     public LanguageConfig() {
         this.configPath = determineConfigPath();

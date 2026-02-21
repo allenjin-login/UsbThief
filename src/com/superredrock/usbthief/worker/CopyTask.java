@@ -81,13 +81,13 @@ public class CopyTask implements Callable<CopyResult> {
         Path destinationPath = null;
         CopyResult result = CopyResult.SUCCESS;
 
-        // Space check at start - skip copy if storage is CRITICAL
-        StorageController storage = StorageController.getInstance();
-        if (storage.isStorageCritical()) {
-            logger.warning("Storage critical, skipping copy: " + processingPath);
-            result = CopyResult.SKIPPED;
-        } else {
-            try {
+        try {
+            // Space check at start - skip copy if storage is CRITICAL
+            StorageController storage = StorageController.getInstance();
+            if (storage.isStorageCritical()) {
+                logger.warning("Storage critical, skipping copy: " + processingPath);
+                result = CopyResult.SKIPPED;
+            } else {
                 size = Files.size(processingPath);
                 destinationPath = getPath(processingPath);
 
@@ -116,7 +116,8 @@ public class CopyTask implements Callable<CopyResult> {
                                 logger.fine("Copying:" + processingPath + " to " + destinationPath);
                                 while (readChannel.read(buffer) != -1) {
                                     if (Thread.currentThread().isInterrupted()){
-                                        return CopyResult.CANCEL;
+                                        result = CopyResult.CANCEL;
+                                        return result;
                                     }
                                     buffer.flip();
                                     int bytesWritten = writeChannel.write(buffer);
@@ -142,26 +143,26 @@ public class CopyTask implements Callable<CopyResult> {
                             // Copy file attributes (timestamps, read-only, etc.)
                             copyFileAttributes(processingPath, destinationPath, attributes);
 
-                    // Add to index (checksum + history) - FileIndexedEvent will be dispatched by Index.addFile()
-                    QueueManager.getIndex().addFile(hash, processingPath, size);
-                }
+                            // Add to index (checksum + history) - FileIndexedEvent will be dispatched by Index.addFile()
+                            QueueManager.getIndex().addFile(hash, processingPath, size);
+                        }
+                    }
                 }
             }
         } catch (IOException | InterruptedException e) {
-                result = CopyResult.FAIL;
-                logger.log(Level.WARNING,"Fail Copy" ,e);
-            } finally {
-                buffer.clear();
-                // Dispatch CopyCompletedEvent
-                EventBus.getInstance().dispatch(new CopyCompletedEvent(
-                        processingPath,
-                        destinationPath,
-                        size,
-                        bytesCopied,
-                        result,
-                        deviceSerial
-                ));
-            }
+            result = CopyResult.FAIL;
+            logger.log(Level.WARNING,"Fail Copy" ,e);
+        } finally {
+            buffer.clear();
+            // Dispatch CopyCompletedEvent - ALWAYS dispatch, even for SKIPPED
+            EventBus.getInstance().dispatch(new CopyCompletedEvent(
+                    processingPath,
+                    destinationPath,
+                    size,
+                    bytesCopied,
+                    result,
+                    deviceSerial
+            ));
         }
 
         // Check for interruption after finally (in case interruption occurred during file operations)
@@ -184,7 +185,7 @@ public class CopyTask implements Callable<CopyResult> {
             
             Files.setAttribute(destination, "basic:lastModifiedTime", lastModified);
             Files.setAttribute(destination, "basic:lastAccessTime", lastAccess);
-            //Files.setAttribute(destination, "basic:creationTime", creation);
+            // Note: creationTime is not set as it requires elevated privileges on some filesystems
             
             logger.fine("Copied timestamps: modified=" + lastModified + ", access=" + lastAccess + ", creation=" + creation);
             

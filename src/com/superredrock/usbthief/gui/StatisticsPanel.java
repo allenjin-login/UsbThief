@@ -32,9 +32,14 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
 
     private Timer updateTimer;
 
-    private JPanel persistentPanel;
-    private JPanel sessionPanel;
-    private JPanel extensionPanel;
+    private final JPanel persistentPanel;
+    private final JPanel sessionPanel;
+    private final JPanel extensionPanel;
+
+    // Store TitledBorders separately for i18n refresh (avoids CompoundBorder casting)
+    private TitledBorder persistentBorder;
+    private TitledBorder sessionBorder;
+    private TitledBorder extensionBorder;
 
     public StatisticsPanel() {
         setLayout(new BorderLayout(10, 10));
@@ -57,8 +62,9 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
     private JPanel createPersistentPanel() {
         JPanel panel = new JPanel(new GridLayout(2, 3, 12, 8));
         panel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
+        persistentBorder = new TitledBorder(i18n.getMessage("stats.persistent.border"));
         panel.setBorder(BorderFactory.createCompoundBorder(
-            new TitledBorder(i18n.getMessage("stats.persistent.border")),
+            persistentBorder,
             new EmptyBorder(10, 10, 10, 10)
         ));
 
@@ -106,8 +112,9 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
     private JPanel createSessionPanel() {
         JPanel panel = new JPanel(new BorderLayout(5, 10));
         panel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
+        sessionBorder = new TitledBorder(i18n.getMessage("stats.session.border"));
         panel.setBorder(BorderFactory.createCompoundBorder(
-            new TitledBorder(i18n.getMessage("stats.session.border")),
+            sessionBorder,
             new EmptyBorder(10, 10, 10, 10)
         ));
 
@@ -138,8 +145,9 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
     private JPanel createExtensionPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
+        extensionBorder = new TitledBorder(i18n.getMessage("stats.extension.border"));
         panel.setBorder(BorderFactory.createCompoundBorder(
-            new TitledBorder(i18n.getMessage("stats.extension.border")),
+            extensionBorder,
             new EmptyBorder(10, 10, 10, 10)
         ));
 
@@ -188,9 +196,10 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
 
     public void refreshLanguage() {
         SwingUtilities.invokeLater(() -> {
-            ((TitledBorder) persistentPanel.getBorder()).setTitle(i18n.getMessage("stats.persistent.border"));
-            ((TitledBorder) sessionPanel.getBorder()).setTitle(i18n.getMessage("stats.session.border"));
-            ((TitledBorder) extensionPanel.getBorder()).setTitle(i18n.getMessage("stats.extension.border"));
+            // Update TitledBorder titles using stored references (avoids CompoundBorder casting)
+            persistentBorder.setTitle(i18n.getMessage("stats.persistent.border"));
+            sessionBorder.setTitle(i18n.getMessage("stats.session.border"));
+            extensionBorder.setTitle(i18n.getMessage("stats.extension.border"));
             extensionModel.fireTableStructureChanged();
             updateDisplay();
             revalidate();

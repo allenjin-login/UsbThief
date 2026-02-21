@@ -36,11 +36,15 @@ public class DeviceListPanel extends JPanel {
     // MainFrame reference for status bar updates
     private MainFrame mainFrame;
 
-    // Batch operation controls
-    private final JButton selectAllButton;
-    private final JButton batchEnableButton;
-    private final JButton batchDisableButton;
-    private final JButton batchBlacklistButton;
+    // Popup menu for batch operations
+    private JPopupMenu moreActionsMenu;
+    private final JButton moreButton;
+    private JMenuItem selectAllMenuItem;
+    private JMenuItem deselectAllMenuItem;
+    private JMenuItem batchEnableMenuItem;
+    private JMenuItem batchDisableMenuItem;
+    private JMenuItem batchBlacklistMenuItem;
+    private JMenuItem blacklistManageMenuItem;
 
     public DeviceListPanel() {
         this.deviceManager = QueueManager.getDeviceManager();
@@ -61,40 +65,23 @@ public class DeviceListPanel extends JPanel {
         scrollPane.getViewport().setBackground(ThemeManager.BACKGROUND_PRIMARY);
 
         JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
 
-        JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        selectAllButton = new JButton(i18n.getMessage("device.button.selectAll"));
-        selectAllButton.setToolTipText(i18n.getMessage("device.button.selectAll.tooltip"));
-        selectAllButton.addActionListener(_ -> toggleSelectAll());
-        leftPanel.add(selectAllButton);
+        // Create "..." button with popup menu
+        createMoreActionsMenu();
+
+        moreButton = new JButton("⋮");
+        moreButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
+        moreButton.setToolTipText(i18n.getMessage("device.menu.more"));
+        moreButton.setFocusPainted(false);
+        moreButton.setBorder(BorderFactory.createEmptyBorder(5, 12, 5, 12));
+        moreButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        moreButton.addActionListener(e -> moreActionsMenu.show(moreButton, 0, moreButton.getHeight()));
 
         JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        rightPanel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
+        rightPanel.add(moreButton);
 
-        batchEnableButton = new JButton(i18n.getMessage("device.button.batchEnable"));
-        batchEnableButton.setToolTipText(i18n.getMessage("device.button.batchEnable.tooltip"));
-        batchEnableButton.addActionListener(_ -> batchEnable());
-        batchEnableButton.setEnabled(false);
-
-        batchDisableButton = new JButton(i18n.getMessage("device.button.batchDisable"));
-        batchDisableButton.setToolTipText(i18n.getMessage("device.button.batchDisable.tooltip"));
-        batchDisableButton.addActionListener(_ -> batchDisable());
-        batchDisableButton.setEnabled(false);
-
-        batchBlacklistButton = new JButton(i18n.getMessage("device.button.batchBlacklist"));
-        batchBlacklistButton.setToolTipText(i18n.getMessage("device.button.batchBlacklist.tooltip"));
-        batchBlacklistButton.addActionListener(_ -> batchAddToBlacklist());
-        batchBlacklistButton.setEnabled(false);
-
-        JButton blacklistButton = new JButton(i18n.getMessage("device.button.blacklistManage"));
-        blacklistButton.setToolTipText(i18n.getMessage("device.button.blacklistManage.tooltip"));
-        blacklistButton.addActionListener(_ -> BlacklistDialog.showBlacklistDialog(parentFrame));
-
-        rightPanel.add(batchEnableButton);
-        rightPanel.add(batchDisableButton);
-        rightPanel.add(batchBlacklistButton);
-        rightPanel.add(blacklistButton);
-
-        topPanel.add(leftPanel, BorderLayout.WEST);
         topPanel.add(rightPanel, BorderLayout.EAST);
 
         add(topPanel, BorderLayout.NORTH);
@@ -103,6 +90,43 @@ public class DeviceListPanel extends JPanel {
         initializeExistingDevices();
         registerEventListeners();
         startUpdateTimer();
+    }
+
+    /**
+     * Create the popup menu for batch operations.
+     */
+    private void createMoreActionsMenu() {
+        moreActionsMenu = new JPopupMenu();
+
+        selectAllMenuItem = new JMenuItem(i18n.getMessage("device.menu.selectAll"));
+        selectAllMenuItem.addActionListener(_ -> setSelectAll(true));
+
+        deselectAllMenuItem = new JMenuItem(i18n.getMessage("device.menu.deselectAll"));
+        deselectAllMenuItem.addActionListener(_ -> setSelectAll(false));
+
+        batchEnableMenuItem = new JMenuItem(i18n.getMessage("device.button.batchEnable"));
+        batchEnableMenuItem.addActionListener(_ -> batchEnable());
+        batchEnableMenuItem.setEnabled(false);
+
+        batchDisableMenuItem = new JMenuItem(i18n.getMessage("device.button.batchDisable"));
+        batchDisableMenuItem.addActionListener(_ -> batchDisable());
+        batchDisableMenuItem.setEnabled(false);
+
+        batchBlacklistMenuItem = new JMenuItem(i18n.getMessage("device.button.batchBlacklist"));
+        batchBlacklistMenuItem.addActionListener(_ -> batchAddToBlacklist());
+        batchBlacklistMenuItem.setEnabled(false);
+
+        blacklistManageMenuItem = new JMenuItem(i18n.getMessage("device.button.blacklistManage"));
+        blacklistManageMenuItem.addActionListener(_ -> BlacklistDialog.showBlacklistDialog(parentFrame));
+
+        moreActionsMenu.add(selectAllMenuItem);
+        moreActionsMenu.add(deselectAllMenuItem);
+        moreActionsMenu.addSeparator();
+        moreActionsMenu.add(batchEnableMenuItem);
+        moreActionsMenu.add(batchDisableMenuItem);
+        moreActionsMenu.add(batchBlacklistMenuItem);
+        moreActionsMenu.addSeparator();
+        moreActionsMenu.add(blacklistManageMenuItem);
     }
 
     private void initializeExistingDevices() {
@@ -164,15 +188,16 @@ public class DeviceListPanel extends JPanel {
         SwingUtilities.invokeLater(() -> {
             JScrollPane scrollPane = (JScrollPane) getComponent(1);
             scrollPane.setBorder(new TitledBorder(i18n.getMessage("device.list.border")));
-            selectAllButton.setText(i18n.getMessage("device.button.selectAll"));
-            selectAllButton.setToolTipText(i18n.getMessage("device.button.selectAll.tooltip"));
-            batchEnableButton.setText(i18n.getMessage("device.button.batchEnable"));
-            batchEnableButton.setToolTipText(i18n.getMessage("device.button.batchEnable.tooltip"));
-            batchDisableButton.setText(i18n.getMessage("device.button.batchDisable"));
-            batchDisableButton.setToolTipText(i18n.getMessage("device.button.batchDisable.tooltip"));
-            batchBlacklistButton.setText(i18n.getMessage("device.button.batchBlacklist"));
-            batchBlacklistButton.setToolTipText(i18n.getMessage("device.button.batchBlacklist.tooltip"));
-            
+            moreButton.setToolTipText(i18n.getMessage("device.menu.more"));
+
+            // Update popup menu items
+            selectAllMenuItem.setText(i18n.getMessage("device.menu.selectAll"));
+            deselectAllMenuItem.setText(i18n.getMessage("device.menu.deselectAll"));
+            batchEnableMenuItem.setText(i18n.getMessage("device.button.batchEnable"));
+            batchDisableMenuItem.setText(i18n.getMessage("device.button.batchDisable"));
+            batchBlacklistMenuItem.setText(i18n.getMessage("device.button.batchBlacklist"));
+            blacklistManageMenuItem.setText(i18n.getMessage("device.button.blacklistManage"));
+
             for (DeviceCard card : deviceCards.values()) {
                 card.refreshLanguage();
             }
@@ -221,9 +246,16 @@ public class DeviceListPanel extends JPanel {
             if (oldKey != null) {
                 Device ghostDevice = findDeviceFromManager(serial);
                 if (ghostDevice != null) {
+                    // Convert to ghost device
                     DeviceCard card = deviceCards.remove(oldKey);
                     card.updateDevice(ghostDevice);
                     deviceCards.put(ghostDevice, card);
+                } else {
+                    // No ghost device - remove card from UI (device was manually removed)
+                    DeviceCard card = deviceCards.remove(oldKey);
+                    devicesPanel.remove(card);
+                    devicesPanel.revalidate();
+                    devicesPanel.repaint();
                 }
             }
         });
@@ -251,19 +283,15 @@ public class DeviceListPanel extends JPanel {
         SwingUtilities.invokeLater(() -> updateDeviceState(event.device()));
     }
 
-    private void toggleSelectAll() {
-        boolean allSelected = true;
-        for (DeviceCard card : deviceCards.values()) {
-            if (!card.getCheckBox().isSelected() && card.getCheckBox().isEnabled()) {
-                allSelected = false;
-                break;
-            }
-        }
-
-        boolean newState = !allSelected;
+    /**
+     * Set all device checkboxes to the specified state.
+     *
+     * @param selected true to select all, false to deselect all
+     */
+    private void setSelectAll(boolean selected) {
         for (DeviceCard card : deviceCards.values()) {
             if (card.getCheckBox().isEnabled()) {
-                card.getCheckBox().setSelected(newState);
+                card.getCheckBox().setSelected(selected);
             }
         }
         updateBatchButtons();
@@ -277,9 +305,9 @@ public class DeviceListPanel extends JPanel {
                 break;
             }
         }
-        batchEnableButton.setEnabled(hasSelection);
-        batchDisableButton.setEnabled(hasSelection);
-        batchBlacklistButton.setEnabled(hasSelection);
+        batchEnableMenuItem.setEnabled(hasSelection);
+        batchDisableMenuItem.setEnabled(hasSelection);
+        batchBlacklistMenuItem.setEnabled(hasSelection);
     }
 
     private void batchEnable() {
@@ -389,10 +417,13 @@ public class DeviceListPanel extends JPanel {
         private final JPanel stateBadge;
         private final JLabel stateLabel;
         private final JLabel activeTaskLabel;
-        private final JButton toggleButton;
-        private final JButton blacklistButton;
-        private final JButton detailButton;
         private final JCheckBox checkBox;
+        private final JButton moreButton;
+        private final JPopupMenu cardMenu;
+        private final JMenuItem detailMenuItem;
+        private final JMenuItem toggleMenuItem;
+        private final JMenuItem blacklistMenuItem;
+        private final JMenuItem removeMenuItem;
 
         public DeviceCard(Device device, JFrame parentFrame, DeviceManager deviceManager) {
             this.device = device;
@@ -483,7 +514,7 @@ public class DeviceListPanel extends JPanel {
 
             leftPanel.add(infoPanel, BorderLayout.CENTER);
 
-            // Right panel with buttons
+            // Right panel with checkbox and more button
             JPanel rightPanel = new JPanel(new BorderLayout(10, 0));
             rightPanel.setBackground(ThemeManager.CARD_BACKGROUND);
             rightPanel.setOpaque(false);
@@ -491,45 +522,49 @@ public class DeviceListPanel extends JPanel {
             checkBox = new JCheckBox();
             checkBox.setEnabled(!isSystemDisk);
 
-            JPanel buttonPanel = new JPanel(new GridLayout(0, 1, 5, 5));
-            buttonPanel.setBackground(ThemeManager.CARD_BACKGROUND);
-            buttonPanel.setOpaque(false);
+            // Create popup menu for device actions
+            cardMenu = new JPopupMenu();
 
-            detailButton = createStyledButton(i18n.getMessage("device.card.button.details"));
-            detailButton.addActionListener(_ -> showDetailDialog());
-            buttonPanel.add(detailButton);
+            detailMenuItem = new JMenuItem(i18n.getMessage("device.card.button.details"));
+            detailMenuItem.addActionListener(_ -> showDetailDialog());
+            cardMenu.add(detailMenuItem);
 
             if (!isSystemDisk) {
-                toggleButton = createStyledButton(getToggleButtonText());
-                toggleButton.addActionListener(_ -> toggleDevice());
+                toggleMenuItem = new JMenuItem(getToggleButtonText());
+                toggleMenuItem.addActionListener(_ -> toggleDevice());
+                cardMenu.add(toggleMenuItem);
 
-                blacklistButton = createStyledButton(i18n.getMessage("device.card.button.blacklist"));
-                blacklistButton.addActionListener(_ -> addToBlacklist());
+                blacklistMenuItem = new JMenuItem(i18n.getMessage("device.card.button.blacklist"));
+                blacklistMenuItem.addActionListener(_ -> addToBlacklist());
+                cardMenu.add(blacklistMenuItem);
 
-                buttonPanel.add(toggleButton);
-                buttonPanel.add(blacklistButton);
+                removeMenuItem = new JMenuItem(i18n.getMessage("device.card.button.remove"));
+                removeMenuItem.addActionListener(_ -> removeDevice());
+                cardMenu.add(removeMenuItem);
 
                 updateButtonEnabled();
             } else {
-                toggleButton = null;
-                blacklistButton = null;
+                toggleMenuItem = null;
+                blacklistMenuItem = null;
+                removeMenuItem = null;
             }
 
+            // Create "..." button
+            moreButton = new JButton("⋮");
+            moreButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+            moreButton.setToolTipText(i18n.getMessage("device.card.button.more"));
+            moreButton.setFocusPainted(false);
+            moreButton.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+            moreButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            moreButton.addActionListener(e -> cardMenu.show(moreButton, 0, moreButton.getHeight()));
+
             rightPanel.add(checkBox, BorderLayout.NORTH);
-            rightPanel.add(buttonPanel, BorderLayout.CENTER);
+            rightPanel.add(moreButton, BorderLayout.CENTER);
 
             add(leftPanel, BorderLayout.CENTER);
             add(rightPanel, BorderLayout.EAST);
 
             refreshDeviceInfo();
-        }
-
-        private JButton createStyledButton(String text) {
-            JButton button = new JButton(text);
-            button.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
-            button.setFocusPainted(false);
-            button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-            return button;
         }
 
         private String getFsType() {
@@ -607,6 +642,32 @@ public class DeviceListPanel extends JPanel {
             }
         }
 
+        private void removeDevice() {
+            String serialNumber = device.getSerialNumber();
+            String devicePath;
+            if (device.isGhost()) {
+                devicePath = i18n.getMessage("device.card.offline");
+            } else {
+                devicePath = device.getRootPath().toString();
+            }
+
+            int confirm = JOptionPane.showConfirmDialog(
+                    parentFrame,
+                    i18n.getMessage("device.remove.confirm", devicePath, serialNumber),
+                    i18n.getMessage("device.remove.confirm.title"),
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE);
+
+            if (confirm == JOptionPane.YES_OPTION) {
+                deviceManager.removeDevice(device);
+                JOptionPane.showMessageDialog(
+                        parentFrame,
+                        i18n.getMessage("device.remove.success"),
+                        i18n.getMessage("device.remove.success.title"),
+                        JOptionPane.INFORMATION_MESSAGE);
+            }
+        }
+
         private void showDetailDialog() {
             JPanel detailPanel = new JPanel(new GridLayout(0, 1, 5, 5));
             detailPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -640,9 +701,9 @@ public class DeviceListPanel extends JPanel {
         }
 
         /**
-         * Updates button enabled state based on device status.
-         * Ghost devices have buttons disabled.
-         * System disks don't have buttons at all.
+         * Updates menu item enabled state based on device status.
+         * Ghost devices have menu items disabled.
+         * System disks don't have toggle/blacklist items at all.
          */
         private void updateButtonEnabled() {
             boolean enabled = !device.isGhost();
@@ -650,14 +711,9 @@ public class DeviceListPanel extends JPanel {
             if (device.isSystemDisk()){
                 checkBox.setEnabled(false);
             }
-            if (toggleButton != null){
-                toggleButton.setEnabled(enabled);
+            if (toggleMenuItem != null){
+                toggleMenuItem.setEnabled(enabled);
             }
-
-            // if (blacklistButton != null){
-            //    blacklistButton.setEnabled(enabled);
-            // }
-
         }
 
         /**
@@ -696,11 +752,11 @@ public class DeviceListPanel extends JPanel {
                 stateBadge.setOpaque(true);
                 stateBadge.setBorder(BorderFactory.createEmptyBorder(2, 8, 2, 8));
                 
-                if (toggleButton != null) {
-                    toggleButton.setText(getToggleButtonText());
+                if (toggleMenuItem != null) {
+                    toggleMenuItem.setText(getToggleButtonText());
                 }
 
-                // Update button enabled state
+                // Update menu item enabled state
                 updateButtonEnabled();
             });
         }
@@ -722,13 +778,17 @@ public class DeviceListPanel extends JPanel {
          */
         public void refreshLanguage() {
             SwingUtilities.invokeLater(() -> {
-                detailButton.setText(i18n.getMessage("device.card.button.details"));
+                detailMenuItem.setText(i18n.getMessage("device.card.button.details"));
+                moreButton.setToolTipText(i18n.getMessage("device.card.button.more"));
                 activeTaskLabel.setText(i18n.getMessage("device.card.activeTasks") + ": " + (activeTaskLabel.isVisible() ? "0" : ""));
-                if (toggleButton != null) {
-                    toggleButton.setText(getToggleButtonText());
+                if (toggleMenuItem != null) {
+                    toggleMenuItem.setText(getToggleButtonText());
                 }
-                if (blacklistButton != null) {
-                    blacklistButton.setText(i18n.getMessage("device.card.button.blacklist"));
+                if (blacklistMenuItem != null) {
+                    blacklistMenuItem.setText(i18n.getMessage("device.card.button.blacklist"));
+                }
+                if (removeMenuItem != null) {
+                    removeMenuItem.setText(i18n.getMessage("device.card.button.remove"));
                 }
                 refreshDeviceInfo();
             });

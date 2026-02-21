@@ -6,7 +6,6 @@ import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.Version;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
-import com.superredrock.usbthief.gui.theme.AppTheme;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.worker.LoadEvaluator;
 import com.superredrock.usbthief.worker.LoadLevel;
@@ -21,7 +20,6 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.logging.Logger;
 import javax.imageio.ImageIO;
 
@@ -45,7 +43,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
     public MainFrame() {
         setTitle(i18n.getMessage("main.title") + " v" + Version.getVersion());
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setSize(1200, 800);
         setLocationRelativeTo(null);
 
@@ -98,9 +96,8 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosing(java.awt.event.WindowEvent windowEvent) {
-                // Use unified shutdown logic
                 logger.info("Window close requested");
-                performShutdown();
+                handleWindowClose();
             }
         });
 
@@ -153,6 +150,20 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
         actionMenu.addSeparator();
 
+        JMenuItem clearDeviceCacheItem = new JMenuItem(i18n.getMessage("menu.action.clearDeviceCache"));
+        clearDeviceCacheItem.addActionListener(_ -> clearDeviceCache());
+        actionMenu.add(clearDeviceCacheItem);
+
+        JMenuItem clearStatsItem = new JMenuItem(i18n.getMessage("menu.action.clearStats"));
+        clearStatsItem.addActionListener(_ -> clearStatistics());
+        actionMenu.add(clearStatsItem);
+
+        JMenuItem clearIndexItem = new JMenuItem(i18n.getMessage("menu.action.clearIndex"));
+        clearIndexItem.addActionListener(_ -> clearIndex());
+        actionMenu.add(clearIndexItem);
+
+        actionMenu.addSeparator();
+
         JMenuItem hideItem = new JMenuItem(i18n.getMessage("menu.action.hide"));
         hideItem.addActionListener(e -> hideWindow());
         actionMenu.add(hideItem);
@@ -170,14 +181,6 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         JMenuItem preferencesItem = new JMenuItem(i18n.getMessage("menu.config.preferences"));
         preferencesItem.addActionListener(e -> showPreferences());
         configMenu.add(preferencesItem);
-
-        JMenuItem clearCacheItem = new JMenuItem(i18n.getMessage("menu.config.clearCache"));
-        clearCacheItem.addActionListener(_ -> clearDeviceCache());
-        configMenu.add(clearCacheItem);
-
-        JMenuItem clearStatsItem = new JMenuItem(i18n.getMessage("menu.config.clearStats"));
-        clearStatsItem.addActionListener(_ -> clearStatistics());
-        configMenu.add(clearStatsItem);
 
         JMenuItem storageItem = new JMenuItem(i18n.getMessage("menu.config.storageManagement"));
         storageItem.addActionListener(_ -> showStorageManagement());
@@ -324,6 +327,34 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         }
     }
 
+    private void clearIndex() {
+        int confirm = JOptionPane.showConfirmDialog(
+                this,
+                i18n.getMessage("message.clearIndexConfirm"),
+                i18n.getMessage("title.clearIndexConfirm"),
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+
+        if (confirm == JOptionPane.YES_OPTION) {
+            try {
+                QueueManager.getIndex().clear();
+                JOptionPane.showMessageDialog(
+                        this,
+                        i18n.getMessage("message.clearIndexSuccess"),
+                        i18n.getMessage("title.clearIndexSuccess"),
+                        JOptionPane.INFORMATION_MESSAGE);
+                logger.info("Index cache cleared from menu");
+            } catch (Exception e) {
+                logger.severe("Failed to clear index cache: " + e.getMessage());
+                JOptionPane.showMessageDialog(
+                        this,
+                        i18n.getMessage("message.clearIndexFailed", e.getMessage()),
+                        i18n.getMessage("common.error"),
+                        JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
     private void showAbout() {
         String aboutMessage = i18n.getMessage("message.about", 
             Version.getVersion(), 
@@ -374,16 +405,12 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
      */
     private void applyWindowSettings() {
         boolean startHidden = ConfigManager.getInstance().get(ConfigSchema.START_HIDDEN);
-        boolean alwaysHidden = ConfigManager.getInstance().get(ConfigSchema.ALWAYS_HIDDEN);
         boolean showInTaskbar = ConfigManager.getInstance().get(ConfigSchema.SHOW_IN_TASKBAR);
 
-        // Always Hidden takes precedence
-        boolean shouldStartHidden = alwaysHidden || startHidden;
-
-        if (shouldStartHidden) {
+        if (startHidden) {
             windowVisible = false;
             setVisible(false);
-            logger.info("Application started hidden (startHidden=%s, alwaysHidden=%s)".formatted(startHidden, alwaysHidden));
+            logger.info("Application started hidden (startHidden=%s)".formatted(true));
         } else {
             windowVisible = true;
             setVisible(true);
@@ -428,6 +455,102 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     }
 
     /**
+     * Handle window close event.
+     * Checks for remembered action or shows dialog with options.
+     */
+    private void handleWindowClose() {
+        ConfigManager config = ConfigManager.getInstance();
+        String closeAction = config.get(ConfigSchema.CLOSE_ACTION);
+        boolean rememberChoice = config.get(ConfigSchema.CLOSE_ACTION_REMEMBER);
+
+        // If user has previously remembered their choice, use it directly
+        if (rememberChoice) {
+            if ("MINIMIZE_TO_TRAY".equals(closeAction)) {
+                logger.info("Minimizing to tray (remembered choice)");
+                hideWindow();
+                if (trayIcon != null) {
+                    trayIcon.updateShowHideMenuItem();
+                }
+                return;
+            } else if ("EXIT".equals(closeAction)) {
+                logger.info("Exiting (remembered choice)");
+                performShutdown();
+                return;
+            }
+        }
+
+        // Show dialog with options
+        showCloseDialog();
+    }
+
+    /**
+     * Show close dialog with options to minimize to tray or exit.
+     * Includes "remember my choice" checkbox.
+     */
+    private void showCloseDialog() {
+        // Create custom panel with options
+        JPanel panel = new JPanel(new BorderLayout(0, 10));
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        // Message label
+        JLabel messageLabel = new JLabel(i18n.getMessage("dialog.close.message"));
+        panel.add(messageLabel, BorderLayout.NORTH);
+
+        // Options panel
+        JPanel optionsPanel = new JPanel(new GridLayout(2, 1, 5, 5));
+        JRadioButton minimizeRadio = new JRadioButton(i18n.getMessage("dialog.close.minimizeToTray"));
+        JRadioButton exitRadio = new JRadioButton(i18n.getMessage("dialog.close.exit"));
+        minimizeRadio.setSelected(true);
+
+        ButtonGroup group = new ButtonGroup();
+        group.add(minimizeRadio);
+        group.add(exitRadio);
+        optionsPanel.add(minimizeRadio);
+        optionsPanel.add(exitRadio);
+        panel.add(optionsPanel, BorderLayout.CENTER);
+
+        // Remember checkbox
+        JCheckBox rememberCheckbox = new JCheckBox(i18n.getMessage("dialog.close.rememberChoice"));
+        panel.add(rememberCheckbox, BorderLayout.SOUTH);
+
+        // Show dialog
+        int result = JOptionPane.showConfirmDialog(
+            this,
+            panel,
+            i18n.getMessage("dialog.close.title"),
+            JOptionPane.OK_CANCEL_OPTION,
+            JOptionPane.QUESTION_MESSAGE
+        );
+
+        if (result == JOptionPane.OK_OPTION) {
+            boolean shouldMinimize = minimizeRadio.isSelected();
+            boolean shouldRemember = rememberCheckbox.isSelected();
+
+            // Save choice if "remember" is checked
+            if (shouldRemember) {
+                ConfigManager config = ConfigManager.getInstance();
+                config.set(ConfigSchema.CLOSE_ACTION, shouldMinimize ? "MINIMIZE_TO_TRAY" : "EXIT");
+                config.set(ConfigSchema.CLOSE_ACTION_REMEMBER, true);
+                logger.info("Close action saved: " + (shouldMinimize ? "MINIMIZE_TO_TRAY" : "EXIT"));
+            }
+
+            // Execute action
+            if (shouldMinimize) {
+                logger.info("Minimizing to tray");
+                hideWindow();
+                if (trayIcon != null) {
+                    trayIcon.updateShowHideMenuItem();
+                    trayIcon.displayMessage("Im here","已最小化到系统托盘", TrayIcon.MessageType.INFO);
+                }
+            } else {
+                logger.info("Exiting application");
+                performShutdown();
+            }
+        }
+        // If cancelled, do nothing (window stays open)
+    }
+
+    /**
      * Toggle window visibility programmatically.
      * Can be called from external triggers or menu actions.
      */
@@ -436,12 +559,10 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
         SwingUtilities.invokeLater(() -> {
             if (windowVisible) {
-                setVisible(true);
-                setState(JFrame.NORMAL);
+                showWindow();
                 logger.info("Window shown");
             } else {
-                setVisible(false);
-                setState(JFrame.ICONIFIED);
+                hideWindow();
                 logger.info("Window hidden");
             }
         });

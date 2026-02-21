@@ -122,7 +122,7 @@ public class RecyclerService extends Service {
                     // Check if directory is empty
                     try {
                         try (var stream = Files.list(dir)) {
-                            if (!stream.findFirst().isPresent()) {
+                            if (stream.findFirst().isEmpty()) {
                                 emptyFolders.add(dir);
                             }
                         }
