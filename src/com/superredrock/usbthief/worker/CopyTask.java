@@ -53,6 +53,17 @@ public class CopyTask implements Callable<CopyResult> {
         return speedProbeGroup;
     }
 
+    /**
+     * Returns the shared RateLimiter instance used by all copy tasks.
+     * This method provides access for external components (like TaskScheduler)
+     * to adjust the rate limit based on system load.
+     *
+     * @return the shared RateLimiter instance
+     */
+    public static RateLimiter getSharedRateLimiter() {
+        return getRateLimiter();
+    }
+
     private static RateLimiter getRateLimiter() {
         RateLimiter current = rateLimiter;
         long limit = ConfigManager.getInstance().get(ConfigSchema.COPY_RATE_LIMIT);

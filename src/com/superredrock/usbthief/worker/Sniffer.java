@@ -22,8 +22,6 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.superredrock.usbthief.worker.SnifferLifecycleManager;
-
 public class Sniffer extends Thread implements Closeable {
     protected static final Logger logger = Logger.getLogger(Sniffer.class.getName());
 
@@ -60,18 +58,16 @@ public class Sniffer extends Thread implements Closeable {
         try {performInitialScan();}
         catch (IOException e) {
             logger.severe("Error while scanning disk: " + e.getMessage());
-            SnifferLifecycleManager.getInstance().scheduleRestart(device, SnifferLifecycleManager.RestartReason.ERROR);
+            SnifferLifecycleManager.getInstance().sleepDevice(device, SnifferLifecycleManager.RestartReason.ERROR);
             return;
         }
-
         if (Thread.currentThread().isInterrupted()) {
-            SnifferLifecycleManager.getInstance().scheduleRestart(device, SnifferLifecycleManager.RestartReason.NORMAL_COMPLETION);
             return;
         }
 
         if (!ConfigManager.getInstance().get(ConfigSchema.WATCH_ENABLED)) {
             logger.info("File monitoring disabled, scanner finished");
-            SnifferLifecycleManager.getInstance().scheduleRestart(device, SnifferLifecycleManager.RestartReason.NORMAL_COMPLETION);
+            SnifferLifecycleManager.getInstance().sleepDevice(device, SnifferLifecycleManager.RestartReason.NORMAL_COMPLETION);
             return;
         }
 
@@ -98,8 +94,8 @@ public class Sniffer extends Thread implements Closeable {
                             try {fileSize = Files.size(path);} catch (IOException _) {}
                             EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, fileSize, device.getSerialNumber()));})
                                 .forEach(path -> {
-                            if (Thread.currentThread().isInterrupted()) {
-                                throw new RuntimeException("Scan interrupted");
+                            if (!running || Thread.currentThread().isInterrupted()) {
+                                throw new RuntimeException("Scan stopped");
                             }
                             submitCopyTask(path);
                         });
@@ -111,8 +107,8 @@ public class Sniffer extends Thread implements Closeable {
         try {
             scan.get();
         } catch (InterruptedException | ExecutionException e) {
-            this.interrupt();
             scan.cancel(true);
+            this.interrupt();
         }
 
         logger.info("Initial scan completed for " + root);
@@ -154,6 +150,9 @@ public class Sniffer extends Thread implements Closeable {
                     partitioned.getOrDefault(false, java.util.List.of())
                         .parallelStream()
                         .forEach(path -> {
+                            if (!running) {
+                                throw new RuntimeException("Scan stopped");
+                            }
                             long fileSize = 0;
                             try {
                                 fileSize = Files.size(path);
@@ -211,7 +210,7 @@ public class Sniffer extends Thread implements Closeable {
         } finally {
             running = false;
             closeWatchService();
-            SnifferLifecycleManager.getInstance().scheduleRestart(device, exitReason);
+            SnifferLifecycleManager.getInstance().sleepDevice(device, exitReason);
         }
     }
 
@@ -311,7 +310,7 @@ public class Sniffer extends Thread implements Closeable {
 
     @Override
     public void close() throws IOException {
-        stopMonitoring();
         this.interrupt();
+        stopMonitoring();
     }
 }

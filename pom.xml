@@ -7,7 +7,7 @@
     <groupId>com.superredrock</groupId>
     <artifactId>UsbThief</artifactId>
     <!-- Version: major.minor.patch (SemVer) -->
-    <version>1.0.3</version>
+    <version>1.1.0</version>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -17,8 +17,8 @@
         <mockito.version>5.15.2</mockito.version>
         <!-- Version components (for resource filtering and Launch4j) -->
         <project.version.major>1</project.version.major>
-        <project.version.minor>0</project.version.minor>
-        <project.version.patch>3</project.version.patch>
+        <project.version.minor>1</project.version.minor>
+        <project.version.patch>0</project.version.patch>
         <build.timestamp>${maven.build.timestamp}</build.timestamp>
         <maven.build.timestamp.format>yyyyMMdd</maven.build.timestamp.format>
         <!-- Jlink configuration -->

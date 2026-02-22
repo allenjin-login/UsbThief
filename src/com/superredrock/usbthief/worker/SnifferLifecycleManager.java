@@ -1,6 +1,8 @@
 package com.superredrock.usbthief.worker;
 
 import com.superredrock.usbthief.core.Device;
+import com.superredrock.usbthief.core.DeviceManager;
+import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 
@@ -23,6 +25,7 @@ public class SnifferLifecycleManager {
 
     private final ScheduledExecutorService scheduler;
     private final ConcurrentHashMap<Device, ScheduledFuture<?>> pendingRestarts;
+    private final DeviceManager deviceManager;
     protected static final Logger logger = Logger.getLogger(SnifferLifecycleManager.class.getName());
 
     /**
@@ -59,6 +62,7 @@ public class SnifferLifecycleManager {
             return t;
         });
         this.pendingRestarts = new ConcurrentHashMap<>();
+        this.deviceManager  = QueueManager.getDeviceManager();
     }
 
     /**
@@ -71,6 +75,13 @@ public class SnifferLifecycleManager {
             INSTANCE = new SnifferLifecycleManager();
         }
         return INSTANCE;
+    }
+
+    public void sleepDevice(Device device, RestartReason reason){
+        if (deviceManager != null) {
+            deviceManager.pauseScanner(device);
+        }
+        scheduleResume(device,reason);
     }
 
     /**
@@ -89,7 +100,7 @@ public class SnifferLifecycleManager {
      * @param device the device whose sniffer should be restarted
      * @param reason the reason for restart (determines delay)
      */
-    public void scheduleRestart(Device device, RestartReason reason) {
+    public void scheduleResume(Device device, RestartReason reason) {
         if (device == null) {
             logger.warning("Cannot schedule restart for null device");
             return;
@@ -113,8 +124,15 @@ public class SnifferLifecycleManager {
             try {
                 logger.info("Restart delay elapsed for device " + device.getSerialNumber() +
                     " (reason: " + reason + ")");
-                // TODO: Wire up callback to DeviceManager in Task 9
-                // DeviceManager.getDeviceManager().restartScanner(device);
+
+                // Call DeviceManager to restart the scanner
+                DeviceManager dm = deviceManager;
+                if (dm != null) {
+                    dm.resumeScanner(device);
+                } else {
+                    logger.warning("DeviceManager not set, cannot restart scanner for device " +
+                        device.getSerialNumber());
+                }
             } catch (Exception e) {
                 logger.warning("Error during scheduled restart for device " +
                     device.getSerialNumber() + ": " + e.getMessage());

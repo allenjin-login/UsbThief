@@ -8,7 +8,7 @@ import java.util.logging.Logger;
  * High-performance speed monitoring probe with thread-safe data collection.
  *
  * <p>Each probe maintains independent state with thread-local accumulation
- * to minimize contention in multi-threaded environments.</p>
+ * to minimize contention in multithreaded environments.</p>
  *
  * <p>Thread safety optimizations:</p>
  * <ul>

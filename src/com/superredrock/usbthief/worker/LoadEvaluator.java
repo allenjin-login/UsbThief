@@ -2,6 +2,8 @@ package com.superredrock.usbthief.worker;
 
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.RejectionAwarePolicy;
+import com.superredrock.usbthief.core.Service;
+import com.superredrock.usbthief.core.ServiceManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import java.util.logging.Level;
@@ -10,13 +12,14 @@ import java.util.logging.Logger;
 /**
  * Evaluates system load based on queue length, copy speed, and thread activity.
  * Returns weighted score (0-100) and load level (LOW/MEDIUM/HIGH).
+ *
+ * <p>Runs as an independent Service with 500ms tick interval, caching results
+ * for synchronous access via evaluateLoad().
  */
-public class LoadEvaluator {
+public class LoadEvaluator extends Service {
     private static final Logger logger = Logger.getLogger(LoadEvaluator.class.getName());
-    private static final long CACHE_DURATION_MS = 500; // 500ms cache
 
-    private LoadScore cachedScore;
-    private long lastEvaluateTime = 0;
+    private volatile LoadScore cachedScore = new LoadScore(50, LoadLevel.MEDIUM);
 
     private final RejectionAwarePolicy rejectionPolicy;
 
@@ -24,38 +27,32 @@ public class LoadEvaluator {
         this.rejectionPolicy = QueueManager.getRejectionPolicy();
     }
 
-    public LoadScore evaluateLoad() {
-        // Check cache
-        long now = System.currentTimeMillis();
-        if (cachedScore != null && (now - lastEvaluateTime) < CACHE_DURATION_MS) {
-            return cachedScore;
-        }
+    public static LoadEvaluator getInstance(){
+        return ServiceManager.getInstance().findService(LoadEvaluator.class).orElse(null);
+    }
 
-        // Cache miss or expired - compute new score
+    @Override
+    protected void tick() {
         try {
             // Collect metrics
             int queueLength = safeGetQueueSize();
-            double copySpeed = safeGetCopySpeed();
             double threadRatio = safeGetThreadRatio();
             int recentRejections = safeGetRecentRejections();
 
             // Normalize to 0-100
             int queueScore = normalizeQueueLength(queueLength);
-            int speedScore = normalizeSpeed(copySpeed);
             int threadScore = normalizeThreadRatio(threadRatio);
             int rejectionScore = normalizeRejections(recentRejections);
 
             // Get weights from config (as percentages 0-100)
             ConfigManager config = ConfigManager.getInstance();
             int queueWeightPercent = config.get(ConfigSchema.LOAD_QUEUE_WEIGHT_PERCENT);
-            int speedWeightPercent = config.get(ConfigSchema.LOAD_SPEED_WEIGHT_PERCENT);
             int threadWeightPercent = config.get(ConfigSchema.LOAD_THREAD_WEIGHT_PERCENT);
             int rejectionWeightPercent = config.get(ConfigSchema.LOAD_REJECTION_WEIGHT_PERCENT);
 
             // Calculate weighted score
             int totalScore = (int) Math.round(
                 queueScore * queueWeightPercent / 100.0 +
-                speedScore * speedWeightPercent / 100.0 +
                 threadScore * threadWeightPercent / 100.0 +
                 rejectionScore * rejectionWeightPercent / 100.0
             );
@@ -64,13 +61,36 @@ public class LoadEvaluator {
             LoadLevel level = determineLoadLevel(totalScore);
 
             cachedScore = new LoadScore(totalScore, level);
-            lastEvaluateTime = now;
-            return cachedScore;
 
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Load evaluation failed, using default value", e);
-            return new LoadScore(50, LoadLevel.MEDIUM); // Conservative fallback
+            logger.log(Level.WARNING, "Load evaluation failed, keeping cached value", e);
         }
+    }
+
+    @Override
+    protected long getTickIntervalMs() {
+        return 500;
+    }
+
+    @Override
+    public String getServiceName() {
+        return "LoadEvaluator";
+    }
+
+    @Override
+    public String getDescription() {
+        return "Evaluates system load based on queue depth, copy speed, thread activity, and rejection rate";
+    }
+
+    /**
+     * Returns the cached load score from the most recent tick evaluation.
+     * This method is non-blocking and returns immediately with cached data.
+     *
+     * @return LoadScore containing the weighted score (0-100) and load level
+     */
+    public LoadScore evaluateLoad() {
+        LoadScore score = cachedScore;;
+        return score;
     }
 
     private int safeGetQueueSize() {
@@ -79,24 +99,6 @@ public class LoadEvaluator {
         } catch (Exception e) {
             logger.log(Level.FINE, "Unable to get queue size", e);
             return 0; // Default: empty queue
-        }
-    }
-
-    private double safeGetCopySpeed() {
-        try {
-            // Get current copy speed from SpeedProbeGroup (already in MB/s)
-            double speedMBps = CopyTask.getSpeedProbeGroup().getTotalSpeed();
-
-            // If no active copies (speed = 0), treat as high load
-            // This helps the scheduler recognize when system is idle vs busy
-            if (speedMBps <= 0) {
-                return 0.0; // No copies = idle = low load score needed
-            }
-
-            return speedMBps;
-        } catch (Exception e) {
-            logger.log(Level.FINE, "Unable to get copy speed", e);
-            return 10.0; // Default: good speed (conservative fallback)
         }
     }
 

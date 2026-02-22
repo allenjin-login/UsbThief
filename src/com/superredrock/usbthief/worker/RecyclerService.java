@@ -145,7 +145,7 @@ public class RecyclerService extends Service {
             for (Path folder : toDelete) {
                 try {
                     Files.delete(folder);
-                    logger.fine("Deleted empty folder: " + folder);
+                    logger.info("Deleted empty folder: " + folder);
                 } catch (IOException e) {
                     logger.warning("Failed to delete empty folder: " + folder + " - " + e.getMessage());
                 }

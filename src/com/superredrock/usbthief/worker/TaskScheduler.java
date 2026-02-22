@@ -20,22 +20,21 @@ public class TaskScheduler extends Service {
     private static final Logger logger = Logger.getLogger(TaskScheduler.class.getName());
 
     private final PriorityQueue<PriorityTask<?, ?>> priorityQueue;
-    private final LoadEvaluator loadEvaluator;
+    private LoadEvaluator loadEvaluator;
     private final ExecutorService executor;
     private final PriorityRule priorityRule;
     private volatile boolean accumulating = false;
 
     public TaskScheduler() {
         this.priorityQueue = new PriorityQueue<>();
-        this.loadEvaluator = new LoadEvaluator();
+        this.loadEvaluator = null;
         this.executor = QueueManager.getCopyExecutor();
         this.priorityRule = new PriorityRule();
     }
 
     public static TaskScheduler getInstance() {
-        return ServiceManager.getInstance()
-            .findService(TaskScheduler.class)
-            .orElseThrow(() -> new IllegalStateException("TaskScheduler not found in ServiceManager"));
+        return ServiceManager.getInstance().findService(TaskScheduler.class).orElseThrow();
+
     }
 
     public PriorityRule getPriorityRule() {
@@ -47,13 +46,27 @@ public class TaskScheduler extends Service {
         if (getServiceState() != ServiceState.RUNNING) {
             return;
         }
+        LoadScore score;
 
-        LoadScore score = loadEvaluator.evaluateLoad();
+        if(loadEvaluator == null){
+            loadEvaluator = LoadEvaluator.getInstance();
+            score = new LoadScore(0,LoadLevel.LOW);
+        }else {
+            score = loadEvaluator.evaluateLoad();
+        }
+
+
 
         switch (score.level()) {
             case HIGH -> handleHighLoad();
             case MEDIUM -> dispatchBatch(50);
-            case LOW -> dispatchAll();
+            case LOW -> {
+                if (priorityQueue.size() > 1000){
+                    dispatchBatch(500);
+                }else {
+                    dispatchAll();
+                }
+            }
             default -> dispatchBatch(100);
         }
 
@@ -172,29 +185,19 @@ public class TaskScheduler extends Service {
     private void adjustRateLimit(LoadLevel level) {
         ConfigManager config = ConfigManager.getInstance();
 
-        boolean enabled = config.get(ConfigSchema.RATE_LIMITER_LOAD_ADJUSTMENT_ENABLED);
+        boolean enabled = config.get(ConfigSchema.RATE_LIMIT_AUTO_MODE_ENABLED);
         if (!enabled) {
             return;
         }
 
-        long baseLimit = config.get(ConfigSchema.COPY_RATE_LIMIT_BASE);
-
-        if (baseLimit <= 0) {
-            return;
-        }
-
-        int multiplierPercent = switch (level) {
-            case LOW -> 100;
-            case MEDIUM -> config.get(ConfigSchema.RATE_LIMITER_MEDIUM_MULTIPLIER);
-            case HIGH -> config.get(ConfigSchema.RATE_LIMITER_HIGH_MULTIPLIER);
-        };
-
-        long newLimit = baseLimit * multiplierPercent / 100;
-        long currentLimit = config.get(ConfigSchema.COPY_RATE_LIMIT);
-
-        if (newLimit < currentLimit || currentLimit <= 0) {
-            config.set(ConfigSchema.COPY_RATE_LIMIT, newLimit);
-            logger.fine("Adjusted rate limit to " + (newLimit / 1024 / 1024) +
+        RateLimiter rateLimiter = CopyTask.getSharedRateLimiter();
+        long oldRate = rateLimiter.getRateLimitBytesPerSecond();
+        
+        rateLimiter.adjustRateByLoadLevel(level);
+        
+        long newRate = rateLimiter.getRateLimitBytesPerSecond();
+        if (newRate != oldRate) {
+            logger.info("Adjusted rate limit to " + (newRate / 1024 / 1024) +
                        " MB/s based on " + level + " load");
         }
     }

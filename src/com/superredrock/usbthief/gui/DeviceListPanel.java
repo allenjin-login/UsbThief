@@ -10,7 +10,10 @@ import com.superredrock.usbthief.core.event.device.DeviceInsertedEvent;
 import com.superredrock.usbthief.core.event.device.DeviceRemovedEvent;
 import com.superredrock.usbthief.core.event.device.DeviceStateChangedEvent;
 import com.superredrock.usbthief.core.event.device.NewDeviceJoinedEvent;
+import com.superredrock.usbthief.gui.components.EmptyStatePanel;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
+
+import java.util.Locale;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -20,12 +23,13 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class DeviceListPanel extends JPanel {
+public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeListener {
 
     private final I18NManager i18n = I18NManager.getInstance();
     private final JPanel devicesPanel;
     private final Map<Device, DeviceCard> deviceCards = new HashMap<>();
     private final DeviceManager deviceManager;
+    private EmptyStatePanel emptyStatePanel;
 
     // Timer for updating active task counts and status bar
     private Timer updateTimer;
@@ -87,9 +91,16 @@ public class DeviceListPanel extends JPanel {
         add(topPanel, BorderLayout.NORTH);
         add(scrollPane, BorderLayout.CENTER);
 
+        // Create empty state panel
+        createEmptyStatePanel();
+        updateEmptyState();
+
         initializeExistingDevices();
         registerEventListeners();
         startUpdateTimer();
+        
+        // Register for locale changes
+        i18n.addLocaleChangeListener(this);
     }
 
     /**
@@ -176,12 +187,52 @@ public class DeviceListPanel extends JPanel {
     }
 
     /**
+     * Create the empty state panel shown when no devices are connected.
+     */
+    private void createEmptyStatePanel() {
+        emptyStatePanel = new EmptyStatePanel(
+            "\uD83D\uDD0C",  // Plug emoji
+            i18n.getMessage("empty.devices.title"),
+            i18n.getMessage("empty.devices.description")
+        );
+        emptyStatePanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+    }
+
+    /**
+     * Update the visibility of the empty state panel.
+     */
+    private void updateEmptyState() {
+        SwingUtilities.invokeLater(() -> {
+            if (deviceCards.isEmpty()) {
+                // Show empty state
+                if (emptyStatePanel.getParent() == null) {
+                    devicesPanel.add(emptyStatePanel);
+                    devicesPanel.revalidate();
+                    devicesPanel.repaint();
+                }
+            } else {
+                // Hide empty state
+                if (emptyStatePanel.getParent() != null) {
+                    devicesPanel.remove(emptyStatePanel);
+                    devicesPanel.revalidate();
+                    devicesPanel.repaint();
+                }
+            }
+        });
+    }
+
+    /**
      * Sets the parent frame for dialogs.
      *
      * @param frame parent JFrame
      */
     public void setParentFrame(JFrame frame) {
         this.parentFrame = frame;
+    }
+
+    @Override
+    public void onLocaleChanged(Locale newLocale) {
+        refreshLanguage();
     }
 
     public void refreshLanguage() {
@@ -197,6 +248,12 @@ public class DeviceListPanel extends JPanel {
             batchDisableMenuItem.setText(i18n.getMessage("device.button.batchDisable"));
             batchBlacklistMenuItem.setText(i18n.getMessage("device.button.batchBlacklist"));
             blacklistManageMenuItem.setText(i18n.getMessage("device.button.blacklistManage"));
+
+            // Update empty state panel if visible
+            if (emptyStatePanel != null) {
+                emptyStatePanel.setTitle(i18n.getMessage("empty.devices.title"));
+                emptyStatePanel.setDescription(i18n.getMessage("empty.devices.message"));
+            }
 
             for (DeviceCard card : deviceCards.values()) {
                 card.refreshLanguage();
@@ -384,6 +441,7 @@ public class DeviceListPanel extends JPanel {
 
         devicesPanel.revalidate();
         devicesPanel.repaint();
+        updateEmptyState();
     }
 
     private void updateDeviceState(Device device) {
@@ -496,7 +554,7 @@ public class DeviceListPanel extends JPanel {
             // State badge panel
             stateBadge = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
             stateBadge.setOpaque(false);
-            stateLabel = new JLabel(device.getState().toString());
+            stateLabel = new JLabel(getLocalizedState(device.getState()));
             stateLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
             stateBadge.add(stateLabel);
             
@@ -602,6 +660,20 @@ public class DeviceListPanel extends JPanel {
 
         private String getToggleButtonText() {
             return device.getState() == Device.DeviceState.DISABLED ? i18n.getMessage("device.card.button.enable") : i18n.getMessage("device.card.button.disable");
+        }
+
+        /**
+         * Get localized string for device state.
+         */
+        private String getLocalizedState(Device.DeviceState state) {
+            return switch (state) {
+                case OFFLINE -> i18n.getMessage("device.state.offline");
+                case UNAVAILABLE -> i18n.getMessage("device.state.unavailable");
+                case IDLE -> i18n.getMessage("device.state.idle");
+                case SCANNING -> i18n.getMessage("device.state.scanning");
+                case PAUSED -> i18n.getMessage("device.state.paused");
+                case DISABLED -> i18n.getMessage("device.state.disabled");
+            };
         }
 
         private void toggleDevice() {
@@ -745,7 +817,7 @@ public class DeviceListPanel extends JPanel {
 
                 // Update state badge
                 Device.DeviceState currentState = device.getState();
-                stateLabel.setText(currentState.toString());
+                stateLabel.setText(getLocalizedState(currentState));
                 Color stateColor = ThemeManager.getStateColor(currentState);
                 stateLabel.setForeground(Color.WHITE);
                 stateBadge.setBackground(stateColor);

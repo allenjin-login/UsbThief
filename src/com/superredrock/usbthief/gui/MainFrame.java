@@ -3,6 +3,7 @@ package com.superredrock.usbthief.gui;
 import com.superredrock.usbthief.Main;
 import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.QueueManager;
+import com.superredrock.usbthief.core.ServiceManager;
 import com.superredrock.usbthief.core.Version;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
@@ -182,6 +183,14 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         preferencesItem.addActionListener(e -> showPreferences());
         configMenu.add(preferencesItem);
 
+        JMenuItem clearCacheConfigItem = new JMenuItem(i18n.getMessage("menu.config.clearCache"));
+        clearCacheConfigItem.addActionListener(_ -> clearDeviceCache());
+        configMenu.add(clearCacheConfigItem);
+
+        JMenuItem clearStatsConfigItem = new JMenuItem(i18n.getMessage("menu.config.clearStats"));
+        clearStatsConfigItem.addActionListener(_ -> clearStatistics());
+        configMenu.add(clearStatsConfigItem);
+
         JMenuItem storageItem = new JMenuItem(i18n.getMessage("menu.config.storageManagement"));
         storageItem.addActionListener(_ -> showStorageManagement());
         configMenu.add(storageItem);
@@ -191,6 +200,14 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         JMenuItem filterConfigItem = new JMenuItem(i18n.getMessage("filter.menu.item"));
         filterConfigItem.addActionListener(_ -> FilterConfigDialog.showFilterConfigDialog(this));
         configMenu.add(filterConfigItem);
+
+        JMenuItem rateLimitItem = new JMenuItem(i18n.getMessage("menu.settings.ratelimit"));
+        rateLimitItem.addActionListener(_ -> {
+            RateLimitConfigDialog dialog = new RateLimitConfigDialog(this);
+            dialog.setVisible(true);
+        });
+        configMenu.add(rateLimitItem);
+
 
         configMenu.addSeparator();
 
@@ -380,7 +397,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     }
 
     public void updateStatusBar() {
-        LoadScore loadScore = new LoadEvaluator().evaluateLoad();
+        LoadScore loadScore = LoadEvaluator.getInstance().evaluateLoad();
         String loadInfo = formatLoadLevel(loadScore.level());
 
         int queueDepth = TaskScheduler.getInstance().getQueueDepth();
@@ -540,7 +557,8 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
                 hideWindow();
                 if (trayIcon != null) {
                     trayIcon.updateShowHideMenuItem();
-                    trayIcon.displayMessage("Im here","已最小化到系统托盘", TrayIcon.MessageType.INFO);
+                    // Tray messages use English only (no i18n for system tray per design)
+                trayIcon.displayMessage("UsbThief", "Minimized to tray", TrayIcon.MessageType.INFO);
                 }
             } else {
                 logger.info("Exiting application");
@@ -628,6 +646,8 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
             // Note: setVisible is already called in applyWindowSettings() during construction
             // We don't call setVisible(true) here to respect the startHidden/alwaysHidden settings
             frame.updateStatusBar();
+            // Show welcome dialog on first run
+            WelcomeDialog.showIfFirstRun(frame);
         });
     }
 

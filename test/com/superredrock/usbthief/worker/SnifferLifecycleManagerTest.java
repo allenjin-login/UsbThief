@@ -5,12 +5,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -65,13 +62,13 @@ class SnifferLifecycleManagerTest {
     }
 
     @Test
-    void scheduleRestart_forNormalCompletion_schedulesLongDelay() throws InterruptedException {
+    void scheduleResume_forNormalCompletion_schedulesLongDelay() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean executed = new AtomicBoolean(false);
 
         // Schedule with minimal delay for testing (would override config)
         // In real implementation, this would use the normal delay
-        manager.scheduleRestart(testDevice, SnifferLifecycleManager.RestartReason.NORMAL_COMPLETION);
+        manager.scheduleResume(testDevice, SnifferLifecycleManager.RestartReason.NORMAL_COMPLETION);
 
         assertTrue(manager.isRestartPending(testDevice),
             "Restart should be pending after scheduling with NORMAL_COMPLETION");
@@ -80,8 +77,8 @@ class SnifferLifecycleManagerTest {
     }
 
     @Test
-    void scheduleRestart_forError_schedulesShortDelay() {
-        manager.scheduleRestart(testDevice, SnifferLifecycleManager.RestartReason.ERROR);
+    void scheduleResume_forError_schedulesShortDelay() {
+        manager.scheduleResume(testDevice, SnifferLifecycleManager.RestartReason.ERROR);
 
         assertTrue(manager.isRestartPending(testDevice),
             "Restart should be pending after scheduling with ERROR");
@@ -90,9 +87,9 @@ class SnifferLifecycleManagerTest {
     }
 
     @Test
-    void scheduleRestart_forStoragePause_noScheduledDelay() {
+    void scheduleResume_forStoragePause_noScheduledDelay() {
         // STORAGE_PAUSE doesn't schedule a restart - it's just tracked for manual resumption
-        manager.scheduleRestart(testDevice, SnifferLifecycleManager.RestartReason.STORAGE_PAUSE);
+        manager.scheduleResume(testDevice, SnifferLifecycleManager.RestartReason.STORAGE_PAUSE);
 
         // STORAGE_PAUSE may or may not be considered "pending" - depends on implementation
         // For now, we just verify it doesn't crash
@@ -100,7 +97,7 @@ class SnifferLifecycleManagerTest {
 
     @Test
     void cancelRestart_removesPendingRestart() {
-        manager.scheduleRestart(testDevice, SnifferLifecycleManager.RestartReason.ERROR);
+        manager.scheduleResume(testDevice, SnifferLifecycleManager.RestartReason.ERROR);
         assertTrue(manager.isRestartPending(testDevice));
 
         manager.cancelRestart(testDevice);
@@ -123,18 +120,18 @@ class SnifferLifecycleManagerTest {
 
     @Test
     void isRestartPending_returnsTrue_whenRestartScheduled() {
-        manager.scheduleRestart(testDevice, SnifferLifecycleManager.RestartReason.ERROR);
+        manager.scheduleResume(testDevice, SnifferLifecycleManager.RestartReason.ERROR);
         assertTrue(manager.isRestartPending(testDevice));
         manager.cancelRestart(testDevice);
     }
 
     @Test
     void rescheduling_sameDevice_replacesPreviousRestart() {
-        manager.scheduleRestart(testDevice, SnifferLifecycleManager.RestartReason.NORMAL_COMPLETION);
+        manager.scheduleResume(testDevice, SnifferLifecycleManager.RestartReason.NORMAL_COMPLETION);
         assertTrue(manager.isRestartPending(testDevice));
 
         // Schedule again with different reason
-        manager.scheduleRestart(testDevice, SnifferLifecycleManager.RestartReason.ERROR);
+        manager.scheduleResume(testDevice, SnifferLifecycleManager.RestartReason.ERROR);
         assertTrue(manager.isRestartPending(testDevice));
 
         // Clean up
@@ -143,10 +140,10 @@ class SnifferLifecycleManagerTest {
     }
 
     @Test
-    void scheduleRestart_handlesNullDevice_gracefully() {
+    void scheduleResume_handlesNullDevice_gracefully() {
         // Should handle null gracefully (either ignore or throw specific exception)
         assertDoesNotThrow(() ->
-            manager.scheduleRestart(null, SnifferLifecycleManager.RestartReason.ERROR));
+            manager.scheduleResume(null, SnifferLifecycleManager.RestartReason.ERROR));
     }
 
     // ==================== Helper Methods ====================

@@ -257,6 +257,39 @@ public class DeviceManager extends Service {
     }
 
     /**
+     * Restart the scanner for a specific device.
+     * Called by SnifferLifecycleManager after a scheduled restart delay.
+     * <p>
+     * Sets device state to IDLE and lets manageScanner handle the restart
+     * on the next tick cycle.
+     *
+     * @param device the device whose scanner should be restarted
+     */
+    public void restartScanner(Device device) {
+        if (device == null || device.isGhost()) {
+            return;
+        }
+
+        Device.DeviceState currentState = device.getState();
+
+        // Don't restart disabled or offline devices
+        if (currentState == Device.DeviceState.DISABLED ||
+            currentState == Device.DeviceState.OFFLINE) {
+            logger.fine("Skipping restart for device " + device.getSerialNumber() +
+                " (state: " + currentState + ")");
+            return;
+        }
+
+        logger.info("Restarting scanner for device: " + device.getSerialNumber());
+
+        // Remove from paused devices if present
+        pausedDevices.remove(device);
+
+        // Set state to IDLE - manageScanner will start the scanner on next tick
+        device.setState(Device.DeviceState.IDLE);
+    }
+
+    /**
      * Pause all active scanners due to storage constraints.
      * Only affects devices that are not already disabled or ghost.
      */
@@ -462,7 +495,6 @@ public class DeviceManager extends Service {
 
     public void disableDevice(Device device) {
         device.disable();
-        stopScanner(device);
     }
 
     public void updateDeviceVolumeName(String serial, String volumeName) {

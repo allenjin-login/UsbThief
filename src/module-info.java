@@ -28,5 +28,6 @@ module UsbThief {
             with com.superredrock.usbthief.index.Index,
                 com.superredrock.usbthief.core.DeviceManager,
                 com.superredrock.usbthief.worker.TaskScheduler,
-                    com.superredrock.usbthief.worker.RecyclerService;
+                    com.superredrock.usbthief.worker.RecyclerService,
+                    com.superredrock.usbthief.worker.LoadEvaluator;
 }

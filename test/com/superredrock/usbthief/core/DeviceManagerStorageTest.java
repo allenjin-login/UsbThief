@@ -281,7 +281,7 @@ class DeviceManagerStorageTest {
         assertNotNull(lifecycleManager);
 
         // Schedule a restart
-        lifecycleManager.scheduleRestart(testDevice,
+        lifecycleManager.scheduleResume(testDevice,
             SnifferLifecycleManager.RestartReason.NORMAL_COMPLETION);
 
         // Verify restart is pending

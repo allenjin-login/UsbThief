@@ -173,7 +173,7 @@ public class Device {
         if (isGhost()) {
             return;
         }
-        if (state == DeviceState.DISABLED) {
+        if (state == DeviceState.DISABLED || state == DeviceState.PAUSED) {
             return;
         }
 

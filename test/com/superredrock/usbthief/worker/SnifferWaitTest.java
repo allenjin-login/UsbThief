@@ -58,6 +58,10 @@ class SnifferWaitTest {
         sniffer.start();
         sniffer.join(5000); // Wait for sniffer to complete
 
+        // Close the sniffer to trigger restart scheduling (monitoring blocks indefinitely)
+        sniffer.close();
+        Thread.sleep(100); // Allow restart to be scheduled
+
         // Verify that a restart is scheduled
         assertTrue(lifecycleManager.isRestartPending(testDevice),
             "Restart should be scheduled after sniffer completes normally");
@@ -78,6 +82,10 @@ class SnifferWaitTest {
         // Interrupt the sniffer (simulating interruption)
         sniffer.interrupt();
         sniffer.join(1000); // Wait for sniffer to stop
+        
+        // Close to ensure restart is scheduled
+        sniffer.close();
+        Thread.sleep(100); // Allow restart to be scheduled
 
         // Verify that a restart is scheduled
         assertTrue(lifecycleManager.isRestartPending(testDevice),
@@ -119,7 +127,7 @@ class SnifferWaitTest {
     @Test
     void sniffer_schedulesRestartWithErrorReason() throws InterruptedException {
         // Verify that restart can be scheduled with ERROR reason
-        lifecycleManager.scheduleRestart(testDevice, SnifferLifecycleManager.RestartReason.ERROR);
+        lifecycleManager.scheduleResume(testDevice, SnifferLifecycleManager.RestartReason.ERROR);
 
         assertTrue(lifecycleManager.isRestartPending(testDevice),
             "Restart should be schedulable with ERROR reason");
@@ -131,7 +139,7 @@ class SnifferWaitTest {
     @Test
     void sniffer_schedulesRestartWithNormalCompletionReason() throws InterruptedException {
         // Verify that restart can be scheduled with NORMAL_COMPLETION reason
-        lifecycleManager.scheduleRestart(testDevice, SnifferLifecycleManager.RestartReason.NORMAL_COMPLETION);
+        lifecycleManager.scheduleResume(testDevice, SnifferLifecycleManager.RestartReason.NORMAL_COMPLETION);
 
         assertTrue(lifecycleManager.isRestartPending(testDevice),
             "Restart should be schedulable with NORMAL_COMPLETION reason");

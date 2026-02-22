@@ -36,6 +36,7 @@ public class ServiceManager {
         return instance;
     }
 
+
     public void loadServices() {
         logger.info("Loading services...");
         ServiceLoader<Service> loader = ServiceLoader.load(Service.class);
@@ -114,6 +115,23 @@ public class ServiceManager {
             }
         }
         return Optional.empty();
+    }
+
+    public <T extends  Service> T getInstance(Class<T> tClass){
+        Optional<T>  optional = this.findService(tClass);
+
+        if (optional.isPresent()){
+            return optional.get();
+        }else {
+            try {
+                T NewService = tClass.newInstance();
+                this.registerService(NewService);
+                return NewService;
+            } catch (InstantiationException | IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
     }
 
     public Collection<Service> getAllServices() {

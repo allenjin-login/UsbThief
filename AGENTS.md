@@ -1,8 +1,8 @@
 # UsbThief - Project Knowledge Base
 
 **Generated:** 2026-02-03
-**Last Updated:** 2026-02-17
-**Commit:** f1fe3ad
+**Last Updated:** 2026-02-21
+**Commit:** 95f2d9b
 **Branch:** master
 **Java Version:** 24 (modular, with --enable-preview)
 **Module:** UsbThief
