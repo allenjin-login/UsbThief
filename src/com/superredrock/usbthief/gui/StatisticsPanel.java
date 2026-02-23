@@ -43,7 +43,6 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
 
     public StatisticsPanel() {
         setLayout(new BorderLayout(10, 10));
-        setBackground(ThemeManager.BACKGROUND_PRIMARY);
         setBorder(new EmptyBorder(15, 15, 15, 15));
 
         i18n.addLocaleChangeListener(this);
@@ -61,7 +60,7 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
 
     private JPanel createPersistentPanel() {
         JPanel panel = new JPanel(new GridLayout(2, 3, 12, 8));
-        panel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
+        panel.setBackground(new Color(0, 0, 0, 0)); // Transparent
         persistentBorder = new TitledBorder(i18n.getMessage("stats.persistent.border"));
         panel.setBorder(BorderFactory.createCompoundBorder(
             persistentBorder,
@@ -87,15 +86,13 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
     private JLabel createStatLabel() {
         JLabel label = new JLabel();
         label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
-        label.setForeground(ThemeManager.TEXT_PRIMARY);
         return label;
     }
 
     private JPanel createStatCard(String icon, JLabel valueLabel) {
         JPanel card = new JPanel(new BorderLayout(8, 4));
-        card.setBackground(ThemeManager.CARD_BACKGROUND);
         card.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(ThemeManager.BORDER_COLOR, 1, true),
+            BorderFactory.createLineBorder(UIManager.getColor("Component.borderColor"), 1, true),
             new EmptyBorder(12, 16, 12, 16)
         ));
 
@@ -111,7 +108,7 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
 
     private JPanel createSessionPanel() {
         JPanel panel = new JPanel(new BorderLayout(5, 10));
-        panel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
+        panel.setBackground(new Color(0, 0, 0, 0)); // Transparent
         sessionBorder = new TitledBorder(i18n.getMessage("stats.session.border"));
         panel.setBorder(BorderFactory.createCompoundBorder(
             sessionBorder,
@@ -120,11 +117,9 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
 
         discoveredSizeLabel = new JLabel();
         discoveredSizeLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
-        discoveredSizeLabel.setForeground(ThemeManager.TEXT_PRIMARY);
         
         copiedSizeLabel = new JLabel();
         copiedSizeLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
-        copiedSizeLabel.setForeground(ThemeManager.TEXT_PRIMARY);
 
         progressBar = new JProgressBar(0, 100);
         progressBar.setStringPainted(true);
@@ -132,7 +127,7 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
         progressBar.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
 
         JPanel labelsPanel = new JPanel(new GridLayout(2, 1, 5, 5));
-        labelsPanel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
+        labelsPanel.setOpaque(false);
         labelsPanel.add(discoveredSizeLabel);
         labelsPanel.add(copiedSizeLabel);
 
@@ -144,7 +139,7 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
 
     private JPanel createExtensionPanel() {
         JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
+        panel.setBackground(new Color(0, 0, 0, 0)); // Transparent
         extensionBorder = new TitledBorder(i18n.getMessage("stats.extension.border"));
         panel.setBorder(BorderFactory.createCompoundBorder(
             extensionBorder,
@@ -159,7 +154,6 @@ public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeL
 
         JScrollPane scrollPane = new JScrollPane(extensionTable);
         scrollPane.setPreferredSize(new Dimension(200, 150));
-        scrollPane.setBackground(ThemeManager.CARD_BACKGROUND);
 
         panel.add(scrollPane, BorderLayout.CENTER);
 

@@ -42,26 +42,22 @@ public class EmptyStatePanel extends JPanel {
     public EmptyStatePanel(String icon, String title, String description, 
                            String actionText, Runnable action) {
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
-        setBackground(ThemeManager.BACKGROUND_SECONDARY);
         setBorder(new EmptyBorder(60, 40, 60, 40));
         setOpaque(false);
 
         // Icon
         iconLabel = new JLabel(icon);
         iconLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 48));
-        iconLabel.setForeground(ThemeManager.TEXT_MUTED);
         iconLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         // Title
         titleLabel = new JLabel(title);
         titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 18));
-        titleLabel.setForeground(ThemeManager.TEXT_PRIMARY);
         titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         // Description
         descriptionLabel = new JLabel(description);
         descriptionLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
-        descriptionLabel.setForeground(ThemeManager.TEXT_SECONDARY);
         descriptionLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         // Action button (optional)

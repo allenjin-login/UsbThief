@@ -53,11 +53,9 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
     public DeviceListPanel() {
         this.deviceManager = QueueManager.getDeviceManager();
         setLayout(new BorderLayout());
-        setBackground(ThemeManager.BACKGROUND_PRIMARY);
 
         devicesPanel = new JPanel();
         devicesPanel.setLayout(new BoxLayout(devicesPanel, BoxLayout.Y_AXIS));
-        devicesPanel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
 
         JScrollPane scrollPane = new JScrollPane(devicesPanel);
         scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
@@ -66,10 +64,7 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
             new EmptyBorder(10, 10, 10, 10),
             new TitledBorder(i18n.getMessage("device.list.border"))
         ));
-        scrollPane.getViewport().setBackground(ThemeManager.BACKGROUND_PRIMARY);
-
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
+                JPanel topPanel = new JPanel(new BorderLayout());
 
         // Create "..." button with popup menu
         createMoreActionsMenu();
@@ -83,7 +78,6 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
         moreButton.addActionListener(e -> moreActionsMenu.show(moreButton, 0, moreButton.getHeight()));
 
         JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        rightPanel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
         rightPanel.add(moreButton);
 
         topPanel.add(rightPanel, BorderLayout.EAST);
@@ -489,17 +483,16 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
             this.deviceManager = deviceManager;
             setLayout(new BorderLayout(12, 8));
             setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(ThemeManager.BORDER_COLOR, 1, true),
+                BorderFactory.createLineBorder(UIManager.getColor("Component.borderColor"), 1, true),
                 new EmptyBorder(12, 16, 12, 16)
             ));
             setMaximumSize(new Dimension(Integer.MAX_VALUE, 150));
-            setBackground(ThemeManager.CARD_BACKGROUND);
+            setOpaque(true);
 
             // Hover effect
             addMouseListener(new java.awt.event.MouseAdapter() {
                 @Override
                 public void mouseEntered(java.awt.event.MouseEvent e) {
-                    setBackground(ThemeManager.CARD_BACKGROUND_ALT);
                     setBorder(BorderFactory.createCompoundBorder(
                         BorderFactory.createLineBorder(ThemeManager.ACCENT_PRIMARY, 1, true),
                         new EmptyBorder(12, 16, 12, 16)
@@ -508,9 +501,8 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
 
                 @Override
                 public void mouseExited(java.awt.event.MouseEvent e) {
-                    setBackground(ThemeManager.CARD_BACKGROUND);
                     setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createLineBorder(ThemeManager.BORDER_COLOR, 1, true),
+                        BorderFactory.createLineBorder(UIManager.getColor("Component.borderColor"), 1, true),
                         new EmptyBorder(12, 16, 12, 16)
                     ));
                 }
@@ -520,7 +512,6 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
 
             // Left panel with icon
             JPanel leftPanel = new JPanel(new BorderLayout(10, 0));
-            leftPanel.setBackground(ThemeManager.CARD_BACKGROUND);
             leftPanel.setOpaque(false);
 
             iconLabel = new JLabel(getDeviceIcon(isSystemDisk));
@@ -529,27 +520,22 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
 
             // Info panel
             JPanel infoPanel = new JPanel(new GridLayout(0, 1, 0, 4));
-            infoPanel.setBackground(ThemeManager.CARD_BACKGROUND);
             infoPanel.setOpaque(false);
 
             // Path with styled font
             pathLabel = new JLabel(i18n.getMessage("device.card.path") + ": " + device.getRootPath() + (isSystemDisk ? " " + i18n.getMessage("device.card.systemDisk") : ""));
             pathLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
-            pathLabel.setForeground(ThemeManager.TEXT_PRIMARY);
             
             String volumeName = device.getVolumeName();
             String volumeDisplay = volumeName != null && !volumeName.isEmpty() ? volumeName : i18n.getMessage("device.card.volume.none");
             volumeLabel = new JLabel(i18n.getMessage("device.card.volume") + ": " + volumeDisplay);
             volumeLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
-            volumeLabel.setForeground(ThemeManager.TEXT_SECONDARY);
             
             fsTypeLabel = new JLabel(i18n.getMessage("device.card.fs") + ": " + getFsType());
             fsTypeLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
-            fsTypeLabel.setForeground(ThemeManager.TEXT_SECONDARY);
             
             storageLabel = new JLabel(i18n.getMessage("device.card.storage") + ": " + getStorageInfo());
             storageLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
-            storageLabel.setForeground(ThemeManager.TEXT_SECONDARY);
             
             // State badge panel
             stateBadge = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -560,7 +546,6 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
             
             activeTaskLabel = new JLabel(i18n.getMessage("device.card.activeTasks") + ": 0");
             activeTaskLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
-            activeTaskLabel.setForeground(ThemeManager.TEXT_SECONDARY);
             activeTaskLabel.setVisible(false);
 
             infoPanel.add(pathLabel);
@@ -574,7 +559,6 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
 
             // Right panel with checkbox and more button
             JPanel rightPanel = new JPanel(new BorderLayout(10, 0));
-            rightPanel.setBackground(ThemeManager.CARD_BACKGROUND);
             rightPanel.setOpaque(false);
 
             checkBox = new JCheckBox();
