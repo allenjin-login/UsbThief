@@ -1,0 +1,75 @@
+# Continuous Integration - Build and Test
+# Triggers on push to master and pull requests
+
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 24 (Early Access)
+        uses: oracle-actions/setup-java@v1.5.0
+        with:
+          website: jdk.java.net
+          release: 24
+
+      - name: Verify Java version
+        run: java --version
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Compile
+        run: mvn clean compile -B
+
+      - name: Run tests
+        run: mvn test -B
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: target/surefire-reports/
+          retention-days: 7
+
+  lint:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 24 (Early Access)
+        uses: oracle-actions/setup-java@v1.5.0
+        with:
+          website: jdk.java.net
+          release: 24
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Compile (check for errors)
+        run: mvn compile -B

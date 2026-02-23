@@ -1,0 +1,131 @@
+# Release - Build and Publish
+# Triggers on version tags (v*)
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Release Artifacts
+    runs-on: windows-latest
+    
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 24 (Early Access)
+        uses: oracle-actions/setup-java@v1.5.0
+        with:
+          website: jdk.java.net
+          release: 24
+
+      - name: Verify Java version
+        run: java --version
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          $version = "${{ github.ref_name }}"
+          if ($version -match '^v') {
+            $version = $version.Substring(1)
+          }
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "Version: $version"
+
+      - name: Update version in pom.xml
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          mvn versions:set -DnewVersion=$version -B
+        continue-on-error: true
+
+      - name: Run tests
+        run: mvn test -B
+
+      - name: Build package (EXE + ZIP)
+        run: mvn package -B -DskipTests
+
+      - name: List build artifacts
+        run: |
+          echo "=== Build Artifacts ==="
+          dir target\*.exe
+          dir target\*.zip
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsbThief-${{ steps.version.outputs.version }}-exe
+          path: target/UsbThief-*.exe
+          retention-days: 30
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsbThief-${{ steps.version.outputs.version }}-zip
+          path: target/UsbThief-*.zip
+          retention-days: 30
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download EXE artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: UsbThief-${{ needs.build.outputs.version }}-exe
+          path: ./artifacts/
+
+      - name: Download ZIP artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: UsbThief-${{ needs.build.outputs.version }}-zip
+          path: ./artifacts/
+
+      - name: List artifacts
+        run: ls -la ./artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: UsbThief ${{ needs.build.outputs.version }}
+          body: |
+            ## UsbThief ${{ needs.build.outputs.version }}
+            
+            ### Downloads
+            - **UsbThief-${{ needs.build.outputs.version }}.zip** - Full distribution (EXE + custom runtime)
+            - **UsbThief-${{ needs.version.outputs.version }}.exe** - Standalone executable
+            
+            ### System Requirements
+            - Windows 10/11 (64-bit)
+            - No Java installation required (custom JRE included)
+            
+            ### Changelog
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/master/CHANGELOG.md) for details.
+          files: |
+            ./artifacts/UsbThief-*.exe
+            ./artifacts/UsbThief-*.zip
+          draft: false
+          prerelease: ${{ contains(needs.build.outputs.version, '-') }}
+          generate_release_notes: true
