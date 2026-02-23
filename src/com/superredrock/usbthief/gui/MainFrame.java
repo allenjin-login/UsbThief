@@ -3,7 +3,6 @@ package com.superredrock.usbthief.gui;
 import com.superredrock.usbthief.Main;
 import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.QueueManager;
-import com.superredrock.usbthief.core.ServiceManager;
 import com.superredrock.usbthief.core.Version;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
@@ -166,7 +165,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         actionMenu.addSeparator();
 
         JMenuItem hideItem = new JMenuItem(i18n.getMessage("menu.action.hide"));
-        hideItem.addActionListener(e -> hideWindow());
+        hideItem.addActionListener(_ -> hideWindow());
         actionMenu.add(hideItem);
 
         actionMenu.addSeparator();
@@ -565,7 +564,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
                 performShutdown();
             }
         }
-        // If cancelled, do nothing (window stays open)
+        // If canceled, do nothing (window stays open)
     }
 
     /**
@@ -674,6 +673,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
                 trayIcon.refreshLanguage();
             }
             logger.info("Locale change complete");
+            this.repaint();
         });
     }
 
