@@ -40,7 +40,8 @@ jobs:
 
       - name: Run tests
         run: mvn test -B
-
+      - name: Build package
+        run: mvn package -B -DskipTests
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
@@ -48,6 +49,19 @@ jobs:
           name: test-results
           path: target/surefire-reports/
           retention-days: 7
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsbThief-exe
+          path: target/UsbThief-*.exe
+          retention-days: 14
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsbThief-zip
+          path: target/UsbThief-*.zip
+          retention-days: 14
 
   lint:
     name: Code Quality Check
