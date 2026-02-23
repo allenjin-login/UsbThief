@@ -23,10 +23,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java 24 (Early Access)
+      - name: Setup Java 24 (GA)
         uses: oracle-actions/setup-java@v1.5.0
         with:
-          website: jdk.java.net
+          website: oracle.com
           release: 24
 
       - name: Verify Java version
@@ -115,7 +115,7 @@ jobs:
             
             ### Downloads
             - **UsbThief-${{ needs.build.outputs.version }}.zip** - Full distribution (EXE + custom runtime)
-            - **UsbThief-${{ needs.version.outputs.version }}.exe** - Standalone executable
+            - **UsbThief-${{ needs.build.outputs.version }}.exe** - Standalone executable
             
             ### System Requirements
             - Windows 10/11 (64-bit)
