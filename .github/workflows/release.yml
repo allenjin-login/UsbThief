@@ -53,8 +53,8 @@ jobs:
       - name: Update version in pom.xml
         run: |
           $version = "${{ steps.version.outputs.version }}"
-          mvn versions:set -DnewVersion=$version -B
-        continue-on-error: true
+          Write-Host "Setting version to: $version"
+          mvn versions:set "-DnewVersion=$version" "-DgenerateBackupPoms=false" -B
 
       - name: Run tests
         run: mvn test -B
