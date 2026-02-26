@@ -6,7 +6,6 @@ import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
 import com.superredrock.usbthief.core.event.worker.FileDiscoveredEvent;
 
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;

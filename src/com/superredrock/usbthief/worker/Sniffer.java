@@ -55,12 +55,7 @@ public class Sniffer extends Thread implements Closeable {
 
     @Override
     public void run() {
-        try {performInitialScan();}
-        catch (IOException e) {
-            logger.severe("Error while scanning disk: " + e.getMessage());
-            SnifferLifecycleManager.getInstance().sleepDevice(device, SnifferLifecycleManager.RestartReason.ERROR);
-            return;
-        }
+        performInitialScan();
         if (Thread.currentThread().isInterrupted()) {
             return;
         }
@@ -80,7 +75,7 @@ public class Sniffer extends Thread implements Closeable {
         }
     }
 
-    private void performInitialScan() throws IOException {
+    private void performInitialScan() {
         logger.info("Scanning Disk " + root);
         BiPredicate<Path, BasicFileAttributes> filter = new BasicFileFilter(ConfigManager.getInstance());
         SuffixFilter suffixFilter = new SuffixFilter(ConfigManager.getInstance());
@@ -309,7 +304,7 @@ public class Sniffer extends Thread implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         this.interrupt();
         stopMonitoring();
     }

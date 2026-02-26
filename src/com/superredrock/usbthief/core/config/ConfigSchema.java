@@ -108,6 +108,9 @@ public class ConfigSchema {
     public static final ConfigEntry<Boolean> START_HIDDEN =
             booleanEntry("gui.startHidden", "Start application with window hidden (runs in background)", false, "Window");
 
+    public static final ConfigEntry<Boolean> AUTO_START_ENABLED =
+            booleanEntry("gui.autoStartEnabled", "Start application automatically on Windows login", false, "Window");
+
     public static final ConfigEntry<Boolean> SHOW_IN_TASKBAR =
             booleanEntry("gui.showInTaskbar", "Show window in taskbar", true, "Window");
 
@@ -269,6 +272,7 @@ public class ConfigSchema {
         registerEntry(DEVICE_BLACKLIST_BY_SERIAL);
         registerEntry(START_HIDDEN);
         registerEntry(SHOW_IN_TASKBAR);
+        registerEntry(AUTO_START_ENABLED);
         registerEntry(MINIMIZE_ACTION);
         registerEntry(CLOSE_ACTION);
         registerEntry(CLOSE_ACTION_REMEMBER);

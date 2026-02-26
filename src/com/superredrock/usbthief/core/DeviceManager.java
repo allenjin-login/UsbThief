@@ -196,7 +196,7 @@ public class DeviceManager extends Service {
     private void stopScanner(Device device) {
         Sniffer scanner = activeScanners.remove(device);
         if (scanner != null) {
-            try {scanner.close();} catch (IOException _) {}
+            scanner.close();
             logger.fine("Stopped scanner for device: " + device.getSerialNumber());
         }
     }

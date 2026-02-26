@@ -5,7 +5,6 @@ import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 
 import javax.swing.*;
-import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;

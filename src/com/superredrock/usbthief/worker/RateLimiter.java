@@ -1,6 +1,5 @@
 package com.superredrock.usbthief.worker;
 
-import com.superredrock.usbthief.core.ServiceManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.statistics.SpeedStatistics;

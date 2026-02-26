@@ -1,8 +1,5 @@
 package com.superredrock.usbthief.gui;
 
-import com.superredrock.usbthief.gui.theme.AppTheme;
-import com.superredrock.usbthief.gui.theme.ThemeManager;
-
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
@@ -115,10 +112,10 @@ public class WelcomeDialog extends JDialog {
     private String getFeatureIcon(String featureKey) {
         return switch (featureKey) {
             case "welcome.feature.auto" -> "\uD83D\uDD0C";
-            case "welcome.feature.dedupe" -> "\u267B\uFE0F";
-            case "welcome.feature.manage" -> "\u2699\uFE0F";
+            case "welcome.feature.dedupe" -> "♻️";
+            case "welcome.feature.manage" -> "⚙️";
             case "welcome.feature.stats" -> "\uD83D\uDCCA";
-            default -> "\u2022";
+            default -> "•";
         };
     }
 

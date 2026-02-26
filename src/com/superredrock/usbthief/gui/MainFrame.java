@@ -1,5 +1,7 @@
 package com.superredrock.usbthief.gui;
 
+import com.superredrock.usbthief.core.AutoStartManager;
+
 import com.superredrock.usbthief.Main;
 import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.QueueManager;
@@ -36,6 +38,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     private final FileHistoryPanel fileHistoryPanel;
     private final StatisticsPanel statisticsPanel;
     private final JTabbedPane rightTabbedPane;
+    private LogWindow logWindow;
 
     // Window visibility state
     private boolean windowVisible = true;
@@ -168,6 +171,10 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         hideItem.addActionListener(_ -> hideWindow());
         actionMenu.add(hideItem);
 
+        JMenuItem logWindowItem = new JMenuItem(i18n.getMessage("menu.view.logwindow"));
+        logWindowItem.addActionListener(_ -> showLogWindow());
+        actionMenu.add(logWindowItem);
+
         actionMenu.addSeparator();
 
         JMenuItem exitItem = new JMenuItem(i18n.getMessage("menu.action.exit"));
@@ -215,6 +222,14 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         themeItem.addActionListener(_ -> toggleTheme());
         configMenu.add(themeItem);
 
+        // Auto-start toggle menu item
+        JCheckBoxMenuItem autoStartItem = new JCheckBoxMenuItem(
+            i18n.getMessage("autostart.toggle"),
+            AutoStartManager.getInstance().isAutoStartEnabled()
+        );
+        autoStartItem.addActionListener(_ -> toggleAutoStart(autoStartItem));
+        configMenu.add(autoStartItem);
+
         JMenu helpMenu = new JMenu(i18n.getMessage("menu.help"));
         JMenuItem aboutItem = new JMenuItem(i18n.getMessage("menu.help.about"));
         aboutItem.addActionListener(_ -> showAbout());
@@ -228,12 +243,17 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
     private void createLanguageMenu() {
         JMenu languageMenu = new JMenu(i18n.getMessage("menu.language"));
+        Locale currentLocale = i18n.getCurrentLocale();
+        LanguageConfig languageConfig = new LanguageConfig();
 
         for (LanguageInfo langInfo : i18n.getAvailableLanguages()) {
             String displayText = langInfo.nativeName() + " (" + langInfo.displayName() + ")";
-            JMenuItem languageItem = new JMenuItem(displayText);
+            JCheckBoxMenuItem languageItem = new JCheckBoxMenuItem(displayText);
+            languageItem.setSelected(langInfo.locale().equals(currentLocale));
             languageItem.addActionListener(_ -> {
                 logger.info("Switching to language: " + langInfo.locale());
+                languageConfig.setDefaultLanguage(langInfo.localeString());
+                languageConfig.save();
                 i18n.setLocale(langInfo.locale());
             });
             languageMenu.add(languageItem);
@@ -266,14 +286,39 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         dialog.setVisible(true);
     }
 
+    private void showLogWindow() {
+        if (logWindow == null) {
+            logWindow = new LogWindow(this);
+        }
+        logWindow.setVisible(true);
+    }
+
     /**
      * Toggle between light and dark themes.
      */
     private void toggleTheme() {
         ThemeManager.getInstance().toggleTheme();
-        // Update all UI components
-        SwingUtilities.updateComponentTreeUI(this);
-        logger.info("Theme toggled to: " + ThemeManager.getInstance().getCurrentTheme());
+        updateStatusBar(i18n.getMessage("theme.toggled"));
+    }
+
+    /**
+     * Toggle Windows auto-start setting.
+     */
+    private void toggleAutoStart(JCheckBoxMenuItem item) {
+        boolean success = AutoStartManager.getInstance().toggleAutoStart();
+        if (success) {
+            item.setSelected(AutoStartManager.getInstance().isAutoStartEnabled());
+            String status = item.isSelected() ?
+                i18n.getMessage("autostart.enabled") :
+                i18n.getMessage("autostart.disabled");
+            updateStatusBar(status);
+        } else {
+            item.setSelected(false);
+            JOptionPane.showMessageDialog(this,
+                i18n.getMessage("autostart.error"),
+                i18n.getMessage("common.error"),
+                JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void saveIndex() {
@@ -397,22 +442,24 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
     public void updateStatusBar() {
         LoadScore loadScore = LoadEvaluator.getInstance().evaluateLoad();
-        String loadInfo = formatLoadLevel(loadScore.level());
+        if (loadScore != null){
+            String loadInfo = formatLoadLevel(loadScore.level());
 
-        int queueDepth = TaskScheduler.getInstance().getQueueDepth();
-        String queueInfo = i18n.getMessage("status.queue.format", queueDepth);
+            int queueDepth = TaskScheduler.getInstance().getQueueDepth();
+            String queueInfo = i18n.getMessage("status.queue.format", queueDepth);
 
-        int poolQueueSize = QueueManager.getQueueSize();
-        String poolQueueInfo = i18n.getMessage("status.poolQueue.format", poolQueueSize);
+            int poolQueueSize = QueueManager.getQueueSize();
+            String poolQueueInfo = i18n.getMessage("status.poolQueue.format", poolQueueSize);
 
-        double speed = CopyTask.getSpeedProbeGroup().getTotalSpeed();
-        String speedInfo = i18n.getMessage("status.speed.format", speed);
+            double speed = CopyTask.getSpeedProbeGroup().getTotalSpeed();
+            String speedInfo = i18n.getMessage("status.speed.format", speed);
 
-        String workPath = ConfigManager.getInstance().get(ConfigSchema.WORK_PATH);
-        String pathInfo = i18n.getMessage("status.path.format", workPath.isEmpty() ? i18n.getMessage("status.currentDir") : workPath);
+            String workPath = ConfigManager.getInstance().get(ConfigSchema.WORK_PATH);
+            String pathInfo = i18n.getMessage("status.path.format", workPath.isEmpty() ? i18n.getMessage("status.currentDir") : workPath);
 
-        String message = i18n.getMessage("status.combined", loadInfo, queueInfo, poolQueueInfo, speedInfo, pathInfo);
-        updateStatusBar(message);
+            String message = i18n.getMessage("status.combined", loadInfo, queueInfo, poolQueueInfo, speedInfo, pathInfo);
+            updateStatusBar(message);
+        }
     }
 
     /**

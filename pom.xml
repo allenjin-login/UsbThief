@@ -234,8 +234,12 @@
                                 <minVersion>24</minVersion>
                                 <opts>
                                     <opt>--enable-preview</opt>
+                                    <opt>-Dlaunch4j.exefile="%EXEFILE%"</opt>
                                 </opts>
                             </jre>
+                            <singleInstance>
+                                <mutexName>com.superredrock.usbthief</mutexName>
+                            </singleInstance>
                             <versionInfo>
                                 <fileVersion>${project.version.major}.${project.version.minor}.${project.version.patch}.0</fileVersion>
                                 <txtFileVersion>${project.version.major}.${project.version.minor}.${project.version.patch}</txtFileVersion>

@@ -38,7 +38,7 @@ public final class SpeedProbe implements Closeable {
     // Global accumulator (periodically merged from thread-local)
     private final AtomicLong totalBytes = new AtomicLong(0);
     private final long creationTime;  // Track when probe was created
-    private volatile long lastMergeTime = 0;
+    private volatile long lastMergeTime;
 
     // Sliding window with cache-line isolation
     // Manual padding to prevent false sharing (128 bytes = typical cache line size)

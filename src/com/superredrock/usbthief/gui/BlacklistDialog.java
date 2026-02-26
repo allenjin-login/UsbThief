@@ -247,11 +247,10 @@ public class BlacklistDialog extends JDialog {
      * Shows the dialog and returns the final blacklist.
      *
      * @param parent parent frame
-     * @return list of blacklisted device serial numbers
      */
-    public static List<String> showBlacklistDialog(JFrame parent) {
+    public static void showBlacklistDialog(JFrame parent) {
         BlacklistDialog dialog = new BlacklistDialog(parent);
         dialog.setVisible(true);
-        return dialog.getBlacklist();
+        dialog.getBlacklist();
     }
 }

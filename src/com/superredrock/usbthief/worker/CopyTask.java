@@ -1,5 +1,6 @@
 package com.superredrock.usbthief.worker;
 
+import com.superredrock.usbthief.core.Device;
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
@@ -26,7 +27,7 @@ public class CopyTask implements Callable<CopyResult> {
 
     private static final ThreadLocal<ByteBuffer> bufferThreadLocal = ThreadLocal.withInitial(() -> ByteBuffer.allocate(ConfigManager.getInstance().get(ConfigSchema.BUFFER_SIZE)));
 
-    protected Path processingPath;
+    protected final Path processingPath;
     private final String deviceSerial;
     private static volatile RateLimiter rateLimiter;
     private static final Object rateLimiterLock = new Object();
@@ -98,7 +99,12 @@ public class CopyTask implements Callable<CopyResult> {
             if (storage.isStorageCritical()) {
                 logger.warning("Storage critical, skipping copy: " + processingPath);
                 result = CopyResult.SKIPPED;
-            } else {
+            }else if (QueueManager.getDeviceManager().getDevice(processingPath).getState() == Device.DeviceState.PAUSED || QueueManager.getDeviceManager().getDevice(processingPath).getState() == Device.DeviceState.DISABLED){
+                return CopyResult.CANCEL;
+            }if (QueueManager.getDeviceManager().getDevice(processingPath).getState() == Device.DeviceState.UNAVAILABLE){
+                return CopyResult.FAIL;
+            }
+            else {
                 size = Files.size(processingPath);
                 destinationPath = getPath(processingPath);
 

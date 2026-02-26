@@ -25,9 +25,39 @@ public class I18NManager {
     }
 
     private I18NManager() {
-        this.currentLocale = Locale.getDefault();
         this.availableLanguages = LanguageDiscovery.discoverLanguages();
+        this.currentLocale = loadSavedLocale();
         loadResourceBundle();
+    }
+
+    /**
+     * Load saved locale from LanguageConfig, or use system default.
+     */
+    private Locale loadSavedLocale() {
+        LanguageConfig config = new LanguageConfig();
+        String savedLanguage = config.getDefaultLanguage();
+        if (savedLanguage != null && !savedLanguage.isEmpty()) {
+            Locale savedLocale = parseLocale(savedLanguage);
+            if (savedLocale != null) {
+                logger.info("Using saved language preference: " + savedLanguage);
+                return savedLocale;
+            }
+        }
+        logger.info("Using system default locale: " + Locale.getDefault());
+        return Locale.getDefault();
+    }
+
+    /**
+     * Parse locale string (e.g., "zh_CN") to Locale object.
+     */
+    private Locale parseLocale(String localeStr) {
+        String[] parts = localeStr.split("_");
+        return switch (parts.length) {
+            case 1 -> new Locale(parts[0]);
+            case 2 -> new Locale(parts[0], parts[1]);
+            case 3 -> new Locale(parts[0], parts[1], parts[2]);
+            default -> null;
+        };
     }
 
     public List<LanguageInfo> getAvailableLanguages() {

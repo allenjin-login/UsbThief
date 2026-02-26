@@ -5,7 +5,6 @@ import com.superredrock.usbthief.gui.theme.ThemeManager;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.awt.event.ActionListener;
 
 /**
  * A panel displayed when a list or container has no content.
