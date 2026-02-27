@@ -7,18 +7,18 @@
     <groupId>com.superredrock</groupId>
     <artifactId>UsbThief</artifactId>
     <!-- Version: major.minor.patch (SemVer) -->
-    <version>1.1.2</version>
+    <version>1.1.4</version>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>24</maven.compiler.source>
-        <maven.compiler.target>24</maven.compiler.target>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
         <junit.version>5.11.4</junit.version>
         <mockito.version>5.15.2</mockito.version>
         <!-- Version components (for resource filtering and Launch4j) -->
         <project.version.major>1</project.version.major>
         <project.version.minor>1</project.version.minor>
-        <project.version.patch>2</project.version.patch>
+        <project.version.patch>4</project.version.patch>
         <build.timestamp>${maven.build.timestamp}</build.timestamp>
         <maven.build.timestamp.format>yyyyMMdd</maven.build.timestamp.format>
         <!-- Jlink configuration -->
@@ -121,18 +121,13 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
-                <configuration>
-                    <compilerArgs>
-                        <arg>--enable-preview</arg>
-                    </compilerArgs>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.2</version>
                 <configuration>
-                    <argLine>--enable-preview</argLine>
+                    <argLine>--enable-preview -Dnet.bytebuddy.experimental=true</argLine>
                 </configuration>
             </plugin>
             <!-- Jlink: Create custom runtime image using exec-maven-plugin -->
@@ -231,7 +226,7 @@
                             <jre>
                                 <!-- Use jlink-generated runtime -->
                                 <path>${jlink.image.name}</path>
-                                <minVersion>24</minVersion>
+                                <minVersion>25</minVersion>
                                 <opts>
                                     <opt>--enable-preview</opt>
                                     <opt>-Dlaunch4j.exefile="%EXEFILE%"</opt>

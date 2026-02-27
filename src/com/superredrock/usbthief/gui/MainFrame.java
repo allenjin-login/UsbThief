@@ -186,7 +186,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
         JMenu configMenu = new JMenu(i18n.getMessage("menu.config"));
         JMenuItem preferencesItem = new JMenuItem(i18n.getMessage("menu.config.preferences"));
-        preferencesItem.addActionListener(e -> showPreferences());
+        preferencesItem.addActionListener(_ -> showPreferences());
         configMenu.add(preferencesItem);
 
         JMenuItem clearCacheConfigItem = new JMenuItem(i18n.getMessage("menu.config.clearCache"));
@@ -229,6 +229,14 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         );
         autoStartItem.addActionListener(_ -> toggleAutoStart(autoStartItem));
         configMenu.add(autoStartItem);
+
+        // Start hidden toggle menu item
+        JCheckBoxMenuItem startHiddenItem = new JCheckBoxMenuItem(
+            i18n.getMessage("starthidden.toggle"),
+            ConfigManager.getInstance().get(ConfigSchema.START_HIDDEN)
+        );
+        startHiddenItem.addActionListener(_ -> toggleStartHidden(startHiddenItem));
+        configMenu.add(startHiddenItem);
 
         JMenu helpMenu = new JMenu(i18n.getMessage("menu.help"));
         JMenuItem aboutItem = new JMenuItem(i18n.getMessage("menu.help.about"));
@@ -319,6 +327,19 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
                 i18n.getMessage("common.error"),
                 JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    /**
+     * Toggle start hidden setting.
+     */
+    private void toggleStartHidden(JCheckBoxMenuItem item) {
+        boolean enabled = item.isSelected();
+        ConfigManager.getInstance().set(ConfigSchema.START_HIDDEN, enabled);
+        String status = enabled ?
+            i18n.getMessage("starthidden.enabled") :
+            i18n.getMessage("starthidden.disabled");
+        updateStatusBar(status);
+        logger.info("Start hidden setting changed to: " + enabled);
     }
 
     private void saveIndex() {

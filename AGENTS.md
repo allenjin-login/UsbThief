@@ -4,7 +4,7 @@
 **Last Updated:** 2026-02-21
 **Commit:** 95f2d9b
 **Branch:** master
-**Java Version:** 24 (modular, with --enable-preview)
+**Java Version:** 25 (modular, with --enable-preview)
 **Module:** UsbThief
 
 ## OVERVIEW
