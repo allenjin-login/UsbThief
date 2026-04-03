@@ -3,7 +3,6 @@ package com.superredrock.usbthief.gui;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.Device;
 import com.superredrock.usbthief.core.DeviceManager;
-import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.SizeFormatter;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.device.DeviceInsertedEvent;
@@ -51,7 +50,7 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
     private JMenuItem blacklistManageMenuItem;
 
     public DeviceListPanel() {
-        this.deviceManager = QueueManager.getDeviceManager();
+        this.deviceManager = DeviceManager.getInstance();
         setLayout(new BorderLayout());
 
         devicesPanel = new JPanel();
@@ -365,7 +364,7 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
         int count = 0;
         for (DeviceCard card : deviceCards.values()) {
             if (card.getCheckBox().isSelected()) {
-                deviceManager.enableDevice(card.device);
+                deviceManager.enable(card.device);
                 count++;
             }
         }
@@ -382,7 +381,7 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
         int count = 0;
         for (DeviceCard card : deviceCards.values()) {
             if (card.getCheckBox().isSelected()) {
-                deviceManager.disableDevice(card.device);
+                deviceManager.disable(card.device);
                 count++;
             }
         }
@@ -473,9 +472,9 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
         private final JButton moreButton;
         private final JPopupMenu cardMenu;
         private final JMenuItem detailMenuItem;
-        private final JMenuItem toggleMenuItem;
-        private final JMenuItem blacklistMenuItem;
-        private final JMenuItem removeMenuItem;
+        private JMenuItem toggleMenuItem;
+        private JMenuItem blacklistMenuItem;
+        private JMenuItem removeMenuItem;
 
         public DeviceCard(Device device, JFrame parentFrame, DeviceManager deviceManager) {
             this.device = device;
@@ -508,13 +507,12 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
                 }
             });
 
-            boolean isSystemDisk = device.isSystemDisk();
 
             // Left panel with icon
             JPanel leftPanel = new JPanel(new BorderLayout(10, 0));
             leftPanel.setOpaque(false);
 
-            iconLabel = new JLabel(getDeviceIcon(isSystemDisk));
+            iconLabel = new JLabel(getDeviceIcon());
             iconLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 32));
             leftPanel.add(iconLabel, BorderLayout.WEST);
 
@@ -523,7 +521,7 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
             infoPanel.setOpaque(false);
 
             // Path with styled font
-            pathLabel = new JLabel(i18n.getMessage("device.card.path") + ": " + device.getRootPath() + (isSystemDisk ? " " + i18n.getMessage("device.card.systemDisk") : ""));
+            pathLabel = new JLabel(i18n.getMessage("device.card.path") + ": " + device.getRootPath());
             pathLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
             
             String volumeName = device.getVolumeName();
@@ -562,8 +560,7 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
             rightPanel.setOpaque(false);
 
             checkBox = new JCheckBox();
-            checkBox.setEnabled(!isSystemDisk);
-
+            checkBox.setEnabled(device.getState() != Device.DeviceState.OFFLINE);
             // Create popup menu for device actions
             cardMenu = new JPopupMenu();
 
@@ -571,7 +568,11 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
             detailMenuItem.addActionListener(_ -> showDetailDialog());
             cardMenu.add(detailMenuItem);
 
-            if (!isSystemDisk) {
+            toggleMenuItem = null;
+            blacklistMenuItem = null;
+            removeMenuItem = null;
+
+            if (device.getState() != Device.DeviceState.OFFLINE) {
                 toggleMenuItem = new JMenuItem(getToggleButtonText());
                 toggleMenuItem.addActionListener(_ -> toggleDevice());
                 cardMenu.add(toggleMenuItem);
@@ -585,10 +586,6 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
                 cardMenu.add(removeMenuItem);
 
                 updateButtonEnabled();
-            } else {
-                toggleMenuItem = null;
-                blacklistMenuItem = null;
-                removeMenuItem = null;
             }
 
             // Create "..." button
@@ -638,10 +635,9 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
             }
         }
 
-        private String getDeviceIcon(boolean isSystemDisk) {
-            return isSystemDisk ? "💾" : "🔌";
+        private String getDeviceIcon() {
+            return device.getState() == Device.DeviceState.OFFLINE ? "❓" : "🔌";
         }
-
         private String getToggleButtonText() {
             return device.getState() == Device.DeviceState.DISABLED ? i18n.getMessage("device.card.button.enable") : i18n.getMessage("device.card.button.disable");
         }
@@ -654,27 +650,25 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
                 case OFFLINE -> i18n.getMessage("device.state.offline");
                 case UNAVAILABLE -> i18n.getMessage("device.state.unavailable");
                 case IDLE -> i18n.getMessage("device.state.idle");
-                case SCANNING -> i18n.getMessage("device.state.scanning");
-                case PAUSED -> i18n.getMessage("device.state.paused");
                 case DISABLED -> i18n.getMessage("device.state.disabled");
             };
         }
 
         private void toggleDevice() {
-            if (device.isGhost()) {
+            if (device.getState() == Device.DeviceState.OFFLINE) {
                 return;
             }
             if (device.getState() == Device.DeviceState.DISABLED) {
-                deviceManager.enableDevice(device);
+                deviceManager.enable(device);
             } else {
-                deviceManager.disableDevice(device);
+                deviceManager.disable(device);
             }
         }
 
         private void addToBlacklist() {
             String serialNumber = device.getSerialNumber();
             String devicePath;
-            if (device.isGhost()) {
+            if (device.getState() == Device.DeviceState.OFFLINE) {
                 devicePath = "?";
             }else {
                 devicePath = device.getRootPath().toString();
@@ -701,7 +695,7 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
         private void removeDevice() {
             String serialNumber = device.getSerialNumber();
             String devicePath;
-            if (device.isGhost()) {
+            if (device.getState() == Device.DeviceState.OFFLINE) {
                 devicePath = i18n.getMessage("device.card.offline");
             } else {
                 devicePath = device.getRootPath().toString();
@@ -715,7 +709,7 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
                     JOptionPane.QUESTION_MESSAGE);
 
             if (confirm == JOptionPane.YES_OPTION) {
-                deviceManager.removeDevice(device);
+                deviceManager.remove(device);
                 JOptionPane.showMessageDialog(
                         parentFrame,
                         i18n.getMessage("device.remove.success"),
@@ -732,8 +726,8 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
             detailPanel.add(new JLabel(i18n.getMessage("device.card.detail.serial") + ": " + device.getSerialNumber()));
             detailPanel.add(new JLabel(i18n.getMessage("device.card.detail.fs") + ": " + getFsType()));
             detailPanel.add(new JLabel(i18n.getMessage("device.card.detail.state") + ": " + device.getState()));
-            detailPanel.add(new JLabel(i18n.getMessage("device.card.detail.systemDisk") + ": " + (device.isSystemDisk() ? i18n.getMessage("device.card.detail.yes") : i18n.getMessage("device.card.detail.no"))));
-            detailPanel.add(new JLabel(i18n.getMessage("device.card.detail.ghost") + ": " + (device.isGhost() ? i18n.getMessage("device.card.detail.yes") : i18n.getMessage("device.card.detail.no"))));
+
+            detailPanel.add(new JLabel(i18n.getMessage("device.card.detail.ghost") + ": " + (device.getState() == Device.DeviceState.OFFLINE ? i18n.getMessage("device.card.detail.yes") : i18n.getMessage("device.card.detail.no"))));
             detailPanel.add(new JLabel(i18n.getMessage("device.card.detail.storage") + ": " + getStorageInfo()));
 
             if (device.getFileStore() != null) {
@@ -762,11 +756,8 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
          * System disks don't have toggle/blacklist items at all.
          */
         private void updateButtonEnabled() {
-            boolean enabled = !device.isGhost();
+            boolean enabled = device.getState() != Device.DeviceState.OFFLINE;
             checkBox.setEnabled(enabled);
-            if (device.isSystemDisk()){
-                checkBox.setEnabled(false);
-            }
             if (toggleMenuItem != null){
                 toggleMenuItem.setEnabled(enabled);
             }
@@ -779,10 +770,10 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
         public void refreshDeviceInfo() {
             SwingUtilities.invokeLater(() -> {
                 // Update path label (handle ghost devices)
-                if (device.isGhost() || device.getRootPath() == null) {
+                if (device.getState() == Device.DeviceState.OFFLINE || device.getRootPath() == null) {
                     pathLabel.setText(i18n.getMessage("device.card.path") + ": " + i18n.getMessage("device.card.offline"));
                 } else {
-                    pathLabel.setText(i18n.getMessage("device.card.path") + ": " + device.getRootPath() + (device.isSystemDisk() ? " " + i18n.getMessage("device.card.systemDisk") : ""));
+                pathLabel.setText(i18n.getMessage("device.card.path") + ": " + device.getRootPath());
                 }
 
                 // Update volume name
@@ -797,7 +788,7 @@ public class DeviceListPanel extends JPanel implements I18NManager.LocaleChangeL
                 storageLabel.setText(i18n.getMessage("device.card.storage") + ": " + getStorageInfo());
 
                 // Update icon
-                iconLabel.setText(getDeviceIcon(device.isSystemDisk()));
+                iconLabel.setText(getDeviceIcon());
 
                 // Update state badge
                 Device.DeviceState currentState = device.getState();

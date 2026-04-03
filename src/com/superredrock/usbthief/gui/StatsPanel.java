@@ -68,7 +68,7 @@ public class StatsPanel extends JPanel {
             queueSizeLabel.setText(i18n.getMessage("stats.queueSize") + ": " + queueSize);
 
             // Get active thread count
-            int activeThreads = QueueManager.getActiveThreadCount();
+            int activeThreads = TaskScheduler.getInstance().getPool().getActiveCount();
             int maxThreads = ConfigManager.getInstance().get(ConfigSchema.MAX_POOL_SIZE);
             activeThreadsLabel.setText(i18n.getMessage("stats.activeThreads") + ": " + activeThreads + "/" + maxThreads);
         });

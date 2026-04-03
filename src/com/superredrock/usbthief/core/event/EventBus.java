@@ -255,7 +255,7 @@ public final class EventBus {
                         logger.severe("Exception in event listener for " + event.getClass().getName()
                                 + ": " + e.getMessage());
                     }
-                }, QueueManager.getPool());
+                });
                 futures.add(future);
             }
         }
@@ -316,7 +316,7 @@ public final class EventBus {
                         logger.severe("Exception in event listener for " + event.getClass().getName()
                                 + ": " + e.getMessage());
                     }
-                }, QueueManager.getPool());
+                });
             }
         }
 
@@ -379,7 +379,7 @@ public final class EventBus {
                         logger.severe("Exception in event listener for " + event.getClass().getName()
                                 + ": " + e.getMessage());
                     }
-                }, QueueManager.getPool());
+                });
             }
         }
 

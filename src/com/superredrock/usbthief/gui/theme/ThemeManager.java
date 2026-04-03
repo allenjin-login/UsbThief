@@ -169,10 +169,10 @@ public class ThemeManager {
     public static Color getStateColor(Device.DeviceState state) {
         return switch (state) {
             case IDLE -> DEVICE_ONLINE;
-            case SCANNING -> DEVICE_SCANNING;
             case OFFLINE -> DEVICE_OFFLINE;
             case UNAVAILABLE -> DEVICE_UNAVAILABLE;
-            case PAUSED, DISABLED -> DEVICE_DISABLED;
+            case DISABLED -> DEVICE_DISABLED;
+            default -> DEVICE_ONLINE;
         };
     }
 

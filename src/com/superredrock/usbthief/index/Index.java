@@ -25,22 +25,32 @@ import java.util.logging.Logger;
 
 public class Index extends Service {
     private static final Logger logger = Logger.getLogger(Index.class.getName());
+    
+    private static volatile Index INSTANCE;
+
 
     private final Set<CheckSum> digest;
     private final Path indexPath;
     private volatile boolean dirty;
 
-    public Index(){
+    private Index(){
         Path path = Path.of(ConfigManager.getInstance().get(ConfigSchema.INDEX_PATH));
         Path indexBasePath = path.getParent() != null ? path.getParent() : Paths.get(".");
-        this(indexBasePath);
-    }
-
-    public Index(Path basePath) {
         this.digest = ConcurrentHashMap.newKeySet();
-        this.indexPath = basePath.resolve("index.obj");
+        this.indexPath = indexBasePath.resolve("index.obj");
         this.dirty = false;
         ensureDirectories();
+    }
+    
+    public static Index getInstance() {
+        if (INSTANCE == null) {
+            synchronized (Index.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = new Index();
+                }
+            }
+        }
+        return INSTANCE;
     }
 
     private void ensureDirectories() {

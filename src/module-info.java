@@ -1,11 +1,10 @@
-import com.superredrock.usbthief.core.Service;
-
 module UsbThief {
-    uses Service;
     requires java.logging;
     requires java.prefs;
     requires java.desktop;
     requires com.formdev.flatlaf;
+    requires com.sun.jna;
+    requires com.sun.jna.platform;
 
     exports com.superredrock.usbthief.index;
     exports com.superredrock.usbthief.core;
@@ -20,14 +19,4 @@ module UsbThief {
     exports com.superredrock.usbthief.gui.components;
     exports com.superredrock.usbthief.worker;
     exports com.superredrock.usbthief.statistics;
-
-    // Register Service implementations using Java module system
-    // Note: Index requires constructor parameters, not loaded via ServiceLoader
-    // Index is created by QueueManager and manually registered to ServiceManager
-    provides Service
-            with com.superredrock.usbthief.index.Index,
-                com.superredrock.usbthief.core.DeviceManager,
-                com.superredrock.usbthief.worker.TaskScheduler,
-                    com.superredrock.usbthief.worker.RecyclerService,
-                    com.superredrock.usbthief.worker.LoadEvaluator;
 }

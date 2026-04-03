@@ -1,20 +1,15 @@
 package com.superredrock.usbthief.core;
 
-import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
-
-import java.io.IOException;
 import java.nio.file.*;
-import java.util.Objects;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
-
-import static com.superredrock.usbthief.core.DeviceUtils.getHardDiskSN;
 
 /**
  * Represents a USB storage device with its state and metadata.
  * <p>
  * Device is responsible for storing device information and managing its state.
- * Scanner lifecycle and ghost device management are handled by DeviceManager.
+ * DeviceManager handles device lifecycle and state transitions.
  */
 public class Device {
 
@@ -22,104 +17,108 @@ public class Device {
         OFFLINE,       // Device not present
         UNAVAILABLE,   // Device exists but inaccessible (AccessDeniedException / IOException)
         IDLE,          // Ready, no active operations
-        SCANNING,      // Scanner is running
-        PAUSED,        // Temporarily paused due to storage constraints (system-controlled, can auto-resume)
+        // Temporarily paused due to storage constraints (system-controlled, can auto-resume)
         DISABLED       // Manually disabled by user (user-controlled, requires manual action)
     }
 
     protected static final Logger logger = Logger.getLogger(Device.class.getName());
 
-    private final Path rootPath;
+    private final Map<String, Volume> volumes = new ConcurrentHashMap<>();
     private final String serialNumber;
-    private final FileStore fileStore;
-    private final String volumeName;
-    private final boolean systemDisk;
-
     private volatile DeviceState state;
     private volatile boolean stateChange;
 
     /**
-     * Creates a Device from a root path.
-     * Initializes fileStore, volumeName, and detects system disk.
+     * Creates a Device with only serial number (no volumes initially).
+     * Volumes are added later via addVolume().
      *
-     * @param rootPath the root path of the device
+     * @param serialNumber the device serial number
      */
-    public Device(Path rootPath) {
-        this.rootPath = rootPath;
-        this.serialNumber = getHardDiskSN(rootPath.toString());
-        
-        FileStore fs = null;
-        String volName = "";
-        boolean sysDisk = false;
-        DeviceState initialState = DeviceState.UNAVAILABLE;
-        
-        if (Files.exists(rootPath) && Files.isDirectory(rootPath)) {
-            try {
-                fs = Files.getFileStore(rootPath);
-                volName = fs.name();
-                initialState = DeviceState.IDLE;
-                String fsType = fs.type();
-                Path workPath = Paths.get(ConfigManager.getInstance().get(ConfigSchema.WORK_PATH));
-                //
-                if (fsType.equals("NTFS") || fsType.equals("ReFS") ||fs.equals(Files.getFileStore(workPath))) {
-                    sysDisk = true;
-                    initialState = DeviceState.DISABLED;
-                }
-            } catch (IOException e) {
-                logger.fine("Failed to get FileStore for " + rootPath + ": " + e.getMessage());
-                initialState = DeviceState.UNAVAILABLE;
-            }
-        }
-        
-        this.fileStore = fs;
-        this.volumeName = volName;
-        this.systemDisk = sysDisk;
-        this.state = initialState;
+    public Device(String serialNumber) {
+        this.serialNumber = serialNumber;
+        this.state = DeviceState.UNAVAILABLE;
+    }
+
+
+
+    /**
+     * Gets the first volume's root path.
+     * For backward compatibility with single-volume usage.
+     *
+     * @return the first volume's root path, or null if no volumes
+     */
+    public Path getRootPath() {
+        return volumes.isEmpty() ? null : volumes.values().iterator().next().getRootPath();
     }
 
     /**
-     * Creates a ghost Device from a DeviceRecord.
-     * Ghost devices have no rootPath and are in OFFLINE state.
+     * Gets a volume by drive letter.
      *
-     * @param record the device record containing serial number and volume name
+     * @param driveLetter the drive letter (e.g., "E:")
+     * @return the volume, or null if not found
      */
-    Device(DeviceRecord record) {
-        this.rootPath = null;
-        this.serialNumber = record.serialNumber();
-        this.fileStore = null;
-        this.volumeName = record.volumeName();
-        this.systemDisk = false;
-        this.state = DeviceState.OFFLINE;
+    public Volume getVolume(String driveLetter) {
+        return volumes.get(driveLetter);
     }
 
-    public Path getRootPath() {
-        return rootPath;
+    /**
+     * Gets all volumes of this device.
+     *
+     * @return unmodifiable collection of volumes
+     */
+    public Collection<Volume> getVolumes() {
+        return Collections.unmodifiableCollection(volumes.values());
+    }
+
+    /**
+     * Adds or updates a volume for this device.
+     *
+     * @param volume the volume to add
+     */
+    public void addVolume(Volume volume) {
+        volume.setDevice(this);
+        volumes.put(volume.getDriveLetter(), volume);
+    }
+
+    /**
+     * Removes a volume by drive letter.
+     *
+     * @param driveLetter the drive letter to remove
+     */
+    public void removeVolume(String driveLetter) {
+        volumes.remove(driveLetter);
     }
 
     public String getSerialNumber() {
         return serialNumber;
     }
 
+    /**
+     * Gets the FileStore of the first volume.
+     *
+     * @return the first volume's FileStore, or null if no volumes
+     */
     public FileStore getFileStore() {
-        return fileStore;
-    }
-
-    public String getVolumeName() {
-        return volumeName;
-    }
-
-    public boolean isSystemDisk() {
-        return systemDisk;
+        return volumes.isEmpty() ? null : volumes.values().iterator().next().getFileStore();
     }
 
     /**
-     * Returns true if this is a ghost device (no rootPath).
-     * Ghost devices represent known devices that are currently offline.
+     * Gets the volume name of the first volume.
      *
-     * @return true if ghost device
+     * @return the first volume's name, or empty string if no volumes
      */
-    public boolean isGhost() {
-        return rootPath == null;
+    public String getVolumeName() {
+        return volumes.isEmpty() ? "" : volumes.values().iterator().next().getVolumeName();
+    }
+
+
+    /**
+     * Checks if this device has any volumes.
+     *
+     * @return true if device has at least one volume
+     */
+    public boolean hasVolumes() {
+        return !volumes.isEmpty();
     }
 
     public DeviceState getState() {
@@ -166,40 +165,34 @@ public class Device {
     }
 
     /**
-     * Updates the device state based on filesystem accessibility.
-     * Ghost devices and disabled devices are not updated.
+     * Updates all volumes' state based on filesystem accessibility.
+     * Disabled devices are not updated.
      */
     public void updateState() {
-        if (isGhost()) {
-            return;
-        }
-        if (state == DeviceState.DISABLED || state == DeviceState.PAUSED) {
+        if (state == DeviceState.DISABLED) {
             return;
         }
 
-        try {
-            Files.getFileStore(rootPath);
+        // Refresh all volumes
+        boolean hasAccessible = false;
+        for (Volume volume : volumes.values()) {
+            volume.refreshMetadata();
+            if (volume.isAccessible()) {
+                hasAccessible = true;
+            }
+        }
+
+        // Update device state based on volume accessibility
+        if (hasAccessible) {
             if (state == DeviceState.OFFLINE || state == DeviceState.UNAVAILABLE) {
                 setState(DeviceState.IDLE);
             }
-        } catch (NoSuchFileException e) {
-            setState(DeviceState.OFFLINE);
-        } catch (AccessDeniedException e) {
-            setState(DeviceState.UNAVAILABLE);
-        } catch (IOException e) {
-            setState(DeviceState.UNAVAILABLE);
-            logger.fine("Error checking device state: " + e.getMessage());
+        } else {
+            setState(volumes.isEmpty() ? DeviceState.OFFLINE : DeviceState.UNAVAILABLE);
         }
     }
 
-    /**
-     * Creates a DeviceRecord from this device for persistence.
-     *
-     * @return DeviceRecord containing serial number and volume name
-     */
-    public DeviceRecord toRecord() {
-        return new DeviceRecord(serialNumber, volumeName);
-    }
+
 
     @Override
     public int hashCode() {
@@ -215,11 +208,9 @@ public class Device {
     @Override
     public String toString() {
         return "Device{" +
-                "rootPath=" + rootPath +
+                "volumes=" + volumes.keySet() +
                 ", serialNumber='" + serialNumber + '\'' +
-                ", volumeName='" + volumeName + '\'' +
                 ", state=" + state +
-                ", systemDisk=" + systemDisk +
                 '}';
-    }
+}
 }

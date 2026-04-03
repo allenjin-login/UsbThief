@@ -153,9 +153,6 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
         actionMenu.addSeparator();
 
-        JMenuItem clearDeviceCacheItem = new JMenuItem(i18n.getMessage("menu.action.clearDeviceCache"));
-        clearDeviceCacheItem.addActionListener(_ -> clearDeviceCache());
-        actionMenu.add(clearDeviceCacheItem);
 
         JMenuItem clearStatsItem = new JMenuItem(i18n.getMessage("menu.action.clearStats"));
         clearStatsItem.addActionListener(_ -> clearStatistics());
@@ -189,9 +186,6 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         preferencesItem.addActionListener(_ -> showPreferences());
         configMenu.add(preferencesItem);
 
-        JMenuItem clearCacheConfigItem = new JMenuItem(i18n.getMessage("menu.config.clearCache"));
-        clearCacheConfigItem.addActionListener(_ -> clearDeviceCache());
-        configMenu.add(clearCacheConfigItem);
 
         JMenuItem clearStatsConfigItem = new JMenuItem(i18n.getMessage("menu.config.clearStats"));
         clearStatsConfigItem.addActionListener(_ -> clearStatistics());
@@ -255,19 +249,24 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         LanguageConfig languageConfig = new LanguageConfig();
 
         for (LanguageInfo langInfo : i18n.getAvailableLanguages()) {
-            String displayText = langInfo.nativeName() + " (" + langInfo.displayName() + ")";
-            JCheckBoxMenuItem languageItem = new JCheckBoxMenuItem(displayText);
-            languageItem.setSelected(langInfo.locale().equals(currentLocale));
-            languageItem.addActionListener(_ -> {
-                logger.info("Switching to language: " + langInfo.locale());
-                languageConfig.setDefaultLanguage(langInfo.localeString());
-                languageConfig.save();
-                i18n.setLocale(langInfo.locale());
-            });
+            JCheckBoxMenuItem languageItem = getLanguageBoxMenuItem(langInfo, currentLocale, languageConfig);
             languageMenu.add(languageItem);
         }
 
         menuBar.add(languageMenu);
+    }
+
+    private JCheckBoxMenuItem getLanguageBoxMenuItem(LanguageInfo langInfo, Locale currentLocale, LanguageConfig languageConfig) {
+        String displayText = langInfo.nativeName() + " (" + langInfo.displayName() + ")";
+        JCheckBoxMenuItem languageItem = new JCheckBoxMenuItem(displayText);
+        languageItem.setSelected(langInfo.locale().equals(currentLocale));
+        languageItem.addActionListener(_ -> {
+            logger.info("Switching to language: " + langInfo.locale());
+            languageConfig.setDefaultLanguage(langInfo.localeString());
+            languageConfig.save();
+            i18n.setLocale(langInfo.locale());
+        });
+        return languageItem;
     }
 
     private void showPreferences() {
@@ -359,36 +358,6 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         });
     }
 
-    private void clearDeviceCache() {
-        int confirm = JOptionPane.showConfirmDialog(
-                this,
-                i18n.getMessage("message.clearCacheConfirm"),
-                i18n.getMessage("title.clearCacheConfirm"),
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.WARNING_MESSAGE);
-
-        if (confirm == JOptionPane.YES_OPTION) {
-            try {
-                DeviceManager deviceManager = QueueManager.getDeviceManager();
-                deviceManager.clearDeviceRecords();
-
-                JOptionPane.showMessageDialog(
-                        this,
-                        i18n.getMessage("message.clearCacheSuccess"),
-                        i18n.getMessage("title.clearCacheSuccess"),
-                        JOptionPane.INFORMATION_MESSAGE);
-
-                logger.info("Device cache cleared from menu");
-            } catch (Exception e) {
-                logger.severe("Failed to clear device cache: " + e.getMessage());
-                JOptionPane.showMessageDialog(
-                        this,
-                        i18n.getMessage("message.clearCacheFailed", e.getMessage()),
-                        i18n.getMessage("common.error"),
-                        JOptionPane.ERROR_MESSAGE);
-            }
-        }
-    }
 
     private void clearStatistics() {
         int confirm = JOptionPane.showConfirmDialog(
@@ -469,7 +438,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
             int queueDepth = TaskScheduler.getInstance().getQueueDepth();
             String queueInfo = i18n.getMessage("status.queue.format", queueDepth);
 
-            int poolQueueSize = QueueManager.getQueueSize();
+            int poolQueueSize = TaskScheduler.getInstance().getPool().getQueue().size();
             String poolQueueInfo = i18n.getMessage("status.poolQueue.format", poolQueueSize);
 
             double speed = CopyTask.getSpeedProbeGroup().getTotalSpeed();
@@ -521,11 +490,11 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
             statisticsPanel.stop();
             logger.info("StatisticsPanel stopped");
-
             if (trayIcon != null) {
                 trayIcon.dispose();
                 logger.info("Tray icon disposed");
             }
+
             this.setVisible(false);
 
             // Call unified shutdown logic through Main.quit()
@@ -713,9 +682,56 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
             // Note: setVisible is already called in applyWindowSettings() during construction
             // We don't call setVisible(true) here to respect the startHidden/alwaysHidden settings
             frame.updateStatusBar();
+            
+            // Pass window handle to DeviceManager for UsbHotplugMonitor
+            try {
+                long hwnd = getHWND(frame);
+                if (hwnd != 0) {
+                    DeviceManager.getInstance().setHwnd(hwnd);
+                }
+            } catch (Exception e) {
+                Logger.getLogger(MainFrame.class.getName()).warning("Failed to get window handle: " + e.getMessage());
+            }
+            
             // Show welcome dialog on first run
             WelcomeDialog.showIfFirstRun(frame);
         });
+    }
+    
+    /**
+     * Gets the native window handle (HWND) for a JFrame on Windows.
+     *
+     * @param frame the JFrame
+     * @return the HWND value, or 0 if not available
+     */
+    private static long getHWND(JFrame frame) {
+        try {
+            // Ensure the window is displayable
+            if (!frame.isDisplayable()) {
+                frame.addNotify();
+            }
+            
+            // Use JNA to get the window handle
+            com.sun.jna.platform.win32.User32 user32 = com.sun.jna.platform.win32.User32.INSTANCE;
+            
+            // Try to find window by title first
+            String title = frame.getTitle();
+            if (title != null && !title.isEmpty()) {
+                com.sun.jna.platform.win32.WinDef.HWND hwnd = user32.FindWindow(null, title);
+                if (hwnd != null) {
+                    return com.sun.jna.Pointer.nativeValue(hwnd.getPointer());
+                }
+            }
+            
+            // Fallback: use active window
+            com.sun.jna.platform.win32.WinDef.HWND hwnd = user32.GetActiveWindow();
+            if (hwnd != null) {
+                return com.sun.jna.Pointer.nativeValue(hwnd.getPointer());
+            }
+        } catch (Exception e) {
+            Logger.getLogger(MainFrame.class.getName()).fine("Could not get HWND: " + e.getMessage());
+        }
+        return 0;
     }
 
     @Override

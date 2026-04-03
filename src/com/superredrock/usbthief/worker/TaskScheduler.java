@@ -1,7 +1,7 @@
 package com.superredrock.usbthief.worker;
 
 import com.superredrock.usbthief.core.Service;
-import com.superredrock.usbthief.core.ServiceManager;
+
 import com.superredrock.usbthief.core.ServiceState;
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
@@ -9,36 +9,66 @@ import com.superredrock.usbthief.core.config.ConfigSchema;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.PriorityQueue;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class TaskScheduler extends Service {
     private static final Logger logger = Logger.getLogger(TaskScheduler.class.getName());
+    
+    private static volatile TaskScheduler INSTANCE;
+
+
+    private final ThreadPoolExecutor pool = new ThreadPoolExecutor(
+            ConfigManager.getInstance().get(ConfigSchema.CORE_POOL_SIZE),
+            ConfigManager.getInstance().get(ConfigSchema.MAX_POOL_SIZE),
+            ConfigManager.getInstance().get(ConfigSchema.KEEP_ALIVE_TIME_SECONDS),
+            TimeUnit.SECONDS,
+            new ArrayBlockingQueue<>(ConfigManager.getInstance().get(ConfigSchema.TASK_QUEUE_CAPACITY)),
+            QueueManager.getRejectionPolicy()
+    );
 
     private final PriorityQueue<PriorityTask<?, ?>> priorityQueue;
     private LoadEvaluator loadEvaluator;
-    private final ExecutorService executor;
     private final PriorityRule priorityRule;
     private volatile boolean accumulating = false;
 
-    public TaskScheduler() {
+    private TaskScheduler() {
         this.priorityQueue = new PriorityQueue<>();
         this.loadEvaluator = null;
-        this.executor = QueueManager.getCopyExecutor();
         this.priorityRule = new PriorityRule();
     }
-
+    
     public static TaskScheduler getInstance() {
-        return ServiceManager.getInstance().findService(TaskScheduler.class).orElseThrow();
-
+        if (INSTANCE == null) {
+            synchronized (TaskScheduler.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = new TaskScheduler();
+                }
+            }
+        }
+        return INSTANCE;
     }
 
     public PriorityRule getPriorityRule() {
         return priorityRule;
+    }
+
+public ThreadPoolExecutor getPool() {
+        return pool;
+    }
+
+    /**
+     * Returns the ratio of active threads to pool size.
+     *
+     * @return ratio between 0.0 and 1.0, or 0.0 if pool size is 0
+     */
+    public double getActiveRatio() {
+        int poolSize = pool.getPoolSize();
+        if (poolSize == 0) {
+            return 0.0;
+        }
+        return (double) pool.getActiveCount() / poolSize;
     }
 
     @Override
@@ -164,7 +194,7 @@ public class TaskScheduler extends Service {
     private void dispatchTask(List<PriorityTask<?, ?>> allTasks) {
         for (PriorityTask<?, ?> task : allTasks) {
             try {
-                Future<?> future = executor.submit((Callable<Object>) task.unwrap());
+                Future<?> future = pool.submit((Callable<Object>) task.unwrap());
                 task.setFuture(future);
             } catch (RejectedExecutionException e) {
                 logger.warning("Task rejected during dispatch, re-queuing");
@@ -212,7 +242,7 @@ public class TaskScheduler extends Service {
                 PriorityTask<?, ?> task = priorityQueue.poll();
                 if (task != null) {
                     try {
-                        executor.submit(task.unwrap());
+                        pool.submit(task.unwrap());
                         drained++;
                     } catch (Exception e) {
                         logger.warning("Failed to submit task during cleanup: " + e.getMessage());
@@ -224,5 +254,11 @@ public class TaskScheduler extends Service {
         if (drained > 0) {
             logger.info("Drained " + drained + " tasks during cleanup");
         }
+    }
+
+    @Override
+    public void close() {
+        super.close();
+        pool.shutdownNow();
     }
 }

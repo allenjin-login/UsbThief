@@ -128,7 +128,7 @@ public class SnifferLifecycleManager {
                 // Call DeviceManager to restart the scanner
                 DeviceManager dm = deviceManager;
                 if (dm != null) {
-                    dm.resumeScanner(device);
+                    dm.restartScanner(device);
                 } else {
                     logger.warning("DeviceManager not set, cannot restart scanner for device " +
                         device.getSerialNumber());

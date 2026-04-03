@@ -1,11 +1,14 @@
 package com.superredrock.usbthief;
 
 
+import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.QueueManager;
-import com.superredrock.usbthief.core.ServiceManager;
+
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.event.EventBus;
+import com.superredrock.usbthief.index.Index;
+import com.superredrock.usbthief.worker.TaskScheduler;
 import com.superredrock.usbthief.core.event.storage.EmptyFoldersDeletedEvent;
 import com.superredrock.usbthief.core.event.storage.FilesRecycledEvent;
 import com.superredrock.usbthief.core.event.storage.StorageLowEvent;
@@ -56,9 +59,6 @@ public class Main {
         // Initialize FlatLeaf Look and Feel before any Swing components
         ThemeManager.getInstance();
 
-        ServiceManager serviceManager = ServiceManager.getInstance();
-        serviceManager.loadServices();
-
         if (!hasLaunched){
             //initializeFirstTime();
             config.putBoolean("hasLaunched", true);
@@ -68,13 +68,16 @@ public class Main {
         logger.info("Starting");
         QueueManager.init();
 
-        QueueManager.getIndex().load();
+        // Load index
+        Index.getInstance().load();
 
         // Register logging listeners for storage events
         registerStorageEventListeners();
 
-        // 启动所有服务
-        serviceManager.startAll();
+        // Start services
+        DeviceManager.getInstance().start();
+        TaskScheduler.getInstance().start();
+        Index.getInstance().start();
 
         // 显示主窗口
         MainFrame.launch();
@@ -112,7 +115,12 @@ public class Main {
     public static void quit() {
         System.out.println("Quitting");
         Statistics.getInstance().save();
-        ServiceManager.getInstance().shutdown();
+        
+        // Stop services
+        DeviceManager.getInstance().stopService();
+        TaskScheduler.getInstance().stopService();
+        Index.getInstance().stopService();
+        
         QueueManager.quit();
     }
 

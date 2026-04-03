@@ -3,7 +3,7 @@ package com.superredrock.usbthief.worker;
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.RejectionAwarePolicy;
 import com.superredrock.usbthief.core.Service;
-import com.superredrock.usbthief.core.ServiceManager;
+
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import java.util.logging.Level;
@@ -27,8 +27,17 @@ public class LoadEvaluator extends Service {
         this.rejectionPolicy = QueueManager.getRejectionPolicy();
     }
 
-    public static LoadEvaluator getInstance(){
-        return ServiceManager.getInstance().findService(LoadEvaluator.class).orElse(null);
+    private static volatile LoadEvaluator INSTANCE;
+
+    public static LoadEvaluator getInstance() {
+        if (INSTANCE == null) {
+            synchronized (LoadEvaluator.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = new LoadEvaluator();
+                }
+            }
+        }
+        return INSTANCE;
     }
 
     @Override
@@ -95,7 +104,7 @@ public class LoadEvaluator extends Service {
 
     private int safeGetQueueSize() {
         try {
-            return QueueManager.getQueueSize();
+            return TaskScheduler.getInstance().getPool().getPoolSize();
         } catch (Exception e) {
             logger.log(Level.FINE, "Unable to get queue size", e);
             return 0; // Default: empty queue
@@ -104,7 +113,7 @@ public class LoadEvaluator extends Service {
 
     private double safeGetThreadRatio() {
         try {
-            return QueueManager.getActiveRatio();
+            return TaskScheduler.getInstance().getActiveRatio();
         } catch (Exception e) {
             logger.log(Level.FINE, "Unable to get thread activity", e);
             return 0.5; // Default: 50% active

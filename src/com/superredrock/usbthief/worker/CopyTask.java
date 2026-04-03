@@ -99,9 +99,9 @@ public class CopyTask implements Callable<CopyResult> {
             if (storage.isStorageCritical()) {
                 logger.warning("Storage critical, skipping copy: " + processingPath);
                 result = CopyResult.SKIPPED;
-            } else if (QueueManager.getDeviceManager().getDevice(processingPath).getState() == Device.DeviceState.PAUSED || QueueManager.getDeviceManager().getDevice(processingPath).getState() == Device.DeviceState.DISABLED) {
+            } else if (QueueManager.getDeviceManager().getDevice(processingPath) != null && QueueManager.getDeviceManager().getDevice(processingPath).getState() == Device.DeviceState.DISABLED) {
                 return CopyResult.CANCEL;
-            } else if (QueueManager.getDeviceManager().getDevice(processingPath).getState() == Device.DeviceState.UNAVAILABLE) {
+            } else if (QueueManager.getDeviceManager().getDevice(processingPath) != null && QueueManager.getDeviceManager().getDevice(processingPath).getState() == Device.DeviceState.UNAVAILABLE) {
                 return CopyResult.FAIL;
             } else {
                 size = Files.size(processingPath);

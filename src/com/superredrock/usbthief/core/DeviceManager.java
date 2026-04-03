@@ -1,71 +1,189 @@
 package com.superredrock.usbthief.core;
 
+import com.sun.jna.Pointer;
+import com.sun.jna.platform.win32.WinDef.HWND;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.device.DeviceInsertedEvent;
 import com.superredrock.usbthief.core.event.device.DeviceRemovedEvent;
 import com.superredrock.usbthief.core.event.device.DeviceStateChangedEvent;
 import com.superredrock.usbthief.core.event.device.NewDeviceJoinedEvent;
-import com.superredrock.usbthief.core.event.storage.StorageLevel;
-import com.superredrock.usbthief.worker.Sniffer;
-import com.superredrock.usbthief.worker.StorageController;
 
-import java.io.IOException;
-import java.nio.file.*;
-import java.util.*;
+
+import java.nio.file.FileStore;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.logging.Logger;
-import java.util.prefs.Preferences;
-import java.util.stream.Collectors;
 
-public class DeviceManager extends Service {
+/**
+ * Device management service.
+ * <p>
+ * Manages USB device detection, state tracking, and lifecycle using UsbHotplugMonitor
+ * for real-time device arrival/removal detection.
+ */
+public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeListener, UsbHotplugMonitor.DeviceListener {
 
-    private static final String PREF_KEY_DEVICE_RECORDS = "deviceRecords";
-    private static final String RECORD_DELIMITER = "||";
+    private static final Logger logger = Logger.getLogger(DeviceManager.class.getName());
 
-    private final Set<Device> devices = Collections.synchronizedSet(new HashSet<>());
-    private final Map<Device, Sniffer> activeScanners = new ConcurrentHashMap<>();
-    private final Set<DeviceRecord> deviceRecords = ConcurrentHashMap.newKeySet();
-    private final Set<Device> pausedDevices = ConcurrentHashMap.newKeySet();
-    private final FileSystem fileSystem = FileSystems.getDefault();
-    private final EventBus eventBus;
-    private final Preferences prefs = Preferences.userNodeForPackage(DeviceManager.class);
-    private final StorageController storageController = StorageController.getInstance();
+    private static volatile DeviceManager INSTANCE;
 
-    protected static final Logger logger = Logger.getLogger(DeviceManager.class.getName());
+    private final UsbHotplugMonitor monitor = new UsbHotplugMonitor();
+    private final ConcurrentHashMap<String, Device> devicesMap = new ConcurrentHashMap<>();
+    private HWND hwnd;
 
-    public DeviceManager() {
-        this(EventBus.getInstance());
+
+    private DeviceManager() {
+        monitor.setVolumeListener(this);
+        monitor.setDeviceListener(this);
     }
 
-    protected DeviceManager(EventBus eventBus) {
-        this.eventBus = eventBus;
-        loadDeviceRecords();
-        createGhostDevices();
-        initializeExistingDevices();
+    public static DeviceManager getInstance() {
+        if (INSTANCE == null) {
+            synchronized (DeviceManager.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = new DeviceManager();
+                }
+            }
+        }
+        return INSTANCE;
+    }
+
+    /**
+     * Sets the window handle for UsbHotplugMonitor and starts monitoring.
+     * Must be called after the main window is created.
+     *
+     * @param hwnd the window handle
+     */
+    public void setHwnd(HWND hwnd) {
+        this.hwnd = hwnd;
+    }
+
+    /**
+     * Sets the window handle using long value.
+     *
+     * @param hwndValue the window handle value
+     */
+    public void setHwnd(long hwndValue) {
+        setHwnd(new HWND(Pointer.createConstant(hwndValue)));
+    }
+
+    @Override
+    public void start() {
+        super.start();
+        if (hwnd != null && !monitor.isRunning()) {
+            try {
+                monitor.start(hwnd);
+                logger.info("UsbHotplugMonitor started successfully");
+            } catch (Exception e) {
+                logger.severe("Failed to start UsbHotplugMonitor: " + e.getMessage());
+            }
+        }
     }
 
     @Override
     protected void tick() {
-        logger.fine("DeviceManager tick");
-
-        // Check storage status and manage scanners accordingly
-        StorageLevel level = storageController.getStorageLevel();
-
-        if (level == StorageLevel.CRITICAL) {
-            // Pause all active scanners due to critical storage
-            pauseAllScanners();
-        } else if (level == StorageLevel.OK && hasPausedScanners()) {
-            // Resume paused scanners when storage is OK
-            resumeAllScanners();
+        for (Device device : devicesMap.values()) {
+            Device.DeviceState oldState = device.getState();
+            device.updateState();
+            if (device.isChangeAndReset()) {
+                logger.fine("Device " + device.getSerialNumber() + " state changed: " + oldState + " -> " + device.getState());
+                EventBus.getInstance().dispatch(new DeviceStateChangedEvent(device, oldState, device.getState()));
+            }
         }
+    }
 
-        if (!checkInterrupt()) {
-            detectNewDevices();
+    /**
+     * Finds a device matching the given predicate.
+     *
+     * @param predicate the predicate to match
+     * @return the matching device, or null if not found
+     */
+    private Device findDevice(Predicate<Device> predicate) {
+        for (Device device : devicesMap.values()) {
+            if (predicate.test(device)) {
+                return device;
+            }
         }
-        if (!checkInterrupt()) {
-            updateAllDevices();
+        return null;
+    }
+
+    /**
+     * Gets a device by its root path.
+     *
+     * @param path the root path
+     * @return the device, or null if not found
+     */
+    public Device getDevice(Path path) {
+        return findDevice(device -> path.equals(device.getRootPath()));
+    }
+
+    /**
+     * Gets a device by its FileStore.
+     *
+     * @param store the FileStore
+     * @return the device, or null if not found
+     */
+    public Device getDevice(FileStore store) {
+        return findDevice(device -> store.equals(device.getFileStore()));
+    }
+
+    /**
+     * Gets a device by its serial number.
+     *
+     * @param serialNumber the serial number
+     * @return the device, or null if not found
+     */
+    public Device getDeviceBySerial(String serialNumber) {
+        return devicesMap.get(serialNumber);
+    }
+
+    /**
+     * Gets all devices.
+     *
+     * @return a set of all devices
+     */
+    public Set<Device> getAllDevices() {
+        return Collections.unmodifiableSet((Set<? extends Device>) devicesMap.values());
+    }
+
+    /**
+     * Enables a device for scanning.
+     *
+     * @param device the device to enable
+     */
+    public void enable(Device device) {
+        if (device != null) {
+            device.enable();
+            logger.info("Device enabled: " + device.getSerialNumber());
+        }
+    }
+
+    /**
+     * Disables a device from scanning.
+     *
+     * @param device the device to disable
+     */
+    public void disable(Device device) {
+        if (device != null) {
+            device.disable();
+            logger.info("Device disabled: " + device.getSerialNumber());
+        }
+    }
+
+    /**
+     * Removes a device from management.
+     *
+     * @param device the device to remove
+     */
+    public void remove(Device device) {
+        if (device != null) {
+            devicesMap.remove(device.getSerialNumber());
+            logger.info("Device removed: " + device.getSerialNumber());
         }
     }
 
@@ -81,524 +199,151 @@ public class DeviceManager extends Service {
 
     @Override
     public String getDescription() {
-        return "Device detection and monitoring service";
+        return "USB device detection and state management service";
+    }
+
+    @Override
+    public void onVolumeArrival(String driveLetter) {
+        logger.info("Volume arrived: " + driveLetter);
+        Path rootPath = Path.of(driveLetter + "\\\\");
+        
+        if (!Files.isDirectory(rootPath)) {
+            logger.warning("Volume path is not a directory: " + rootPath);
+            return;
+        }
+        
+        String serial = DeviceUtils.getHardDiskSN(rootPath.toString());
+        if (serial.isEmpty()) {
+            logger.warning("Could not get serial number for volume: " + rootPath);
+            return;
+        }
+        
+        // Check blacklist
+        if (ConfigManager.getInstance().isDeviceBlacklistedBySerial(serial)) {
+            logger.fine("Ignoring blacklisted device: " + serial);
+            return;
+        }
+
+        // Check if device already exists
+        Device existing = devicesMap.get(serial);
+        if (existing != null) {
+            // Device exists - add this volume to it
+            Volume volume = new Volume(rootPath);
+            existing.addVolume(volume);
+            existing.updateState();
+            logger.info("Device volume added: " + serial + " at " + rootPath);
+        }
+    }
+
+    @Override
+    public void onVolumeRemoval(String driveLetter) {
+        logger.info("Volume removed: " + driveLetter);
+
+        // Find device containing this volume and remove it
+        for (Device device : devicesMap.values()) {
+            Volume volume = device.getVolume(driveLetter);
+            if (volume != null) {
+                device.removeVolume(driveLetter);
+                logger.info("Volume removed from device: " + driveLetter + " (" + device.getSerialNumber() + ")");
+                
+                // If device has no more volumes, set to OFFLINE
+                if (!device.hasVolumes()) {
+                    device.setState(Device.DeviceState.OFFLINE);
+                }
+            }
+        }
+    }
+
+    @Override
+    public void onDeviceArrival(String dbccName) {
+        logger.info("Device interface arrived: " + dbccName);
+        
+        // Parse device instance path to extract serial number
+        DeviceUtils.DeviceIdentity identity = DeviceUtils.parseDeviceInstancePath(dbccName);
+        if (identity == null) {
+            logger.warning("Could not parse device instance path: " + dbccName);
+            return;
+        }
+        
+        String serial = identity.serial();
+        if (serial == null || serial.isEmpty()) {
+            logger.warning("No serial number in device path: " + dbccName);
+            return;
+        }
+        
+        // Check blacklist
+        if (ConfigManager.getInstance().isDeviceBlacklistedBySerial(serial)) {
+            logger.fine("Ignoring blacklisted device: " + serial);
+            return;
+        }
+        
+        // Create new empty device (no volumes yet - will be added when volume mounts)
+        Device newDevice = new Device(serial);
+        newDevice.setState(Device.DeviceState.OFFLINE);
+        
+        devicesMap.putIfAbsent(serial,newDevice);
+        logger.info("New device interface detected: " + serial + " (VID:" + identity.vid() + ", PID:" + identity.pid() + ")");
+        EventBus.getInstance().dispatch(new NewDeviceJoinedEvent(newDevice));
+        EventBus.getInstance().dispatch(new DeviceInsertedEvent(newDevice));
+    }
+
+    @Override
+    public void onDeviceRemoval(String dbccName) {
+        logger.info("Device interface removed: " + dbccName);
+        
+        // Parse device instance path to extract serial number
+        DeviceUtils.DeviceIdentity identity = DeviceUtils.parseDeviceInstancePath(dbccName);
+        if (identity == null) {
+            logger.warning("Could not parse device instance path: " + dbccName);
+            return;
+        }
+        
+        String serial = identity.serial();
+        if (serial == null || serial.isEmpty()) {
+            logger.warning("No serial number in device path: " + dbccName);
+            return;
+        }
+        
+        // Find device by serial and mark as UNAVAILABLE
+        Device device = devicesMap.get(serial);
+        if (device != null) {
+            device.setState(Device.DeviceState.OFFLINE);
+            logger.info("Device marked OFFLINE: " + serial);
+            EventBus.getInstance().dispatch(new DeviceRemovedEvent(device));
+        }
+    }
+    /**
+     * Pauses operations for the given device.
+     * Used by SnifferLifecycleManager when storage is full.
+     *
+     * @param device the device to pause
+     */
+    public void pauseScanner(Device device) {
+        if (device != null) {
+            device.disable();
+            logger.fine("Paused device: " + device.getSerialNumber());
+        }
+    }
+
+    /**
+     * Resumes operations for the given device.
+     * Used by SnifferLifecycleManager after storage delay.
+     *
+     * @param device the device to resume
+     */
+    public void restartScanner(Device device) {
+        if (device != null) {
+            device.enable();
+            logger.fine("Resumed device: " + device.getSerialNumber());
+        }
     }
 
     @Override
     protected void cleanup() {
-        stopAllScanners();
-        devices.clear();
-        activeScanners.clear();
-        pausedDevices.clear();
-    }
-
-    @Override
-    public String getStatus() {
-        return String.format("DeviceManager[%s] - Devices: %d, Scanners: %d", 
-                state, devices.size(), activeScanners.size());
-    }
-
-    // ==================== Device Detection ====================
-
-    private void detectNewDevices() {
-        for (Path path : fileSystem.getRootDirectories()) {
-            if (checkInterrupt()) {
-                break;
-            }
-
-            String serial = getHardDiskSN(path.toString());
-
-            if (ConfigManager.getInstance().isDeviceBlacklistedBySerial(serial)) {
-                logger.fine("Device blacklisted by serial number, ignoring: " + serial + " (" + path + ")");
-                continue;
-            }
-
-            Device existing = findDeviceBySerial(serial);
-
-            if (existing != null) {
-                if (existing.isGhost()) {
-                    mergeGhostToDevice(existing, path);
-                }
-            } else {
-                Device device = new Device(path);
-                devices.add(device);
-                addDeviceRecord(device);
-                onNewDeviceJoined(device);
-            }
+        if (monitor.isRunning()) {
+            monitor.stop();
+            logger.info("UsbHotplugMonitor stopped");
         }
     }
 
-    private void updateAllDevices() {
-        synchronized (devices) {
-            for (Device device : devices) {
-                if (checkInterrupt()) {
-                    break;
-                }
-
-                Device.DeviceState previousState = device.getState();
-                device.updateState();
-
-                if (device.isChangeAndReset()) {
-                    Device.DeviceState newState = device.getState();
-                    onDeviceStateChanged(device, previousState, newState);
-
-                    if (newState == Device.DeviceState.OFFLINE && !device.isGhost()) {
-                        convertToGhost(device);
-                        onDeviceRemoved(device);
-                    }
-                }
-
-                manageScanner(device);
-            }
-        }
-    }
-
-    // ==================== Scanner Management ====================
-
-    private void manageScanner(Device device) {
-        if (device.isGhost()) {
-            return;
-        }
-
-        switch (device.getState()) {
-            case IDLE -> {
-                if (!isScannerRunning(device)) {
-                    startScanner(device);
-                    device.setState(Device.DeviceState.SCANNING);
-                }
-            }
-            case SCANNING -> {
-                if (isScannerRunning(device) && !isScannerAlive(device)) {
-                    stopScanner(device);
-                    device.setState(Device.DeviceState.IDLE);
-                }
-            }
-            case PAUSED, DISABLED -> {
-                if (isScannerRunning(device)) {
-                    stopScanner(device);
-                }
-            }
-            default -> {}
-        }
-    }
-
-    private void startScanner(Device device) {
-        if (device.isGhost() || device.getFileStore() == null) {
-            return;
-        }
-        
-        Sniffer scanner = new Sniffer(device, device.getFileStore());
-        activeScanners.put(device, scanner);
-        scanner.start();
-        logger.fine("Started scanner for device: " + device.getSerialNumber());
-    }
-
-    private void stopScanner(Device device) {
-        Sniffer scanner = activeScanners.remove(device);
-        if (scanner != null) {
-            scanner.close();
-            logger.fine("Stopped scanner for device: " + device.getSerialNumber());
-        }
-    }
-
-    private void stopAllScanners() {
-        for (Device device : new HashSet<>(activeScanners.keySet())) {
-            stopScanner(device);
-        }
-    }
-
-    // ==================== Storage-Based Scanner Control ====================
-
-    /**
-     * Pause the scanner for a specific device.
-     * Sets the device state to PAUSED and stops the scanner if running.
-     * Tracks the device as paused by storage constraints.
-     *
-     * @param device the device whose scanner should be paused
-     */
-    public void pauseScanner(Device device) {
-        if (device == null || device.isGhost()) {
-            return;
-        }
-
-        logger.fine("Pausing scanner for device: " + device.getSerialNumber());
-
-        // Stop the scanner if running
-        if (isScannerRunning(device)) {
-            stopScanner(device);
-        }
-
-        // Set device state to PAUSED
-        device.setState(Device.DeviceState.PAUSED);
-
-        // Track as paused by storage
-        pausedDevices.add(device);
-    }
-
-    /**
-     * Resume the scanner for a specific device.
-     * Sets the device state to IDLE, allowing the scanner to restart.
-     * Removes the device from the paused-by-storage tracking.
-     *
-     * @param device the device whose scanner should be resumed
-     */
-    public void resumeScanner(Device device) {
-        if (device == null || device.isGhost()) {
-            return;
-        }
-
-        logger.fine("Resuming scanner for device: " + device.getSerialNumber());
-
-        // Only resume if it was paused (not user-disabled)
-        if (device.getState() == Device.DeviceState.PAUSED) {
-            device.setState(Device.DeviceState.IDLE);
-            pausedDevices.remove(device);
-        }
-    }
-
-    /**
-     * Restart the scanner for a specific device.
-     * Called by SnifferLifecycleManager after a scheduled restart delay.
-     * <p>
-     * Sets device state to IDLE and lets manageScanner handle the restart
-     * on the next tick cycle.
-     *
-     * @param device the device whose scanner should be restarted
-     */
-    public void restartScanner(Device device) {
-        if (device == null || device.isGhost()) {
-            return;
-        }
-
-        Device.DeviceState currentState = device.getState();
-
-        // Don't restart disabled or offline devices
-        if (currentState == Device.DeviceState.DISABLED ||
-            currentState == Device.DeviceState.OFFLINE) {
-            logger.fine("Skipping restart for device " + device.getSerialNumber() +
-                " (state: " + currentState + ")");
-            return;
-        }
-
-        logger.info("Restarting scanner for device: " + device.getSerialNumber());
-
-        // Remove from paused devices if present
-        pausedDevices.remove(device);
-
-        // Set state to IDLE - manageScanner will start the scanner on next tick
-        device.setState(Device.DeviceState.IDLE);
-    }
-
-    /**
-     * Pause all active scanners due to storage constraints.
-     * Only affects devices that are not already disabled or ghost.
-     */
-    public void pauseAllScanners() {
-        synchronized (devices) {
-            for (Device device : devices) {
-                if (!device.isGhost() &&
-                    device.getState() != Device.DeviceState.DISABLED &&
-                    device.getState() != Device.DeviceState.PAUSED) {
-                    pauseScanner(device);
-                }
-            }
-        }
-        logger.info("Paused all scanners due to storage constraints. Paused devices: " + pausedDevices.size());
-    }
-
-    /**
-     * Resume all scanners that were paused by storage constraints.
-     * Only affects devices that were paused (not user-disabled).
-     */
-    public void resumeAllScanners() {
-        // Create a copy to avoid ConcurrentModificationException
-        Set<Device> devicesToResume = Set.copyOf(pausedDevices);
-
-        for (Device device : devicesToResume) {
-            resumeScanner(device);
-        }
-
-        logger.info("Resumed all scanners after storage recovery. Resumed devices: " + devicesToResume.size());
-    }
-
-    /**
-     * Check if any devices are currently paused due to storage constraints.
-     *
-     * @return true if there are paused devices, false otherwise
-     */
-    public boolean hasPausedScanners() {
-        return !pausedDevices.isEmpty();
-    }
-
-    private boolean isScannerRunning(Device device) {
-        return activeScanners.containsKey(device);
-    }
-
-    private boolean isScannerAlive(Device device) {
-        Sniffer scanner = activeScanners.get(device);
-        return scanner != null && scanner.isAlive();
-    }
-
-    // ==================== Ghost Device Management ====================
-
-    private void convertToGhost(Device device) {
-        stopScanner(device);
-
-        DeviceRecord record = device.toRecord();
-        Device ghost = new Device(record);
-
-        devices.remove(device);
-        devices.add(ghost);
-
-        logger.fine("Device converted to ghost: " + device.getSerialNumber());
-    }
-
-    private void mergeGhostToDevice(Device ghost, Path rootPath) {
-        Device realDevice = new Device(rootPath);
-
-        devices.remove(ghost);
-        devices.add(realDevice);
-
-        updateDeviceRecord(realDevice);
-
-        onDeviceInserted(realDevice);
-        logger.fine("Ghost device merged to real: " + realDevice.getSerialNumber());
-    }
-
-    // ==================== Device Record Persistence ====================
-
-    private void loadDeviceRecords() {
-        String stored = prefs.get(PREF_KEY_DEVICE_RECORDS, "");
-        if (!stored.isEmpty()) {
-            String[] records = stored.split("\\|\\|");
-            for (String record : records) {
-                try {
-                    deviceRecords.add(DeviceRecord.fromString(record));
-                } catch (IllegalArgumentException e) {
-                    logger.warning("Invalid device record: " + record);
-                }
-            }
-        }
-        logger.info("Loaded " + deviceRecords.size() + " device records");
-    }
-
-    private void saveDeviceRecords() {
-        String stored = deviceRecords.stream()
-                .map(DeviceRecord::toString)
-                .collect(Collectors.joining(RECORD_DELIMITER));
-        prefs.put(PREF_KEY_DEVICE_RECORDS, stored);
-    }
-
-    private void addDeviceRecord(Device device) {
-        DeviceRecord record = device.toRecord();
-        if (deviceRecords.add(record)) {
-            saveDeviceRecords();
-        }
-    }
-
-    private void updateDeviceRecord(Device device) {
-        DeviceRecord record = device.toRecord();
-        deviceRecords.removeIf(r -> r.serialNumber().equals(record.serialNumber()));
-        deviceRecords.add(record);
-        saveDeviceRecords();
-    }
-
-    public void clearDeviceRecords() {
-        prefs.remove(PREF_KEY_DEVICE_RECORDS);
-        deviceRecords.clear();
-        logger.info("Cleared all device records");
-    }
-
-    private void createGhostDevices() {
-        for (DeviceRecord record : deviceRecords) {
-            Device ghost = new Device(record);
-            devices.add(ghost);
-        }
-    }
-
-    // ==================== Device Initialization ====================
-
-    private void initializeExistingDevices() {
-        for (Path path : fileSystem.getRootDirectories()) {
-            String serial = getHardDiskSN(path.toString());
-
-            if (ConfigManager.getInstance().isDeviceBlacklistedBySerial(serial)) {
-                continue;
-            }
-
-            Device ghostDevice = findGhostDevice(serial);
-
-            if (ghostDevice != null) {
-                mergeGhostToDevice(ghostDevice, path);
-            } else {
-                Device device = new Device(path);
-                DeviceRecord record = device.toRecord();
-                if (!deviceRecords.contains(record)) {
-                    addDeviceRecord(device);
-                    onNewDeviceJoined(device);
-                }
-                devices.add(device);
-            }
-        }
-    }
-
-    // ==================== Device Lookup ====================
-
-    private Device findDevice(Predicate<Device> predicate) {
-        synchronized (devices) {
-            for (Device device : devices) {
-                if (predicate.test(device)) {
-                    return device;
-                }
-            }
-        }
-        return null;
-    }
-
-    private Device findGhostDevice(String serial) {
-        return findDevice(device -> device.isGhost() && serial.equals(device.getSerialNumber()));
-    }
-
-    private Device findDeviceBySerial(String serial) {
-        return findDevice(device -> serial.equals(device.getSerialNumber()));
-    }
-
-    public Device getDevice(Path path) {
-        if (!path.isAbsolute()){
-            path = path.toAbsolutePath();
-        }
-        Path finalPath = path;
-        return findDevice(device -> !device.isGhost() && finalPath.startsWith(device.getRootPath()));
-    }
-
-    public Device getDevice(FileStore store) {
-        if (store == null) {
-            return null;
-        }
-        return findDevice(device -> {
-            FileStore deviceStore = device.getFileStore();
-            return store.equals(deviceStore) && device.getState() != Device.DeviceState.OFFLINE;
-        });
-    }
-
-    public Set<Device> getAllDevices() {
-        synchronized (devices) {
-            return Set.copyOf(devices);
-        }
-    }
-
-    // ==================== Public Control Methods ====================
-
-    public void enableDevice(Device device) {
-        device.enable();
-    }
-
-    public void disableDevice(Device device) {
-        device.disable();
-    }
-
-    public void updateDeviceVolumeName(String serial, String volumeName) {
-        if (serial == null || serial.isEmpty()) {
-            return;
-        }
-        
-        DeviceRecord existingRecord = deviceRecords.stream()
-                .filter(r -> r.serialNumber().equals(serial))
-                .findFirst()
-                .orElse(null);
-        
-        if (existingRecord != null && volumeName != null && !volumeName.trim().isEmpty()) {
-            deviceRecords.remove(existingRecord);
-            deviceRecords.add(new DeviceRecord(serial, volumeName.trim()));
-            saveDeviceRecords();
-        }
-    }
-
-    /**
-     * Remove a device from the device list.
-     * Stops the scanner, removes from device set, and clears persistence record.
-     * The device will be detected again when reconnected.
-     *
-     * @param device the device to remove
-     */
-    public void removeDevice(Device device) {
-        if (device == null) {
-            return;
-        }
-
-        String serial = device.getSerialNumber();
-        logger.info("Removing device: " + serial);
-
-        // Stop scanner if running
-        stopScanner(device);
-
-        // Remove from devices set
-        devices.remove(device);
-
-        // Remove from paused devices if present
-        pausedDevices.remove(device);
-
-        // Remove device record from persistence
-        deviceRecords.removeIf(r -> r.serialNumber().equals(serial));
-        saveDeviceRecords();
-
-        // Dispatch removal event
-        onDeviceRemoved(device);
-
-        logger.info("Device removed: " + serial);
-    }
-
-    // ==================== Helper Methods ====================
-
-    private boolean checkInterrupt() {
-        return Thread.currentThread().isInterrupted();
-    }
-
-    private static String getHardDiskSN(String path) {
-        return DeviceUtils.getHardDiskSN(path);
-    }
-
-    // ==================== Event Dispatching ====================
-
-    protected void onDeviceInserted(Device device) {
-        logger.info("Device inserted: " + device);
-        eventBus.dispatch(new DeviceInsertedEvent(device));
-    }
-
-    protected void onDeviceRemoved(Device device) {
-        logger.info("Device removed: " + device);
-        eventBus.dispatch(new DeviceRemovedEvent(device));
-    }
-
-    protected void onDeviceStateChanged(Device device, Device.DeviceState oldState, Device.DeviceState newState) {
-        logger.fine(String.format("Device state changed: %s %s -> %s", device, oldState, newState));
-        eventBus.dispatch(new DeviceStateChangedEvent(device, oldState, newState));
-    }
-
-    protected void onNewDeviceJoined(Device device) {
-        logger.info("New device joined (first time): " + device.getSerialNumber());
-        eventBus.dispatch(new NewDeviceJoinedEvent(device));
-    }
-
-    // ==================== Test Helper Methods ====================
-
-    /**
-     * Test helper: Add a device directly to the devices set without triggering events.
-     * This is package-private for testing purposes only.
-     *
-     * @param device the device to add
-     */
-    void addTestDevice(Device device) {
-        if (device != null) {
-            devices.add(device);
-        }
-    }
-
-    /**
-     * Test helper: Call the tick() method directly for testing.
-     * This is package-private for testing purposes only.
-     */
-    void testTick() {
-        tick();
-    }
 }
