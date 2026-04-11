@@ -5,10 +5,12 @@ import com.superredrock.usbthief.core.AutoStartManager;
 import com.superredrock.usbthief.Main;
 import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.QueueManager;
+import com.superredrock.usbthief.core.SizeFormatter;
 import com.superredrock.usbthief.core.Version;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
+import com.superredrock.usbthief.statistics.Statistics;
 import com.superredrock.usbthief.worker.LoadEvaluator;
 import com.superredrock.usbthief.worker.LoadLevel;
 import com.superredrock.usbthief.worker.LoadScore;
@@ -33,12 +35,17 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     private final JMenuBar menuBar;
     private final JLabel statusBar;
 
-    private final DeviceListPanel deviceListPanel;
-    private final EventPanel eventPanel;
-    private final FileHistoryPanel fileHistoryPanel;
+    private final SpeedChartPanel speedChartPanel;
+    private final VolumeListPanel volumeListPanel;
     private final StatisticsPanel statisticsPanel;
-    private final JTabbedPane rightTabbedPane;
     private LogWindow logWindow;
+    private DeviceInfoDialog deviceInfoDialog;
+
+    // Compact stats bar labels
+    private JLabel totalLabel;
+    private JLabel filesLabel;
+    private JLabel queueLabel;
+    private JLabel loadLabel;
 
     // Window visibility state
     private boolean windowVisible = true;
@@ -47,7 +54,8 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     public MainFrame() {
         setTitle(i18n.getMessage("main.title") + " v" + Version.getVersion());
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-        setSize(1200, 800);
+        setSize(500, 400);
+        setMinimumSize(new Dimension(400, 300));
         setLocationRelativeTo(null);
 
         // Set window icon
@@ -55,45 +63,33 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
         // Create menu bar
         menuBar = new JMenuBar();
-        
+
         // Register locale change listener
         i18n.addLocaleChangeListener(this);
         i18n.addLanguageListChangeListener(this);
 
         createMenus();
 
-        deviceListPanel = new DeviceListPanel();
-        deviceListPanel.setParentFrame(this);
-        deviceListPanel.setMainFrame(this);
-        eventPanel = new EventPanel();
-        fileHistoryPanel = new FileHistoryPanel();
+        speedChartPanel = new SpeedChartPanel();
+        volumeListPanel = new VolumeListPanel();
+        volumeListPanel.setParentFrame(this);
+        volumeListPanel.setMainFrame(this);
         statisticsPanel = new StatisticsPanel();
 
-        rightTabbedPane = new JTabbedPane();
-        rightTabbedPane.addTab(i18n.getMessage("tab.events"), eventPanel);
-        rightTabbedPane.addTab(i18n.getMessage("tab.fileHistory"), fileHistoryPanel);
-        rightTabbedPane.addTab(i18n.getMessage("tab.statistics"), statisticsPanel);
-
-        // Create main split pane
-        JSplitPane mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, deviceListPanel, rightTabbedPane);
-
-        // Status bar with modern styling
+        // Status bar with compact styling
         statusBar = new JLabel(i18n.getMessage("main.statusbar.ready"));
         statusBar.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createMatteBorder(1, 0, 0, 0, ThemeManager.BORDER_COLOR),
-            new EmptyBorder(8, 12, 8, 12)
+            new EmptyBorder(4, 8, 4, 8)
         ));
-        statusBar.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+        statusBar.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
         statusBar.setForeground(ThemeManager.TEXT_SECONDARY);
 
         // Layout
         setLayout(new BorderLayout());
         add(menuBar, BorderLayout.NORTH);
-        add(mainSplitPane, BorderLayout.CENTER);
+        add(createCenterPanel(), BorderLayout.CENTER);
         add(statusBar, BorderLayout.SOUTH);
-
-        // Set divider location
-        mainSplitPane.setDividerLocation(400);
 
         // Add window listener to clean up on close
         addWindowListener(new java.awt.event.WindowAdapter() {
@@ -111,13 +107,101 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         initializeSystemTray();
     }
 
-    /**
-     * Set window icon from resource.
-     * Tries to load App.png or App.ico from classpath.
-     */
+    private JPanel createCenterPanel() {
+        JPanel centerPanel = new JPanel();
+        centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
+        centerPanel.setMinimumSize(new Dimension(300, 250));
+
+        // Speed chart at top with titled border
+        speedChartPanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.BLACK, 1),
+            i18n.getMessage("chart.speed.title")
+        ));
+        speedChartPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        centerPanel.add(speedChartPanel);
+
+        // Compact stats bar with titled border
+        JPanel statsBar = createCompactStatsBar();
+        statsBar.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.BLACK, 1),
+            i18n.getMessage("chart.stats.title")
+        ));
+        statsBar.setMinimumSize(new Dimension(200, 50));
+        statsBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+        statsBar.setAlignmentX(Component.LEFT_ALIGNMENT);
+        centerPanel.add(statsBar);
+
+        // Device list at bottom (scrollable) with titled border
+        JScrollPane deviceScroll = new JScrollPane(volumeListPanel);
+        deviceScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        deviceScroll.setMinimumSize(new Dimension(200, 60));
+        deviceScroll.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.BLACK, 1),
+            i18n.getMessage("device.list.border")
+        ));
+        deviceScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
+        centerPanel.add(deviceScroll);
+
+        return centerPanel;
+    }
+
+    private JPanel createCompactStatsBar() {
+        JPanel panel = new JPanel(new GridLayout(1, 4, 4, 0));
+        panel.setOpaque(false);
+
+        totalLabel = new JLabel("0 B", SwingConstants.CENTER);
+        filesLabel = new JLabel("0", SwingConstants.CENTER);
+        queueLabel = new JLabel("0", SwingConstants.CENTER);
+        loadLabel = new JLabel("LOW", SwingConstants.CENTER);
+
+        Font statFont = new Font(Font.SANS_SERIF, Font.BOLD, 11);
+        Font labelFont = new Font(Font.SANS_SERIF, Font.PLAIN, 8);
+
+        for (var entry : new Object[][]{
+                {i18n.getMessage("chart.stats.total"), totalLabel},
+                {i18n.getMessage("chart.stats.files"), filesLabel},
+                {i18n.getMessage("chart.stats.queue"), queueLabel},
+                {i18n.getMessage("chart.stats.load"), loadLabel}
+        }) {
+            JPanel card = new JPanel(new BorderLayout(2, 0));
+            card.setOpaque(false);
+            card.setBorder(BorderFactory.createLineBorder(Color.BLACK, 1, true));
+            JLabel lbl = new JLabel((String) entry[0], SwingConstants.CENTER);
+            lbl.setFont(labelFont);
+            lbl.setForeground(ThemeManager.TEXT_MUTED);
+            JLabel val = (JLabel) entry[1];
+            val.setFont(statFont);
+            card.add(lbl, BorderLayout.NORTH);
+            card.add(val, BorderLayout.CENTER);
+            panel.add(card);
+        }
+
+        // Timer to update stats
+        Timer statsTimer = new Timer(1000, _ -> updateCompactStats());
+        statsTimer.start();
+
+        return panel;
+    }
+
+    private void updateCompactStats() {
+        Statistics stats = Statistics.getInstance();
+        totalLabel.setText(SizeFormatter.format(stats.getTotalBytesCopied()));
+        filesLabel.setText(String.valueOf(stats.getTotalFilesCopied()));
+        queueLabel.setText(String.valueOf(TaskScheduler.getInstance().getQueueDepth()));
+
+        LoadScore score = LoadEvaluator.getInstance().evaluateLoad();
+        if (score != null) {
+            loadLabel.setText(score.level().name());
+            loadLabel.setForeground(switch (score.level()) {
+                case LOW -> ThemeManager.ACCENT_SUCCESS;
+                case MEDIUM -> ThemeManager.ACCENT_WARNING;
+                case HIGH -> ThemeManager.ACCENT_ERROR;
+            });
+        }
+    }
+
     private void setWindowIcon() {
         try {
-            // Try PNG first (better Java support)
             java.net.URL iconUrl = getClass().getResource("App.png");
             if (iconUrl != null) {
                 BufferedImage image = ImageIO.read(iconUrl);
@@ -131,7 +215,6 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
             logger.warning("Failed to load window icon: " + e.getMessage());
         }
 
-        // Fallback: create a simple default icon
         BufferedImage defaultIcon = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2d = defaultIcon.createGraphics();
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -153,7 +236,6 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
         actionMenu.addSeparator();
 
-
         JMenuItem clearStatsItem = new JMenuItem(i18n.getMessage("menu.action.clearStats"));
         clearStatsItem.addActionListener(_ -> clearStatistics());
         actionMenu.add(clearStatsItem);
@@ -161,6 +243,16 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         JMenuItem clearIndexItem = new JMenuItem(i18n.getMessage("menu.action.clearIndex"));
         clearIndexItem.addActionListener(_ -> clearIndex());
         actionMenu.add(clearIndexItem);
+
+        actionMenu.addSeparator();
+
+        JMenuItem deviceInfoItem = new JMenuItem(i18n.getMessage("menu.action.deviceInfo"));
+        deviceInfoItem.addActionListener(_ -> showDeviceInfoDialog());
+        actionMenu.add(deviceInfoItem);
+
+        JMenuItem statsWindowItem = new JMenuItem(i18n.getMessage("menu.action.statistics"));
+        statsWindowItem.addActionListener(_ -> showStatisticsWindow());
+        actionMenu.add(statsWindowItem);
 
         actionMenu.addSeparator();
 
@@ -186,7 +278,6 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         preferencesItem.addActionListener(_ -> showPreferences());
         configMenu.add(preferencesItem);
 
-
         JMenuItem clearStatsConfigItem = new JMenuItem(i18n.getMessage("menu.config.clearStats"));
         clearStatsConfigItem.addActionListener(_ -> clearStatistics());
         configMenu.add(clearStatsConfigItem);
@@ -208,15 +299,12 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         });
         configMenu.add(rateLimitItem);
 
-
         configMenu.addSeparator();
 
-        // Theme toggle menu item
         JMenuItem themeItem = new JMenuItem(i18n.getMessage("theme.toggle"));
         themeItem.addActionListener(_ -> toggleTheme());
         configMenu.add(themeItem);
 
-        // Auto-start toggle menu item
         JCheckBoxMenuItem autoStartItem = new JCheckBoxMenuItem(
             i18n.getMessage("autostart.toggle"),
             AutoStartManager.getInstance().isAutoStartEnabled()
@@ -224,7 +312,6 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         autoStartItem.addActionListener(_ -> toggleAutoStart(autoStartItem));
         configMenu.add(autoStartItem);
 
-        // Start hidden toggle menu item
         JCheckBoxMenuItem startHiddenItem = new JCheckBoxMenuItem(
             i18n.getMessage("starthidden.toggle"),
             ConfigManager.getInstance().get(ConfigSchema.START_HIDDEN)
@@ -293,6 +380,22 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         dialog.setVisible(true);
     }
 
+    private void showDeviceInfoDialog() {
+        if (deviceInfoDialog == null) {
+            deviceInfoDialog = new DeviceInfoDialog(this);
+        }
+        deviceInfoDialog.setVisible(true);
+    }
+
+    private void showStatisticsWindow() {
+        JDialog dialog = new JDialog(this, i18n.getMessage("tab.statistics"), false);
+        dialog.setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
+        dialog.add(statisticsPanel);
+        dialog.setSize(600, 500);
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+    }
+
     private void showLogWindow() {
         if (logWindow == null) {
             logWindow = new LogWindow(this);
@@ -300,17 +403,11 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         logWindow.setVisible(true);
     }
 
-    /**
-     * Toggle between light and dark themes.
-     */
     private void toggleTheme() {
         ThemeManager.getInstance().toggleTheme();
         updateStatusBar(i18n.getMessage("theme.toggled"));
     }
 
-    /**
-     * Toggle Windows auto-start setting.
-     */
     private void toggleAutoStart(JCheckBoxMenuItem item) {
         boolean success = AutoStartManager.getInstance().toggleAutoStart();
         if (success) {
@@ -328,9 +425,6 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         }
     }
 
-    /**
-     * Toggle start hidden setting.
-     */
     private void toggleStartHidden(JCheckBoxMenuItem item) {
         boolean enabled = item.isSelected();
         ConfigManager.getInstance().set(ConfigSchema.START_HIDDEN, enabled);
@@ -358,7 +452,6 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         });
     }
 
-
     private void clearStatistics() {
         int confirm = JOptionPane.showConfirmDialog(
                 this,
@@ -368,7 +461,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
                 JOptionPane.WARNING_MESSAGE);
 
         if (confirm == JOptionPane.YES_OPTION) {
-            com.superredrock.usbthief.statistics.Statistics.getInstance().resetAll();
+            Statistics.getInstance().resetAll();
             JOptionPane.showMessageDialog(
                     this,
                     i18n.getMessage("message.clearStatsSuccess"),
@@ -407,8 +500,8 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     }
 
     private void showAbout() {
-        String aboutMessage = i18n.getMessage("message.about", 
-            Version.getVersion(), 
+        String aboutMessage = i18n.getMessage("message.about",
+            Version.getVersion(),
             Version.getFullVersion(),
             System.getProperty("java.version")
         );
@@ -426,7 +519,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         return switch (level) {
             case LOW -> "\uD83D\uDFE2" + i18n.getMessage("load.low");
             case MEDIUM -> "\uD83D\uDFE1" + i18n.getMessage("load.medium");
-            case HIGH -> "🔴" + i18n.getMessage("load.high");
+            case HIGH -> "\uD83D\uDD34" + i18n.getMessage("load.high");
         };
     }
 
@@ -452,10 +545,6 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         }
     }
 
-    /**
-     * Apply window visibility settings from configuration.
-     * Supports starting hidden, always hidden, and controlling taskbar visibility.
-     */
     private void applyWindowSettings() {
         boolean startHidden = ConfigManager.getInstance().get(ConfigSchema.START_HIDDEN);
         boolean showInTaskbar = ConfigManager.getInstance().get(ConfigSchema.SHOW_IN_TASKBAR);
@@ -469,24 +558,20 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
             setVisible(true);
         }
 
-        // Note: setShowInTaskBar() is not directly supported in Swing
-        // This would need native Windows API calls via JNA (which we're avoiding)
-        // For now, we just log the setting
         if (!showInTaskbar) {
             logger.info("Taskbar visibility setting requires JNA (not implemented)");
         }
     }
 
-    /**
-     * Unified shutdown logic for all exit paths.
-     * This method ensures all cleanup is performed consistently.
-     */
     public void performShutdown() {
         logger.info("Performing unified shutdown");
 
         try {
-            deviceListPanel.stop();
-            logger.info("DeviceListPanel stopped");
+            speedChartPanel.stop();
+            logger.info("SpeedChartPanel stopped");
+
+            volumeListPanel.stop();
+            logger.info("VolumeListPanel stopped");
 
             statisticsPanel.stop();
             logger.info("StatisticsPanel stopped");
@@ -497,7 +582,6 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
             this.setVisible(false);
 
-            // Call unified shutdown logic through Main.quit()
             Main.quit();
             logger.info("Unified shutdown completed");
 
@@ -507,16 +591,11 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         System.exit(0);
     }
 
-    /**
-     * Handle window close event.
-     * Checks for remembered action or shows dialog with options.
-     */
     private void handleWindowClose() {
         ConfigManager config = ConfigManager.getInstance();
         String closeAction = config.get(ConfigSchema.CLOSE_ACTION);
         boolean rememberChoice = config.get(ConfigSchema.CLOSE_ACTION_REMEMBER);
 
-        // If user has previously remembered their choice, use it directly
         if (rememberChoice) {
             if ("MINIMIZE_TO_TRAY".equals(closeAction)) {
                 logger.info("Minimizing to tray (remembered choice)");
@@ -532,24 +611,16 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
             }
         }
 
-        // Show dialog with options
         showCloseDialog();
     }
 
-    /**
-     * Show close dialog with options to minimize to tray or exit.
-     * Includes "remember my choice" checkbox.
-     */
     private void showCloseDialog() {
-        // Create custom panel with options
         JPanel panel = new JPanel(new BorderLayout(0, 10));
         panel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
-        // Message label
         JLabel messageLabel = new JLabel(i18n.getMessage("dialog.close.message"));
         panel.add(messageLabel, BorderLayout.NORTH);
 
-        // Options panel
         JPanel optionsPanel = new JPanel(new GridLayout(2, 1, 5, 5));
         JRadioButton minimizeRadio = new JRadioButton(i18n.getMessage("dialog.close.minimizeToTray"));
         JRadioButton exitRadio = new JRadioButton(i18n.getMessage("dialog.close.exit"));
@@ -562,11 +633,9 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         optionsPanel.add(exitRadio);
         panel.add(optionsPanel, BorderLayout.CENTER);
 
-        // Remember checkbox
         JCheckBox rememberCheckbox = new JCheckBox(i18n.getMessage("dialog.close.rememberChoice"));
         panel.add(rememberCheckbox, BorderLayout.SOUTH);
 
-        // Show dialog
         int result = JOptionPane.showConfirmDialog(
             this,
             panel,
@@ -579,7 +648,6 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
             boolean shouldMinimize = minimizeRadio.isSelected();
             boolean shouldRemember = rememberCheckbox.isSelected();
 
-            // Save choice if "remember" is checked
             if (shouldRemember) {
                 ConfigManager config = ConfigManager.getInstance();
                 config.set(ConfigSchema.CLOSE_ACTION, shouldMinimize ? "MINIMIZE_TO_TRAY" : "EXIT");
@@ -587,27 +655,20 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
                 logger.info("Close action saved: " + (shouldMinimize ? "MINIMIZE_TO_TRAY" : "EXIT"));
             }
 
-            // Execute action
             if (shouldMinimize) {
                 logger.info("Minimizing to tray");
                 hideWindow();
                 if (trayIcon != null) {
                     trayIcon.updateShowHideMenuItem();
-                    // Tray messages use English only (no i18n for system tray per design)
-                trayIcon.displayMessage("UsbThief", "Minimized to tray", TrayIcon.MessageType.INFO);
+                    trayIcon.displayMessage("UsbThief", "Minimized to tray", TrayIcon.MessageType.INFO);
                 }
             } else {
                 logger.info("Exiting application");
                 performShutdown();
             }
         }
-        // If canceled, do nothing (window stays open)
     }
 
-    /**
-     * Toggle window visibility programmatically.
-     * Can be called from external triggers or menu actions.
-     */
     public void toggleWindowVisibility() {
         windowVisible = !windowVisible;
 
@@ -622,20 +683,16 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         });
     }
 
-    /**
-     * Show the window if currently hidden.
-     */
     public void showWindow() {
         windowVisible = true;
         SwingUtilities.invokeLater(() -> {
             setVisible(true);
             setState(JFrame.NORMAL);
+            toFront();
+            requestFocus();
         });
     }
 
-    /**
-     * Hide the window.
-     */
     public void hideWindow() {
         windowVisible = false;
         SwingUtilities.invokeLater(() -> {
@@ -644,9 +701,6 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         });
     }
 
-    /**
-     * Initialize system tray icon if supported.
-     */
     private void initializeSystemTray() {
         try {
             trayIcon = new SystemTrayIcon(this);
@@ -669,9 +723,6 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         }
     }
 
-    /**
-     * Get system tray icon instance.
-     */
     public SystemTrayIcon getTrayIcon() {
         return trayIcon;
     }
@@ -679,59 +730,11 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     public static void launch() {
         SwingUtilities.invokeLater(() -> {
             MainFrame frame = new MainFrame();
-            // Note: setVisible is already called in applyWindowSettings() during construction
-            // We don't call setVisible(true) here to respect the startHidden/alwaysHidden settings
             frame.updateStatusBar();
-            
-            // Pass window handle to DeviceManager for UsbHotplugMonitor
-            try {
-                long hwnd = getHWND(frame);
-                if (hwnd != 0) {
-                    DeviceManager.getInstance().setHwnd(hwnd);
-                }
-            } catch (Exception e) {
-                Logger.getLogger(MainFrame.class.getName()).warning("Failed to get window handle: " + e.getMessage());
-            }
-            
-            // Show welcome dialog on first run
+            frame.setVisible(true);
+
             WelcomeDialog.showIfFirstRun(frame);
         });
-    }
-    
-    /**
-     * Gets the native window handle (HWND) for a JFrame on Windows.
-     *
-     * @param frame the JFrame
-     * @return the HWND value, or 0 if not available
-     */
-    private static long getHWND(JFrame frame) {
-        try {
-            // Ensure the window is displayable
-            if (!frame.isDisplayable()) {
-                frame.addNotify();
-            }
-            
-            // Use JNA to get the window handle
-            com.sun.jna.platform.win32.User32 user32 = com.sun.jna.platform.win32.User32.INSTANCE;
-            
-            // Try to find window by title first
-            String title = frame.getTitle();
-            if (title != null && !title.isEmpty()) {
-                com.sun.jna.platform.win32.WinDef.HWND hwnd = user32.FindWindow(null, title);
-                if (hwnd != null) {
-                    return com.sun.jna.Pointer.nativeValue(hwnd.getPointer());
-                }
-            }
-            
-            // Fallback: use active window
-            com.sun.jna.platform.win32.WinDef.HWND hwnd = user32.GetActiveWindow();
-            if (hwnd != null) {
-                return com.sun.jna.Pointer.nativeValue(hwnd.getPointer());
-            }
-        } catch (Exception e) {
-            Logger.getLogger(MainFrame.class.getName()).fine("Could not get HWND: " + e.getMessage());
-        }
-        return 0;
     }
 
     @Override
@@ -744,14 +747,12 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
             updateStatusBar();
 
             logger.info("Refreshing child panels...");
-            deviceListPanel.refreshLanguage();
-            eventPanel.refreshLanguage();
-            fileHistoryPanel.refreshLanguage();
+            volumeListPanel.refreshLanguage();
             statisticsPanel.refreshLanguage();
 
-            rightTabbedPane.setTitleAt(0, i18n.getMessage("tab.events"));
-            rightTabbedPane.setTitleAt(1, i18n.getMessage("tab.fileHistory"));
-            rightTabbedPane.setTitleAt(2, i18n.getMessage("tab.statistics"));
+            if (deviceInfoDialog != null) {
+                deviceInfoDialog.refreshLanguage();
+            }
 
             if (trayIcon != null) {
                 trayIcon.refreshLanguage();

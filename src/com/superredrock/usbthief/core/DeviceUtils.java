@@ -410,6 +410,71 @@ public class DeviceUtils {
     }
 
     /**
+     * Gets hardware serial number from a volume using WMI.
+     * 
+     * <p>This method retrieves the hardware serial number of the physical device
+     * that contains the specified volume. It uses WMI to correlate volumes
+     * with their parent disk devices.
+     *
+     * @param driveLetter the drive letter (e.g., "E:" or "E:\\")
+     * @return hardware serial number, or empty string if retrieval fails
+     */
+    public static String getHardwareSerialFromVolume(String driveLetter) {
+        if (driveLetter == null || driveLetter.isEmpty()) {
+            return "";
+        }
+
+        // Normalize to "E:" format
+        String normalized = driveLetter.trim();
+        if (normalized.length() >= 2 && normalized.charAt(1) == ':') {
+            normalized = normalized.substring(0, 2);
+        } else if (normalized.length() == 1 && Character.isLetter(normalized.charAt(0))) {
+            normalized = normalized.toUpperCase() + ":";
+        } else {
+            return "";
+        }
+
+        try {
+            // Use PowerShell to query WMI for hardware serial
+            // This query gets the disk serial by correlating volume with disk partition
+            String psCommand = String.format(
+                "Get-WmiObject Win32_Volume | Where-Object {{ $_.DeviceID -like '%s' }} | " +
+                "Select-Object -First 1 -ExpandProperty SerialNumber | " +
+                "ForEach-Object { $_.PSBase.GetRelated('Win32_DiskDrive') | Where-Object {{ $_.SerialNumber -ne $null } | Select-Object SerialNumber",
+                normalized
+            );
+
+            ProcessBuilder pb = new ProcessBuilder("powershell", "-NoProfile", "-Command", psCommand);
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String line;
+            String serial = null;
+            while ((line = reader.readLine()) != null) {
+                if (!line.trim().isEmpty() && serial == null) {
+                    // First non-empty line should be the serial number
+                    serial = line.trim();
+                    break;
+                }
+            }
+
+            int exitCode = process.waitFor();
+            if (exitCode == 0 && serial != null && !serial.isEmpty()) {
+                logger.fine("Got hardware serial via WMI for drive " + normalized + ": " + serial);
+                return serial;
+            }
+
+            logger.fine("WMI query returned no results for drive: " + normalized);
+            return "";
+
+        } catch (Exception e) {
+            logger.warning("Failed to get hardware serial via WMI for drive " + normalized + ": " + e.getMessage());
+            return "";
+        }
+    }
+
+    /**
      * Immutable record containing device identity information.
      *
      * @param vid    Vendor ID (4-digit hex for USB devices, null for USBSTOR)

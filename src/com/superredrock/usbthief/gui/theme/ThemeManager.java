@@ -2,7 +2,7 @@ package com.superredrock.usbthief.gui.theme;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
-import com.superredrock.usbthief.core.Device;
+import com.superredrock.usbthief.core.Volume;
 
 import javax.swing.*;
 import java.awt.*;
@@ -57,6 +57,15 @@ public class ThemeManager {
     public static final Color TOAST_WARNING_BORDER = new Color(0xF59E0B);
     public static final Color TOAST_INFO_BG = new Color(0xEEF2FF);
     public static final Color TOAST_INFO_BORDER = new Color(0x3B82F6);
+
+    // Chart colors
+    public static final Color CHART_CURVE = new Color(0x89B4FA);               // Blue curve
+    public static final Color CHART_GRID_LIGHT = new Color(0xE2E8F0);          // Grid lines (light theme)
+    public static final Color CHART_GRID_DARK = new Color(0x313244);           // Grid lines (dark theme)
+    public static final Color CHART_BG_LIGHT = new Color(0xF8FAFC);            // Chart background (light theme)
+    public static final Color CHART_BG_DARK = new Color(0x11111B);             // Chart background (dark theme)
+    public static final Color CHART_TEXT_LIGHT = new Color(0x94A3B8);          // Chart text (light theme)
+    public static final Color CHART_TEXT_DARK = new Color(0x585B70);           // Chart text (dark theme)
 
     private final Preferences prefs = Preferences.userNodeForPackage(ThemeManager.class);
     private final List<ThemeChangeListener> listeners = new CopyOnWriteArrayList<>();
@@ -166,7 +175,7 @@ public class ThemeManager {
      * @param state the device state
      * @return the corresponding color
      */
-    public static Color getStateColor(Device.DeviceState state) {
+    public static Color getStateColor(Volume.VolumeState state) {
         return switch (state) {
             case IDLE -> DEVICE_ONLINE;
             case OFFLINE -> DEVICE_OFFLINE;

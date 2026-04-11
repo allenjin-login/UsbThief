@@ -212,9 +212,10 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
             return;
         }
         
-        String serial = DeviceUtils.getHardDiskSN(rootPath.toString());
+        // Get hardware serial number (not volume serial)
+        String serial = DeviceUtils.getHardwareSerialFromVolume(rootPath.toString());
         if (serial.isEmpty()) {
-            logger.warning("Could not get serial number for volume: " + rootPath);
+            logger.warning("Could not get hardware serial number for volume: " + rootPath);
             return;
         }
         
