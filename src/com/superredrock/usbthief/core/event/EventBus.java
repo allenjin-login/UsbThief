@@ -17,15 +17,15 @@ import java.util.logging.Logger;
  * <p>Usage example:
  * <pre>
  * // Create listener
- * EventListener&lt;DeviceInsertedEvent&gt; listener = event -> {
- *     logger.info("Device inserted: " + event.device());
+ * EventListener&lt;VolumeInsertedEvent&gt; listener = event -> {
+ *     logger.info("Volume inserted: " + event.volume());
  * };
  *
  * // Register listener
- * EventBus.getInstance().register(DeviceInsertedEvent.class, listener);
+ * EventBus.getInstance().register(VolumeInsertedEvent.class, listener);
  *
  * // Dispatch event (from anywhere in codebase)
- * EventBus.getInstance().dispatch(new DeviceInsertedEvent(device));
+ * EventBus.getInstance().dispatch(new VolumeInsertedEvent(volume));
  * </pre>
  */
 public final class EventBus {

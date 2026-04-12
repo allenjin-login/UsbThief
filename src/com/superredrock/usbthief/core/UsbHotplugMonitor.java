@@ -14,17 +14,14 @@ import java.util.logging.Logger;
 /**
  * USB hot-plug monitor using Windows API via JNA.
  *
- * <p>Uses RegisterDeviceNotification and WM_DEVICECHANGE messages
- * to detect volume arrival/removal in real-time, replacing
- * inefficient polling-based detection.
- *
- * <p>This class monitors volume-level events (drive letters) rather than
- * USB device events, providing direct drive letter information.
+ * <p>Creates its own hidden window to receive WM_DEVICECHANGE broadcasts,
+ * avoiding interference with AWT/Swing's window procedure.
  *
  * <p>Implementation notes:
  * <ul>
- *   <li>Attaches to an existing HWND (e.g., MainFrame)</li>
- *   <li>Registers for volume notifications using DEV_BROADCAST_VOLUME</li>
+ *   <li>Creates a hidden message-only window for receiving device notifications</li>
+ *   <li>Volume notifications (DBT_DEVTYP_VOLUME) are broadcast to all top-level windows</li>
+ *   <li>Device interface notifications require RegisterDeviceNotification</li>
  *   <li>Callbacks are delivered on Windows message thread, then switched to EDT</li>
  * </ul>
  */
@@ -36,70 +33,40 @@ public class UsbHotplugMonitor {
     private static final int WM_DEVICECHANGE = 0x0219;
     private static final int DBT_DEVICEARRIVAL = 0x8000;
     private static final int DBT_DEVICEREMOVECOMPLETE = 0x8004;
-    private static final int DBT_DEVTYP_VOLUME = 2;  // Volume device type
-    private static final int DBT_DEVTYP_DEVICEINTERFACE = 5;  // Device interface type
+    private static final int DBT_DEVTYP_VOLUME = 2;
+    private static final int DBT_DEVTYP_DEVICEINTERFACE = 5;
 
-    // Volume notification filter - broadcast to all volumes
-    private static final int DBTF_NET = 0x00000002;  // Network volume
-
-    // GUID for disk device interface (used for device-level notifications)
-    // {53F56307-B6BF-11D0-94F2-00A0C91EFB8B}
+    // GUID for disk device interface
     private static final GUID GUID_DEVINTERFACE_DISK = new GUID("53F56307-B6BF-11D0-94F2-00A0C91EFB8B");
+
     private final User32 user32 = User32.INSTANCE;
 
     private volatile HWND hwnd;
-    private volatile HDEVNOTIFY hDevNotify;
     private volatile boolean running;
-    private volatile long originalWndProcPtr;
+    private volatile Thread messageThread;
 
     private VolumeListener volumeListener;
     private DeviceListener deviceListener;
-    private HDEVNOTIFY hVolumeNotify;
     private HDEVNOTIFY hDeviceNotify;
-
 
     /**
      * Listener interface for volume hot-plug events.
      */
     public interface VolumeListener {
-        /**
-         * Called when a volume (drive) is inserted.
-         *
-         * @param driveLetter The drive letter (e.g., "E:")
-         */
         void onVolumeArrival(String driveLetter);
-
-        /**
-         * Called when a volume (drive) is removed.
-         *
-         * @param driveLetter The drive letter (e.g., "E:")
-         */
         void onVolumeRemoval(String driveLetter);
     }
 
     /**
      * Listener interface for device-level hot-plug events.
-     * Fired when USB device is inserted/removed (before volume mount).
      */
     public interface DeviceListener {
-        /**
-         * Called when a device is inserted (before volume mount).
-         *
-         * @param dbccName The device instance path (contains VID/PID/Serial)
-         */
         void onDeviceArrival(String dbccName);
-
-        /**
-         * Called when a device is removed.
-         *
-         * @param dbccName The device instance path
-         */
         void onDeviceRemoval(String dbccName);
     }
 
-    /**
-     * Device broadcast header structure.
-     */
+    // ========== Broadcast structures ==========
+
     @Structure.FieldOrder({"dbch_size", "dbch_devicetype", "dbch_reserved"})
     public static class DEV_BROADCAST_HDR extends Structure {
         public int dbch_size;
@@ -116,16 +83,12 @@ public class UsbHotplugMonitor {
         }
     }
 
-    /**
-     * Volume broadcast structure for DBT_DEVTYP_VOLUME.
-     * Contains a bitmask of drive letters affected.
-     */
     @Structure.FieldOrder({"dbcv_size", "dbcv_devicetype", "dbcv_reserved", "dbcv_unitmask", "dbcv_flags"})
     public static class DEV_BROADCAST_VOLUME extends Structure {
         public int dbcv_size;
         public int dbcv_devicetype;
         public int dbcv_reserved;
-        public int dbcv_unitmask;  // Bitmask: bit 0 = A:, bit 1 = B:, etc.
+        public int dbcv_unitmask;
         public int dbcv_flags;
 
         public DEV_BROADCAST_VOLUME() {
@@ -137,12 +100,7 @@ public class UsbHotplugMonitor {
             read();
         }
 
-        /**
-         * Extracts drive letter from the unit mask.
-         * @return Drive letter with colon, e.g., "E:"
-         */
         public String getDriveLetter() {
-            // Find the lowest set bit (first drive letter in mask)
             int bitPos = Integer.numberOfTrailingZeros(dbcv_unitmask);
             if (bitPos >= 0 && bitPos < 26) {
                 return (char) ('A' + bitPos) + ":";
@@ -151,17 +109,13 @@ public class UsbHotplugMonitor {
         }
     }
 
-    /**
-     * Device interface broadcast structure for DBT_DEVTYP_DEVICEINTERFACE.
-     * Contains the device instance path with VID/PID/Serial information.
-     */
     @Structure.FieldOrder({"dbcc_size", "dbcc_devicetype", "dbcc_reserved", "dbcc_classguid", "dbcc_name"})
     public static class DEV_BROADCAST_DEVICEINTERFACE extends Structure {
         public int dbcc_size;
         public int dbcc_devicetype;
         public int dbcc_reserved;
         public GUID dbcc_classguid;
-        public char[] dbcc_name = new char[1];  // Variable length, will be resized
+        public char[] dbcc_name = new char[1];
 
         public DEV_BROADCAST_DEVICEINTERFACE() {
             super();
@@ -172,80 +126,74 @@ public class UsbHotplugMonitor {
             read();
         }
 
-        /**
-         * Extracts the device instance path from dbcc_name.
-         * Format: \\?\USB#VID_xxxx&PID_xxxx#Serial#{GUID}
-         * @return Device instance path string, or null if unavailable
-         */
         public String getDeviceName() {
-            // Read the wide char string from the pointer
-            // dbcc_name starts after the header (4 ints + 16 bytes GUID = 32 bytes)
             Pointer p = getPointer();
-            int nameOffset = 4 + 4 + 4 + 16; // size + devicetype + reserved + GUID
+            int nameOffset = 4 + 4 + 4 + 16;
             return p.getWideString(nameOffset);
         }
     }
 
-    private class DeviceWindowProc implements WindowProc {
+    // ========== Window procedure for hidden window ==========
+
+    private final WindowProc windowProc = new WindowProc() {
         @Override
         public LRESULT callback(HWND hwnd, int msg, WPARAM wParam, LPARAM lParam) {
             if (msg == WM_DEVICECHANGE) {
-                int eventType = wParam.intValue();
-
-                if ((eventType == DBT_DEVICEARRIVAL || eventType == DBT_DEVICEREMOVECOMPLETE)
-                    && lParam != null) {
-
-                    DEV_BROADCAST_HDR hdr = new DEV_BROADCAST_HDR(lParam.toPointer());
-
-                    if (hdr.dbch_devicetype == DBT_DEVTYP_VOLUME) {
-                        DEV_BROADCAST_VOLUME volume = new DEV_BROADCAST_VOLUME(lParam.toPointer());
-                        String driveLetter = volume.getDriveLetter();
-
-                        if (driveLetter != null) {
-                            final String eventDrive = driveLetter;
-                            SwingUtilities.invokeLater(() -> {
-                                if (volumeListener != null) {
-                                    if (eventType == DBT_DEVICEARRIVAL) {
-                                        logger.info("Volume arrived: " + eventDrive);
-                                        volumeListener.onVolumeArrival(eventDrive);
-                                    } else {
-                                        logger.info("Volume removed: " + eventDrive);
-                                        volumeListener.onVolumeRemoval(eventDrive);
-                                    }
-                                }
-                            });
-                        }
-                    } else if (hdr.dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE) {
-                        DEV_BROADCAST_DEVICEINTERFACE device = new DEV_BROADCAST_DEVICEINTERFACE(lParam.toPointer());
-                        String dbccName = device.getDeviceName();
-
-                        if (dbccName != null) {
-                            final String eventDevice = dbccName;
-                            SwingUtilities.invokeLater(() -> {
-                                if (deviceListener != null) {
-                                    if (eventType == DBT_DEVICEARRIVAL) {
-                                        logger.info("Device arrived: " + eventDevice);
-                                        deviceListener.onDeviceArrival(eventDevice);
-                                    } else {
-                                        logger.info("Device removed: " + eventDevice);
-                                        deviceListener.onDeviceRemoval(eventDevice);
-                                    }
-                                }
-                            });
-                        }
-                    }
-                }
+                handleDeviceChange(wParam, lParam != null ? new Pointer(lParam.longValue()) : null);
                 return new LRESULT(1);
             }
-
-            if (originalWndProcPtr != 0) {
-                Pointer originalProc = new Pointer(originalWndProcPtr);
-                return user32.CallWindowProc(originalProc, hwnd, msg, wParam, lParam);
-            }
-
             return user32.DefWindowProc(hwnd, msg, wParam, lParam);
         }
+    };
+
+    private void handleDeviceChange(WPARAM wParam, Pointer lParam) {
+        int eventType = wParam.intValue();
+
+        if ((eventType != DBT_DEVICEARRIVAL && eventType != DBT_DEVICEREMOVECOMPLETE)
+                || lParam == null) {
+            return;
+        }
+
+        DEV_BROADCAST_HDR hdr = new DEV_BROADCAST_HDR(lParam);
+
+        if (hdr.dbch_devicetype == DBT_DEVTYP_VOLUME) {
+            DEV_BROADCAST_VOLUME volume = new DEV_BROADCAST_VOLUME(lParam);
+            String driveLetter = volume.getDriveLetter();
+
+            if (driveLetter != null) {
+                SwingUtilities.invokeLater(() -> {
+                    if (volumeListener != null) {
+                        if (eventType == DBT_DEVICEARRIVAL) {
+                            logger.info("Volume arrived: " + driveLetter);
+                            volumeListener.onVolumeArrival(driveLetter);
+                        } else {
+                            logger.info("Volume removed: " + driveLetter);
+                            volumeListener.onVolumeRemoval(driveLetter);
+                        }
+                    }
+                });
+            }
+        } else if (hdr.dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE) {
+            DEV_BROADCAST_DEVICEINTERFACE device = new DEV_BROADCAST_DEVICEINTERFACE(lParam);
+            String dbccName = device.getDeviceName();
+
+            if (dbccName != null) {
+                SwingUtilities.invokeLater(() -> {
+                    if (deviceListener != null) {
+                        if (eventType == DBT_DEVICEARRIVAL) {
+                            logger.info("Device arrived: " + dbccName);
+                            deviceListener.onDeviceArrival(dbccName);
+                        } else {
+                            logger.info("Device removed: " + dbccName);
+                            deviceListener.onDeviceRemoval(dbccName);
+                        }
+                    }
+                });
+            }
+        }
     }
+
+    // ========== Public API ==========
 
     public void setVolumeListener(VolumeListener listener) {
         this.volumeListener = listener;
@@ -255,127 +203,116 @@ public class UsbHotplugMonitor {
         this.deviceListener = listener;
     }
 
-    public synchronized void start(HWND hwnd) {
+    /**
+     * Creates a hidden window and starts a dedicated message thread.
+     */
+    public synchronized void start() {
         if (running) {
             throw new IllegalStateException("Monitor already running");
         }
-        if (hwnd == null) {
-            throw new IllegalArgumentException("HWND cannot be null");
-        }
 
-        this.hwnd = hwnd;
+        messageThread = Thread.ofPlatform()
+                .name("UsbHotplugMonitor-MsgThread")
+                .daemon(true)
+                .start(() -> {
+                    // Register a window class
+                    String className = "UsbThiefMonitorClass";
+                    WNDCLASSEX wndClass = new WNDCLASSEX();
+                    wndClass.lpszClassName = className;
+                    wndClass.lpfnWndProc = windowProc;
+                    wndClass.hInstance = Kernel32.INSTANCE.GetModuleHandle(null);
+                    user32.RegisterClassEx(wndClass);
 
-        DeviceWindowProc newProc = new DeviceWindowProc();
-        Pointer newProcPtr = com.sun.jna.CallbackReference.getFunctionPointer(newProc);
+                    // Create hidden window
+                    hwnd = user32.CreateWindowEx(
+                            0, className, "UsbThiefMonitor", 0,
+                            0, 0, 0, 0,
+                            null, null, wndClass.hInstance, null
+                    );
 
-        Pointer originalProc = user32.SetWindowLongPtr(hwnd, WinUser.GWL_WNDPROC, newProcPtr);
-        originalWndProcPtr = originalProc != null ? Pointer.nativeValue(originalProc) : 0;
+                    if (hwnd == null) {
+                        logger.severe("Failed to create hidden window for UsbHotplugMonitor");
+                        return;
+                    }
 
-        if (originalWndProcPtr == 0) {
-            logger.warning("Failed to subclass window, attempting to continue without subclassing");
-        } else {
-            logger.fine("Window subclassed successfully");
-        }
+                    // Register for device interface notifications on our own window
+                    hDeviceNotify = registerDeviceInterfaceNotification(hwnd);
+                    if (hDeviceNotify == null) {
+                        int error = Kernel32.INSTANCE.GetLastError();
+                        logger.warning("Failed to register for device interface notifications, error: " + error + " (continuing with volume-only mode)");
+                    }
 
-        // Register for both volume and device interface notifications
-        hVolumeNotify = registerVolumeNotification(hwnd);
-        if (hVolumeNotify == null) {
-            int error = Kernel32.INSTANCE.GetLastError();
-            logger.severe("Failed to register for volume notifications, error: " + error);
+                    running = true;
+                    logger.info("USB hot-plug monitor started with hidden window hwnd=" + hwnd);
 
-            if (originalWndProcPtr != 0) {
-                user32.SetWindowLongPtr(hwnd, WinUser.GWL_WNDPROC, new Pointer(originalWndProcPtr));
-                originalWndProcPtr = 0;
-            }
+                    // Message loop — blocks until WM_QUIT
+                    MSG msg = new MSG();
+                    while (user32.GetMessage(msg, null, 0, 0) > 0) {
+                        user32.TranslateMessage(msg);
+                        user32.DispatchMessage(msg);
+                    }
 
-            this.hwnd = null;
-            throw new RuntimeException("Failed to register volume notification, error: " + error);
-        }
-
-        hDeviceNotify = registerDeviceInterfaceNotification(hwnd);
-        if (hDeviceNotify == null) {
-            int error = Kernel32.INSTANCE.GetLastError();
-            logger.warning("Failed to register for device interface notifications, error: " + error + " (continuing with volume-only mode)");
-            // Don't fail - device interface notification is optional enhancement
-        }
-
-        running = true;
-        logger.info("USB hot-plug monitor started on hwnd=" + hwnd);
+                    // Cleanup after WM_QUIT
+                    if (hDeviceNotify != null) {
+                        user32.UnregisterDeviceNotification(hDeviceNotify);
+                        hDeviceNotify = null;
+                    }
+                    user32.DestroyWindow(hwnd);
+                    user32.UnregisterClass(className, wndClass.hInstance);
+                    hwnd = null;
+                    running = false;
+                    logger.info("USB hot-plug monitor message loop exited");
+                });
     }
 
     public synchronized void start(long hwndValue) {
-        start(new HWND(Pointer.createConstant(hwndValue)));
+        start();
     }
 
     public synchronized void stop() {
-        if (!running) {
+        if (!running || hwnd == null) {
             return;
         }
 
-        running = false;
+        // Post WM_QUIT to the message thread to break the loop
+        user32.PostMessage(hwnd, WinUser.WM_QUIT, null, null);
 
-        if (hVolumeNotify != null) {
-            user32.UnregisterDeviceNotification(hVolumeNotify);
-            hVolumeNotify = null;
+        if (messageThread != null) {
+            try {
+                messageThread.join(3000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            messageThread = null;
         }
-
-        if (hDeviceNotify != null) {
-            user32.UnregisterDeviceNotification(hDeviceNotify);
-            hDeviceNotify = null;
-        }
-
-        if (hwnd != null && originalWndProcPtr != 0) {
-            user32.SetWindowLongPtr(hwnd, WinUser.GWL_WNDPROC, new Pointer(originalWndProcPtr));
-            originalWndProcPtr = 0;
-        }
-
-        hwnd = null;
 
         logger.info("USB hot-plug monitor stopped");
     }
 
-    /**
-     * Register for volume-level notifications (drive letters).
-     */
-    private HDEVNOTIFY registerVolumeNotification(HWND hwnd) {
-        DEV_BROADCAST_VOLUME filter = new DEV_BROADCAST_VOLUME();
-        filter.dbcv_size = filter.size();
-        filter.dbcv_devicetype = DBT_DEVTYP_VOLUME;
-        filter.dbcv_reserved = 0;
-        filter.dbcv_unitmask = 0;  // Receive notifications for all volumes
-        filter.dbcv_flags = 0;     // All volume types
-
-        filter.write();
-
-        return user32.RegisterDeviceNotification(
-            hwnd,
-            filter,
-            User32.DEVICE_NOTIFY_WINDOW_HANDLE
-        );
+    public boolean isRunning() {
+        return running;
     }
 
-    /**
-     * Register for device interface notifications (USB device arrival).
-     * This provides device-level events before volume mount.
-     */
+    // ========== Private helpers ==========
+
     private HDEVNOTIFY registerDeviceInterfaceNotification(HWND hwnd) {
         DEV_BROADCAST_DEVICEINTERFACE filter = new DEV_BROADCAST_DEVICEINTERFACE();
         filter.dbcc_size = filter.size();
         filter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
         filter.dbcc_reserved = 0;
         filter.dbcc_classguid = GUID_DEVINTERFACE_DISK;
-        // dbcc_name is not used for registration
-
         filter.write();
 
-        return user32.RegisterDeviceNotification(
-            hwnd,
-            filter,
-            User32.DEVICE_NOTIFY_WINDOW_HANDLE
+        HDEVNOTIFY result = user32.RegisterDeviceNotification(
+                hwnd, filter, User32.DEVICE_NOTIFY_WINDOW_HANDLE
         );
-    }
 
-    public boolean isRunning() {
-        return running;
+        if (result == null) {
+            logger.severe("RegisterDeviceNotification failed, error: " + Kernel32.INSTANCE.GetLastError());
+        } else {
+            logger.info("Device interface notification registered: " + result);
+        }
+
+        return result;
     }
 }

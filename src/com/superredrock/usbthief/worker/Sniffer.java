@@ -1,6 +1,6 @@
 package com.superredrock.usbthief.worker;
 
-import com.superredrock.usbthief.core.Device;
+import com.superredrock.usbthief.core.Volume;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.QueueManager;
@@ -27,22 +27,32 @@ public class Sniffer extends Thread implements Closeable {
 
     private final Path root;
     private final WatchService monitor;
-    private final Device device;
+    private final Volume volume;
 
     private final AtomicInteger changeCount = new AtomicInteger(0);
     private final ConcurrentHashMap<Path, WatchKey> watchKeys = new ConcurrentHashMap<>();
     private volatile boolean running = true;
-    
-    /**
-     * Dedicated ForkJoinPool for parallel file scanning.
-     * Allows interrupt via shutdownNow() during initial scan.
-     */
+
+    /** Callback invoked when sniffer finishes normally (monitoring ended) */
+    private final Runnable onComplete;
+    /** Callback invoked when sniffer encounters an error */
+    private final Runnable onError;
+
     private static final ForkJoinPool scanPool = ForkJoinPool.commonPool();
 
-    public Sniffer(Device device, FileStore rootStore) {
-        super(QueueManager.getDiskScanners(), "DiskScanner: " + rootStore.name());
-        this.device = device;
-        this.root = device.getRootPath();
+    /**
+     * Creates a Sniffer with lifecycle callbacks.
+     *
+     * @param volume      the volume to scan/monitor
+     * @param onComplete  called when sniffer finishes normally
+     * @param onError     called when sniffer encounters an error
+     */
+    public Sniffer(Volume volume, Runnable onComplete, Runnable onError) {
+        super(QueueManager.getDiskScanners(), "DiskScanner: " + volume.getDriveLetter());
+        this.volume = volume;
+        this.root = volume.getRootPath();
+        this.onComplete = onComplete != null ? onComplete : () -> {};
+        this.onError = onError != null ? onError : () -> {};
         WatchService ws;
         try {
             ws = FileSystems.getDefault().newWatchService();
@@ -62,7 +72,7 @@ public class Sniffer extends Thread implements Closeable {
 
         if (!ConfigManager.getInstance().get(ConfigSchema.WATCH_ENABLED)) {
             logger.info("File monitoring disabled, scanner finished");
-            SnifferLifecycleManager.getInstance().sleepDevice(device, SnifferLifecycleManager.RestartReason.NORMAL_COMPLETION);
+            onComplete.run();
             return;
         }
 
@@ -87,7 +97,7 @@ public class Sniffer extends Thread implements Closeable {
                                 .peek(path -> {
                             long fileSize = 0;
                             try {fileSize = Files.size(path);} catch (IOException _) {}
-                            EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, fileSize, device.getSerialNumber()));})
+                            EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, fileSize, volume.getSerialNumber()));})
                                 .forEach(path -> {
                             if (!running || Thread.currentThread().isInterrupted()) {
                                 throw new RuntimeException("Scan stopped");
@@ -122,7 +132,7 @@ public class Sniffer extends Thread implements Closeable {
 
 
     private void submitCopyTask(Path path) {
-        CopyTask task = new CopyTask(path, device.getSerialNumber());
+        CopyTask task = new CopyTask(path, volume.getSerialNumber());
         TaskScheduler.getInstance().submit(task);
     }
 
@@ -154,7 +164,7 @@ public class Sniffer extends Thread implements Closeable {
                             } catch (IOException e) {
                                 logger.fine("Could not get file size for " + path + ": " + e.getMessage());
                             }
-                            EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, fileSize, device.getSerialNumber()));
+                            EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, fileSize, volume.getSerialNumber()));
                             submitCopyTask(path);
                         });
                 } catch (IOException e) {
@@ -170,7 +180,7 @@ public class Sniffer extends Thread implements Closeable {
         Thread resetThread = getResetThread();
         resetThread.start();
 
-        SnifferLifecycleManager.RestartReason exitReason = SnifferLifecycleManager.RestartReason.NORMAL_COMPLETION;
+        boolean hadError = false;
 
         try {
             while (running && !Thread.currentThread().isInterrupted()) {
@@ -201,11 +211,15 @@ public class Sniffer extends Thread implements Closeable {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
             logger.severe("Error in monitoring loop: " + e.getMessage());
-            exitReason = SnifferLifecycleManager.RestartReason.ERROR;
+            hadError = true;
         } finally {
             running = false;
             closeWatchService();
-            SnifferLifecycleManager.getInstance().sleepDevice(device, exitReason);
+            if (hadError) {
+                onError.run();
+            } else {
+                onComplete.run();
+            }
         }
     }
 

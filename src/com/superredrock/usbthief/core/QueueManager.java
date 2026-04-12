@@ -3,6 +3,7 @@ package com.superredrock.usbthief.core;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.index.Index;
+import com.superredrock.usbthief.worker.SnifferLifecycleManager;
 import com.superredrock.usbthief.worker.TaskScheduler;
 
 import java.util.concurrent.*;
@@ -54,19 +55,23 @@ public class QueueManager {
         logger.info("Quitting application");
 
         try {
-            // 1. Stop index periodic save service
+            // 1. Stop sniffer lifecycle manager
+            SnifferLifecycleManager.getInstance().stopService();
+            logger.info("SnifferLifecycleManager stopped");
+
+            // 2. Stop index periodic save service
             index.stopService();
             logger.info("Index ticker stopped");
 
-            // 2. Save index
+            // 3. Save index
             index.save();
             logger.info("Index saved");
 
-            // 3. Interrupt all disk scanner threads
+            // 4. Interrupt all disk scanner threads
             diskScanners.interrupt();
             logger.info("DiskScanners interrupted");
 
-            // 4. Gracefully shutdown thread pool
+            // 5. Gracefully shutdown thread pool
             TaskScheduler.getInstance().close();
 
             logger.info("Thread pool shutdown completed");

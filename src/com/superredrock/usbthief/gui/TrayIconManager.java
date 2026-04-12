@@ -160,8 +160,8 @@ public class TrayIconManager {
             g2d.setFont(new Font(Font.SANS_SERIF, Font.BOLD, overlaySize - 2));
             FontMetrics fm = g2d.getFontMetrics();
             String symbol = switch (state) {
-                case SCANNING -> "\u2315"; // search
-                case COPYING -> "\u2193";  // download arrow
+                case SCANNING -> "⌕"; // search
+                case COPYING -> "↓";  // download arrow
                 case ERROR -> "!";
                 case IDLE -> "";
             };

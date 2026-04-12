@@ -1,30 +1,26 @@
 package com.superredrock.usbthief.core;
 
-import com.sun.jna.Pointer;
-import com.sun.jna.platform.win32.WinDef.HWND;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.event.EventBus;
-import com.superredrock.usbthief.core.event.device.DeviceInsertedEvent;
-import com.superredrock.usbthief.core.event.device.DeviceRemovedEvent;
-import com.superredrock.usbthief.core.event.device.DeviceStateChangedEvent;
+import com.superredrock.usbthief.core.event.device.DeviceArrivalEvent;
+import com.superredrock.usbthief.core.event.device.DeviceRemovalEvent;
 import com.superredrock.usbthief.core.event.device.NewDeviceJoinedEvent;
+import com.superredrock.usbthief.core.event.device.VolumeInsertedEvent;
+import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
+import com.superredrock.usbthief.core.event.device.VolumeStateChangedEvent;
 
-
-import java.nio.file.FileStore;
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Predicate;
 import java.util.logging.Logger;
 
 /**
- * Device management service.
+ * USB device and volume management service.
  * <p>
- * Manages USB device detection, state tracking, and lifecycle using UsbHotplugMonitor
- * for real-time device arrival/removal detection.
+ * Tracks Device (hardware info) and Volume (drive/operational) independently.
+ * Device = pure info board (VID/PID/serial), Volume = operational entity (state/copy).
+ * No parent-child relationship between them.
  */
 public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeListener, UsbHotplugMonitor.DeviceListener {
 
@@ -33,9 +29,10 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
     private static volatile DeviceManager INSTANCE;
 
     private final UsbHotplugMonitor monitor = new UsbHotplugMonitor();
-    private final ConcurrentHashMap<String, Device> devicesMap = new ConcurrentHashMap<>();
-    private HWND hwnd;
 
+    // Independent maps — no cross-referencing
+    private final ConcurrentHashMap<String, Device> devicesMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Volume> volumesMap = new ConcurrentHashMap<>();
 
     private DeviceManager() {
         monitor.setVolumeListener(this);
@@ -53,31 +50,12 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
         return INSTANCE;
     }
 
-    /**
-     * Sets the window handle for UsbHotplugMonitor and starts monitoring.
-     * Must be called after the main window is created.
-     *
-     * @param hwnd the window handle
-     */
-    public void setHwnd(HWND hwnd) {
-        this.hwnd = hwnd;
-    }
-
-    /**
-     * Sets the window handle using long value.
-     *
-     * @param hwndValue the window handle value
-     */
-    public void setHwnd(long hwndValue) {
-        setHwnd(new HWND(Pointer.createConstant(hwndValue)));
-    }
-
     @Override
     public void start() {
         super.start();
-        if (hwnd != null && !monitor.isRunning()) {
+        if (!monitor.isRunning()) {
             try {
-                monitor.start(hwnd);
+                monitor.start();
                 logger.info("UsbHotplugMonitor started successfully");
             } catch (Exception e) {
                 logger.severe("Failed to start UsbHotplugMonitor: " + e.getMessage());
@@ -87,105 +65,79 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
 
     @Override
     protected void tick() {
-        for (Device device : devicesMap.values()) {
-            Device.DeviceState oldState = device.getState();
-            device.updateState();
-            if (device.isChangeAndReset()) {
-                logger.fine("Device " + device.getSerialNumber() + " state changed: " + oldState + " -> " + device.getState());
-                EventBus.getInstance().dispatch(new DeviceStateChangedEvent(device, oldState, device.getState()));
+        volumesMap.forEach((_, volume) -> {
+            Volume.VolumeState oldState = volume.getState();
+            volume.updateState();
+            if (volume.isChangeAndReset()) {
+                logger.fine("Volume " + volume.getSerialNumber() + " state changed: " + oldState + " -> " + volume.getState());
+                EventBus.getInstance().dispatch(new VolumeStateChangedEvent(volume, oldState, volume.getState()));
             }
+        });
+    }
+
+    // ========== Device queries ==========
+
+    public Collection<Device> getAllDevices() {
+        return Collections.unmodifiableCollection(devicesMap.values());
+    }
+
+    public Device getDeviceBySerial(String serial) {
+        return devicesMap.get(serial);
+    }
+
+    // ========== Volume queries ==========
+
+    public Collection<Volume> getAllVolumes() {
+        return Collections.unmodifiableCollection(volumesMap.values());
+    }
+
+    public Volume getVolume(Path path) {
+        return volumesMap.search(1, (_, volume) ->
+                path.equals(volume.getRootPath()) ? volume : null);
+    }
+
+    public Volume getVolumeBySerial(String serial) {
+        return volumesMap.get(serial);
+    }
+
+    // ========== Volume operations ==========
+
+    public void enable(Volume volume) {
+        if (volume != null) {
+            volume.enable();
+            logger.info("Volume enabled: " + volume.getSerialNumber());
         }
     }
 
-    /**
-     * Finds a device matching the given predicate.
-     *
-     * @param predicate the predicate to match
-     * @return the matching device, or null if not found
-     */
-    private Device findDevice(Predicate<Device> predicate) {
-        for (Device device : devicesMap.values()) {
-            if (predicate.test(device)) {
-                return device;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Gets a device by its root path.
-     *
-     * @param path the root path
-     * @return the device, or null if not found
-     */
-    public Device getDevice(Path path) {
-        return findDevice(device -> path.equals(device.getRootPath()));
-    }
-
-    /**
-     * Gets a device by its FileStore.
-     *
-     * @param store the FileStore
-     * @return the device, or null if not found
-     */
-    public Device getDevice(FileStore store) {
-        return findDevice(device -> store.equals(device.getFileStore()));
-    }
-
-    /**
-     * Gets a device by its serial number.
-     *
-     * @param serialNumber the serial number
-     * @return the device, or null if not found
-     */
-    public Device getDeviceBySerial(String serialNumber) {
-        return devicesMap.get(serialNumber);
-    }
-
-    /**
-     * Gets all devices.
-     *
-     * @return a set of all devices
-     */
-    public Set<Device> getAllDevices() {
-        return Collections.unmodifiableSet((Set<? extends Device>) devicesMap.values());
-    }
-
-    /**
-     * Enables a device for scanning.
-     *
-     * @param device the device to enable
-     */
-    public void enable(Device device) {
-        if (device != null) {
-            device.enable();
-            logger.info("Device enabled: " + device.getSerialNumber());
+    public void disable(Volume volume) {
+        if (volume != null) {
+            volume.disable();
+            logger.info("Volume disabled: " + volume.getSerialNumber());
         }
     }
 
-    /**
-     * Disables a device from scanning.
-     *
-     * @param device the device to disable
-     */
-    public void disable(Device device) {
-        if (device != null) {
-            device.disable();
-            logger.info("Device disabled: " + device.getSerialNumber());
+    public void remove(Volume volume) {
+        if (volume != null) {
+            volumesMap.remove(volume.getSerialNumber());
+            logger.info("Volume removed: " + volume.getSerialNumber());
         }
     }
 
-    /**
-     * Removes a device from management.
-     *
-     * @param device the device to remove
-     */
-    public void remove(Device device) {
-        if (device != null) {
-            devicesMap.remove(device.getSerialNumber());
-            logger.info("Device removed: " + device.getSerialNumber());
+    public void pauseScanner(Volume volume) {
+        if (volume != null) {
+            volume.disable();
+            logger.fine("Paused volume: " + volume.getSerialNumber());
         }
     }
+
+    public void restartScanner(Volume volume) {
+        if (volume != null) {
+            volume.enable();
+            logger.fine("Resumed volume: " + volume.getSerialNumber());
+        }
+    }
+
+    // ========== Service lifecycle ==========
 
     @Override
     protected long getTickIntervalMs() {
@@ -199,143 +151,95 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
 
     @Override
     public String getDescription() {
-        return "USB device detection and state management service";
+        return "USB device and volume management service";
     }
+
+    // ========== DeviceListener — hardware device events ==========
+
+    @Override
+    public void onDeviceArrival(String dbccName) {
+        logger.info("Device interface arrived: " + dbccName);
+
+        DeviceUtils.DeviceIdentity identity = DeviceUtils.parseDeviceInstancePath(dbccName);
+        if (identity == null) {
+            logger.warning("Could not parse device instance path: " + dbccName);
+            return;
+        }
+
+        String serial = identity.serial();
+        if (serial == null || serial.isEmpty()) {
+            logger.warning("No serial number in device path: " + dbccName);
+            return;
+        }
+
+        if (ConfigManager.getInstance().isDeviceBlacklistedBySerial(serial)) {
+            logger.fine("Ignoring blacklisted device: " + serial);
+            return;
+        }
+        // Register Device (pure info board) — independent of Volume
+        Device device = devicesMap.computeIfAbsent(serial, _ -> {
+            Device d = new Device(serial, identity.vid(), identity.pid(), dbccName);
+            logger.info("New device registered: " + serial + " (VID:" + identity.vid() + ", PID:" + identity.pid() + ")");
+            EventBus.getInstance().dispatch(new NewDeviceJoinedEvent(d));
+            return d;
+        });
+        EventBus.getInstance().dispatch(new DeviceArrivalEvent(device));
+    }
+
+    @Override
+    public void onDeviceRemoval(String dbccName) {
+        logger.info("Device interface removed: " + dbccName);
+
+        DeviceUtils.DeviceIdentity identity = DeviceUtils.parseDeviceInstancePath(dbccName);
+        if (identity == null) {
+            logger.warning("Could not parse device instance path: " + dbccName);
+            return;
+        }
+
+        String serial = identity.serial();
+        if (serial == null || serial.isEmpty()) {
+            return;
+        }
+
+        Device device = devicesMap.get(serial);
+        if (device != null) {
+            EventBus.getInstance().dispatch(new DeviceRemovalEvent(device));
+            // Keep device info (it may reconnect later)
+        }
+    }
+
+    // ========== VolumeListener — drive letter events ==========
 
     @Override
     public void onVolumeArrival(String driveLetter) {
         logger.info("Volume arrived: " + driveLetter);
         Path rootPath = Path.of(driveLetter + "\\\\");
-        
-        if (!Files.isDirectory(rootPath)) {
-            logger.warning("Volume path is not a directory: " + rootPath);
-            return;
-        }
-        
-        // Get hardware serial number (not volume serial)
-        String serial = DeviceUtils.getHardwareSerialFromVolume(rootPath.toString());
-        if (serial.isEmpty()) {
-            logger.warning("Could not get hardware serial number for volume: " + rootPath);
-            return;
-        }
-        
-        // Check blacklist
+        String serial;
+        serial = DeviceUtils.getVolumeSN(driveLetter);
         if (ConfigManager.getInstance().isDeviceBlacklistedBySerial(serial)) {
-            logger.fine("Ignoring blacklisted device: " + serial);
+            logger.fine("Ignoring blacklisted volume: " + serial);
             return;
+        }
+        Volume newVolume = new Volume(rootPath, serial);
+        newVolume.updateState();
+
+        if (volumesMap.putIfAbsent(serial, newVolume) == null) {
+            logger.info("New volume registered: " + serial + " at " + rootPath);
+            EventBus.getInstance().dispatch(new VolumeInsertedEvent(newVolume));
         }
 
-        // Check if device already exists
-        Device existing = devicesMap.get(serial);
-        if (existing != null) {
-            // Device exists - add this volume to it
-            Volume volume = new Volume(rootPath);
-            existing.addVolume(volume);
-            existing.updateState();
-            logger.info("Device volume added: " + serial + " at " + rootPath);
-        }
     }
 
     @Override
     public void onVolumeRemoval(String driveLetter) {
         logger.info("Volume removed: " + driveLetter);
 
-        // Find device containing this volume and remove it
-        for (Device device : devicesMap.values()) {
-            Volume volume = device.getVolume(driveLetter);
-            if (volume != null) {
-                device.removeVolume(driveLetter);
-                logger.info("Volume removed from device: " + driveLetter + " (" + device.getSerialNumber() + ")");
-                
-                // If device has no more volumes, set to OFFLINE
-                if (!device.hasVolumes()) {
-                    device.setState(Device.DeviceState.OFFLINE);
-                }
-            }
-        }
-    }
-
-    @Override
-    public void onDeviceArrival(String dbccName) {
-        logger.info("Device interface arrived: " + dbccName);
-        
-        // Parse device instance path to extract serial number
-        DeviceUtils.DeviceIdentity identity = DeviceUtils.parseDeviceInstancePath(dbccName);
-        if (identity == null) {
-            logger.warning("Could not parse device instance path: " + dbccName);
-            return;
-        }
-        
-        String serial = identity.serial();
-        if (serial == null || serial.isEmpty()) {
-            logger.warning("No serial number in device path: " + dbccName);
-            return;
-        }
-        
-        // Check blacklist
-        if (ConfigManager.getInstance().isDeviceBlacklistedBySerial(serial)) {
-            logger.fine("Ignoring blacklisted device: " + serial);
-            return;
-        }
-        
-        // Create new empty device (no volumes yet - will be added when volume mounts)
-        Device newDevice = new Device(serial);
-        newDevice.setState(Device.DeviceState.OFFLINE);
-        
-        devicesMap.putIfAbsent(serial,newDevice);
-        logger.info("New device interface detected: " + serial + " (VID:" + identity.vid() + ", PID:" + identity.pid() + ")");
-        EventBus.getInstance().dispatch(new NewDeviceJoinedEvent(newDevice));
-        EventBus.getInstance().dispatch(new DeviceInsertedEvent(newDevice));
-    }
-
-    @Override
-    public void onDeviceRemoval(String dbccName) {
-        logger.info("Device interface removed: " + dbccName);
-        
-        // Parse device instance path to extract serial number
-        DeviceUtils.DeviceIdentity identity = DeviceUtils.parseDeviceInstancePath(dbccName);
-        if (identity == null) {
-            logger.warning("Could not parse device instance path: " + dbccName);
-            return;
-        }
-        
-        String serial = identity.serial();
-        if (serial == null || serial.isEmpty()) {
-            logger.warning("No serial number in device path: " + dbccName);
-            return;
-        }
-        
-        // Find device by serial and mark as UNAVAILABLE
-        Device device = devicesMap.get(serial);
-        if (device != null) {
-            device.setState(Device.DeviceState.OFFLINE);
-            logger.info("Device marked OFFLINE: " + serial);
-            EventBus.getInstance().dispatch(new DeviceRemovedEvent(device));
-        }
-    }
-    /**
-     * Pauses operations for the given device.
-     * Used by SnifferLifecycleManager when storage is full.
-     *
-     * @param device the device to pause
-     */
-    public void pauseScanner(Device device) {
-        if (device != null) {
-            device.disable();
-            logger.fine("Paused device: " + device.getSerialNumber());
-        }
-    }
-
-    /**
-     * Resumes operations for the given device.
-     * Used by SnifferLifecycleManager after storage delay.
-     *
-     * @param device the device to resume
-     */
-    public void restartScanner(Device device) {
-        if (device != null) {
-            device.enable();
-            logger.fine("Resumed device: " + device.getSerialNumber());
+        Volume volume = volumesMap.search(1, (_, v) ->
+                driveLetter.equals(v.getDriveLetter()) ? v : null);
+        if (volume != null) {
+            volume.setState(Volume.VolumeState.OFFLINE);
+            logger.info("Volume marked OFFLINE: " + driveLetter + " (" + volume.getSerialNumber() + ")");
+            EventBus.getInstance().dispatch(new VolumeRemovedEvent(volume));
         }
     }
 
@@ -346,5 +250,4 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
             logger.info("UsbHotplugMonitor stopped");
         }
     }
-
 }

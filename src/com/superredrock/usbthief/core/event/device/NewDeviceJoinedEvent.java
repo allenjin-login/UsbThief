@@ -3,9 +3,8 @@ package com.superredrock.usbthief.core.event.device;
 import com.superredrock.usbthief.core.Device;
 
 /**
- * Event fired when a device is detected for the first time.
- * This event is only fired once per unique hardware serial number.
- * Subsequent insertions of the same device trigger DeviceInsertedEvent instead.
+ * Event fired when a USB device is detected for the first time.
+ * Holds a Device (info board), not a Volume.
  */
 public final class NewDeviceJoinedEvent extends DeviceEvent {
 
@@ -15,7 +14,7 @@ public final class NewDeviceJoinedEvent extends DeviceEvent {
 
     @Override
     public String description() {
-        return String.format("New device joined: serial=%s, path=%s at %d",
-            device().getSerialNumber(), device().getRootPath(), timestamp());
+        return String.format("New device joined: serial=%s at %d",
+            device().getSerialNumber(), timestamp());
     }
 }

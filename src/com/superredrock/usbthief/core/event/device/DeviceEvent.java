@@ -4,8 +4,8 @@ import com.superredrock.usbthief.core.Device;
 import com.superredrock.usbthief.core.event.Event;
 
 /**
- * Base class for all device-related events.
- * Provides access to the device that triggered the event.
+ * Base class for device-level (hardware) events.
+ * Holds a Device (pure info board, no state).
  */
 public abstract class DeviceEvent implements Event {
 
@@ -20,9 +20,6 @@ public abstract class DeviceEvent implements Event {
         this.timestamp = System.currentTimeMillis();
     }
 
-    /**
-     * @return the device associated with this event
-     */
     public Device device() {
         return device;
     }
@@ -34,7 +31,7 @@ public abstract class DeviceEvent implements Event {
 
     @Override
     public String description() {
-        return String.format("%s: %s at %s", getClass().getSimpleName(), device, timestamp);
+        return String.format("%s: %s at %d", getClass().getSimpleName(), device, timestamp);
     }
 
     @Override

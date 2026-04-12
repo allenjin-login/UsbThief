@@ -1,220 +1,395 @@
 package com.superredrock.usbthief.worker;
 
-import com.superredrock.usbthief.core.Device;
-import com.superredrock.usbthief.core.DeviceManager;
-import com.superredrock.usbthief.core.QueueManager;
+import com.superredrock.usbthief.core.Service;
+import com.superredrock.usbthief.core.Volume;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.QueueManager;
+import com.superredrock.usbthief.core.event.EventBus;
+import com.superredrock.usbthief.core.event.device.VolumeInsertedEvent;
+import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
+import com.superredrock.usbthief.core.event.device.VolumeStateChangedEvent;
 
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Logger;
+import java.util.logging.Level;
 
 /**
- * Manages sniffer lifecycle and restart scheduling.
+ * Manages Sniffer lifecycle as a background Service.
  * <p>
- * Handles delayed restarts after sniffer completion or errors, with different delays
- * based on the restart reason. Thread-safe singleton implementation.
+ * Monitors Volumes via EventBus and manages corresponding Sniffer instances.
+ * Handles creation, restart scheduling, cooldown, and cleanup of Sniffers.
+ * <p>
+ * Flow:
+ * - VolumeInsertedEvent → create Sniffer for new IDLE volumes
+ * - VolumeStateChangedEvent → react to OFFLINE/DISABLED/IDLE transitions
+ * - Sniffer completion callback → schedule restart with cooldown
+ * - VolumeRemovedEvent → stop and remove Sniffer
  */
-public class SnifferLifecycleManager {
+public class SnifferLifecycleManager extends Service {
 
     private static volatile SnifferLifecycleManager INSTANCE;
 
-    private final ScheduledExecutorService scheduler;
-    private final ConcurrentHashMap<Device, ScheduledFuture<?>> pendingRestarts;
-    private final DeviceManager deviceManager;
-    protected static final Logger logger = Logger.getLogger(SnifferLifecycleManager.class.getName());
+    /** Active sniffers keyed by volume serial number */
+    private final ConcurrentHashMap<String, SnifferEntry> sniffers = new ConcurrentHashMap<>();
 
-    /**
-     * Reason for scheduling a sniffer restart.
-     */
+    /** Cooldown tracking: serial → timestamp when cooldown expires */
+    private final ConcurrentHashMap<String, Long> cooldowns = new ConcurrentHashMap<>();
+
+    /** Volumes pending restart after cooldown */
+    private final Set<String> pendingRestarts = ConcurrentHashMap.newKeySet();
+
+    /** Whether init check has been done */
+    private volatile boolean initialized = false;
+
     public enum RestartReason {
-        /**
-         * Sniffer finished normally (all files copied).
-         * Uses long delay (SNIFFER_WAIT_NORMAL_MINUTES, default 30 minutes).
-         */
         NORMAL_COMPLETION,
-
-        /**
-         * Sniffer encountered an error.
-         * Uses short delay (SNIFFER_WAIT_ERROR_MINUTES, default 5 minutes).
-         */
         ERROR,
-
-        /**
-         * Sniffer paused due to storage constraints.
-         * No automatic restart - waits for manual resume via StorageController.
-         */
         STORAGE_PAUSE
     }
 
     /**
-     * Private constructor for singleton.
-     * Creates single-threaded scheduler for restart delays.
+     * Holds a Sniffer and its associated metadata.
      */
-    private SnifferLifecycleManager() {
-        this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "SnifferLifecycleManager-Scheduler");
-            t.setDaemon(true);
-            return t;
-        });
-        this.pendingRestarts = new ConcurrentHashMap<>();
-        this.deviceManager  = QueueManager.getDeviceManager();
+    private static class SnifferEntry {
+        final Sniffer sniffer;
+        final String serialNumber;
+        volatile RestartReason lastExitReason;
+
+        SnifferEntry(Sniffer sniffer, String serialNumber) {
+            this.sniffer = sniffer;
+            this.serialNumber = serialNumber;
+        }
     }
 
-    /**
-     * Get singleton instance of SnifferLifecycleManager.
-     *
-     * @return the singleton instance
-     */
-    public static synchronized SnifferLifecycleManager getInstance() {
+    private SnifferLifecycleManager() {
+        registerEventListeners();
+    }
+
+    public static SnifferLifecycleManager getInstance() {
         if (INSTANCE == null) {
-            INSTANCE = new SnifferLifecycleManager();
+            synchronized (SnifferLifecycleManager.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = new SnifferLifecycleManager();
+                }
+            }
         }
         return INSTANCE;
     }
 
-    public void sleepDevice(Device device, RestartReason reason){
-        if (deviceManager != null) {
-            deviceManager.pauseScanner(device);
-        }
-        scheduleResume(device,reason);
-    }
+    // ========== Event Listeners ==========
 
-    /**
-     * Schedule a sniffer restart for the given device with the specified reason.
-     * <p>
-     * The delay is determined by the restart reason:
-     * <ul>
-     *   <li>NORMAL_COMPLETION: SNIFFER_WAIT_NORMAL_MINUTES (default 30)</li>
-     *   <li>ERROR: SNIFFER_WAIT_ERROR_MINUTES (default 5)</li>
-     *   <li>STORAGE_PAUSE: No delay, only tracks for manual resumption</li>
-     * </ul>
-     * <p>
-     * The callback to restart the scanner will be wired up in Task 9.
-     * For now, this just tracks the pending restart.
-     *
-     * @param device the device whose sniffer should be restarted
-     * @param reason the reason for restart (determines delay)
-     */
-    public void scheduleResume(Device device, RestartReason reason) {
-        if (device == null) {
-            logger.warning("Cannot schedule restart for null device");
-            return;
-        }
+    private void registerEventListeners() {
+        EventBus bus = EventBus.getInstance();
 
-        // Cancel any existing restart for this device
-        cancelRestart(device);
+        bus.register(VolumeInsertedEvent.class, event -> {
+            Volume volume = event.volume();
+            logger.info("Volume inserted, scheduling sniffer for: " + volume.getSerialNumber());
+            // Don't create sniffer immediately — tick() will pick it up
+        });
 
-        long delayMinutes = getRestartDelay(reason);
+        bus.register(VolumeRemovedEvent.class, event -> {
+            String serial = event.volume().getSerialNumber();
+            logger.info("Volume removed, stopping sniffer: " + serial);
+            stop(serial);
+            cooldowns.remove(serial);
+            pendingRestarts.remove(serial);
+        });
 
-        if (delayMinutes <= 0) {
-            // STORAGE_PAUSE or zero delay - just track without scheduling
-            logger.fine("Restart for device " + device.getSerialNumber() +
-                " tracked with reason " + reason + " (no scheduled delay)");
-            // Could store in a separate map for tracking if needed
-            return;
-        }
+        bus.register(VolumeStateChangedEvent.class, event -> {
+            Volume volume = event.volume();
+            String serial = volume.getSerialNumber();
+            Volume.VolumeState newState = event.newState();
 
-        // Schedule restart after delay
-        ScheduledFuture<?> future = scheduler.schedule(() -> {
-            try {
-                logger.info("Restart delay elapsed for device " + device.getSerialNumber() +
-                    " (reason: " + reason + ")");
-
-                // Call DeviceManager to restart the scanner
-                DeviceManager dm = deviceManager;
-                if (dm != null) {
-                    dm.restartScanner(device);
-                } else {
-                    logger.warning("DeviceManager not set, cannot restart scanner for device " +
-                        device.getSerialNumber());
+            switch (newState) {
+                case OFFLINE -> {
+                    logger.fine("Volume OFFLINE, stopping sniffer: " + serial);
+                    stop(serial);
                 }
-            } catch (Exception e) {
-                logger.warning("Error during scheduled restart for device " +
-                    device.getSerialNumber() + ": " + e.getMessage());
-            } finally {
-                pendingRestarts.remove(device);
+                case DISABLED -> {
+                    logger.fine("Volume DISABLED, stopping sniffer: " + serial);
+                    stop(serial);
+                }
+                case IDLE -> {
+                    if (event.oldState() == Volume.VolumeState.OFFLINE ||
+                        event.oldState() == Volume.VolumeState.UNAVAILABLE) {
+                        logger.fine("Volume became IDLE, will create sniffer on next tick: " + serial);
+                    }
+                }
+                default -> {}
             }
-        }, delayMinutes, TimeUnit.MINUTES);
-
-        pendingRestarts.put(device, future);
-        logger.fine("Scheduled restart for device " + device.getSerialNumber() +
-            " in " + delayMinutes + " minutes (reason: " + reason + ")");
+        });
     }
 
+    // ========== Service tick ==========
+
+    @Override
+    protected void tick() {
+        if (!initialized) {
+            if (QueueManager.getDeviceManager() == null) return;
+            initialized = true;
+        }
+
+        // 1. Create sniffers for IDLE volumes that don't have one and aren't in cooldown
+        Collection<Volume> volumes = QueueManager.getDeviceManager().getAllVolumes();
+        for (Volume volume : volumes) {
+            String serial = volume.getSerialNumber();
+            if (volume.getState() == Volume.VolumeState.IDLE &&
+                !sniffers.containsKey(serial) &&
+                !isInCooldown(serial) &&
+                !pendingRestarts.contains(serial)) {
+                createSniffer(volume);
+            }
+        }
+
+        // 2. Process pending restarts whose cooldown has elapsed
+        Iterator<String> it = pendingRestarts.iterator();
+        while (it.hasNext()) {
+            String serial = it.next();
+            if (!isInCooldown(serial)) {
+                it.remove();
+                Volume volume = QueueManager.getDeviceManager().getVolumeBySerial(serial);
+                if (volume != null && volume.getState() == Volume.VolumeState.IDLE && !sniffers.containsKey(serial)) {
+                    logger.info("Cooldown elapsed, restarting sniffer for: " + serial);
+                    createSniffer(volume);
+                }
+            }
+        }
+
+        // 3. Cleanup finished sniffers
+        sniffers.entrySet().removeIf(entry -> {
+            SnifferEntry se = entry.getValue();
+            if (!se.sniffer.isAlive()) {
+                logger.fine("Cleaned up finished sniffer for: " + se.serialNumber);
+                return true;
+            }
+            return false;
+        });
+    }
+
+    @Override
+    protected long getTickIntervalMs() {
+        return 3000;
+    }
+
+    @Override
+    public String getServiceName() {
+        return "SnifferLifecycleManager";
+    }
+
+    @Override
+    public String getDescription() {
+        return "Manages Sniffer creation, lifecycle, restart, and cooldown";
+    }
+
+    // ========== Sniffer Management ==========
+
     /**
-     * Cancel a pending restart for the given device.
-     *
-     * @param device the device whose restart should be cancelled
+     * Creates and starts a Sniffer for the given volume.
      */
-    public void cancelRestart(Device device) {
-        if (device == null) {
+    private void createSniffer(Volume volume) {
+        String serial = volume.getSerialNumber();
+
+        SnifferEntry existing = sniffers.get(serial);
+        if (existing != null && existing.sniffer.isAlive()) {
+            logger.fine("Sniffer already active for: " + serial);
             return;
         }
 
-        ScheduledFuture<?> future = pendingRestarts.remove(device);
-        if (future != null) {
-            boolean cancelled = future.cancel(false);
-            logger.fine("Cancelled restart for device " + device.getSerialNumber() +
-                (cancelled ? " (successfully)" : " (already completed)"));
+        try {
+            Sniffer sniffer = new Sniffer(volume, () -> onSnifferFinished(volume, RestartReason.NORMAL_COMPLETION),
+                                                     () -> onSnifferError(volume));
+            sniffers.put(serial, new SnifferEntry(sniffer, serial));
+            sniffer.start();
+            logger.info("Sniffer started for volume: " + serial + " at " + volume.getRootPath());
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Failed to create sniffer for " + serial, e);
+            scheduleRestart(serial, RestartReason.ERROR);
         }
     }
 
     /**
-     * Check if a restart is pending for the given device.
-     *
-     * @param device the device to check
-     * @return true if a restart is scheduled and not yet completed
+     * Callback when a sniffer finishes normally.
      */
-    public boolean isRestartPending(Device device) {
-        if (device == null) {
+    private void onSnifferFinished(Volume volume, RestartReason reason) {
+        String serial = volume.getSerialNumber();
+        logger.info("Sniffer finished for " + serial + " (reason: " + reason + ")");
+        scheduleRestart(serial, reason);
+    }
+
+    /**
+     * Callback when a sniffer encounters an error.
+     */
+    private void onSnifferError(Volume volume) {
+        String serial = volume.getSerialNumber();
+        logger.warning("Sniffer error for " + serial);
+        scheduleRestart(serial, RestartReason.ERROR);
+    }
+
+    /**
+     * Schedules a restart after the appropriate cooldown delay.
+     */
+    private void scheduleRestart(String serial, RestartReason reason) {
+        long delayMs = getRestartDelayMs(reason);
+        if (delayMs <= 0) {
+            // No delay — mark for immediate restart on next tick
+            pendingRestarts.add(serial);
+            return;
+        }
+
+        long cooldownEnd = System.currentTimeMillis() + delayMs;
+        cooldowns.put(serial, cooldownEnd);
+        pendingRestarts.add(serial);
+        logger.info("Scheduled restart for " + serial + " in " + TimeUnit.MILLISECONDS.toMinutes(delayMs) + " min (reason: " + reason + ")");
+    }
+
+    /**
+     * Checks if a volume serial is still in cooldown period.
+     */
+    private boolean isInCooldown(String serial) {
+        Long endTime = cooldowns.get(serial);
+        if (endTime == null) return false;
+        if (System.currentTimeMillis() >= endTime) {
+            cooldowns.remove(serial);
             return false;
         }
-
-        ScheduledFuture<?> future = pendingRestarts.get(device);
-        return future != null && !future.isDone();
+        return true;
     }
 
     /**
-     * Get the restart delay in minutes for a given restart reason.
-     * Reads delay values from ConfigSchema.
-     *
-     * @param reason the restart reason
-     * @return delay in minutes (0 for STORAGE_PAUSE)
+     * Gets the restart delay in milliseconds based on the reason.
      */
-    public long getRestartDelay(RestartReason reason) {
+    private long getRestartDelayMs(RestartReason reason) {
         ConfigManager config = ConfigManager.getInstance();
-
         return switch (reason) {
             case NORMAL_COMPLETION ->
-                config.get(ConfigSchema.SNIFFER_WAIT_NORMAL_MINUTES);
+                TimeUnit.MINUTES.toMillis(config.get(ConfigSchema.SNIFFER_WAIT_NORMAL_MINUTES));
             case ERROR ->
-                config.get(ConfigSchema.SNIFFER_WAIT_ERROR_MINUTES);
-            case STORAGE_PAUSE ->
-                0; // No automatic delay for storage pause
+                TimeUnit.MINUTES.toMillis(config.get(ConfigSchema.SNIFFER_WAIT_ERROR_MINUTES));
+            case STORAGE_PAUSE -> 0;
         };
     }
 
+    // ========== Public API ==========
+
     /**
-     * Shutdown the scheduler and cancel all pending restarts.
-     * Call this during application shutdown.
+     * Stops the scanner for a given volume serial number.
      */
-    public void shutdown() {
-        logger.info("Shutting down SnifferLifecycleManager");
-        scheduler.shutdown();
-        try {
-            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
-                logger.warning("Scheduler did not terminate in time, forcing shutdown");
-                scheduler.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            logger.warning("Shutdown interrupted: " + e.getMessage());
-            scheduler.shutdownNow();
-            Thread.currentThread().interrupt();
+    public void stop(String serialNumber) {
+        SnifferEntry entry = sniffers.remove(serialNumber);
+        if (entry != null) {
+            entry.sniffer.close();
+            logger.fine("Stopped scanner for: " + serialNumber);
         }
+    }
+
+    /**
+     * Manually restart the scanner for a volume. Cancels any pending cooldown.
+     */
+    public void restart(Volume volume) {
+        String serial = volume.getSerialNumber();
+        stop(serial);
+        cooldowns.remove(serial);
+        pendingRestarts.remove(serial);
+        createSniffer(volume);
+    }
+
+    /**
+     * Pauses the scanner for a volume (stops it, schedules restart after normal delay).
+     */
+    public void pause(Volume volume) {
+        String serial = volume.getSerialNumber();
+        stop(serial);
+        scheduleRestart(serial, RestartReason.NORMAL_COMPLETION);
+    }
+
+    /**
+     * Returns true if a scanner is active for the given serial.
+     */
+    public boolean isActive(String serialNumber) {
+        SnifferEntry entry = sniffers.get(serialNumber);
+        return entry != null && entry.sniffer.isAlive();
+    }
+
+    /**
+     * Returns the number of active scanners.
+     */
+    public int getActiveCount() {
+        return (int) sniffers.values().stream().filter(e -> e.sniffer.isAlive()).count();
+    }
+
+    /**
+     * Returns true if a restart is pending for the given serial.
+     */
+    public boolean isRestartPending(String serialNumber) {
+        return pendingRestarts.contains(serialNumber);
+    }
+
+    /**
+     * Gets the remaining cooldown time in milliseconds for a volume, or 0 if not in cooldown.
+     */
+    public long getRemainingCooldownMs(String serialNumber) {
+        Long endTime = cooldowns.get(serialNumber);
+        if (endTime == null) return 0;
+        long remaining = endTime - System.currentTimeMillis();
+        return Math.max(0, remaining);
+    }
+
+    // ========== Cleanup ==========
+
+    @Override
+    protected void cleanup() {
+        // Stop all sniffers
+        for (SnifferEntry entry : sniffers.values()) {
+            try {
+                entry.sniffer.close();
+            } catch (Exception e) {
+                logger.warning("Error closing sniffer for " + entry.serialNumber + ": " + e.getMessage());
+            }
+        }
+        sniffers.clear();
+        cooldowns.clear();
+        pendingRestarts.clear();
+        logger.info("All sniffers stopped and cleaned up");
+    }
+
+    // ========== Compatibility ==========
+
+    /**
+     * @deprecated Use {@link #pause(Volume)} instead.
+     */
+    @Deprecated
+    public void sleepVolume(Volume volume, RestartReason reason) {
+        String serial = volume.getSerialNumber();
+        stop(serial);
+        scheduleRestart(serial, reason);
+    }
+
+    /**
+     * @deprecated Use {@link #isRestartPending(String)} instead.
+     */
+    @Deprecated
+    public boolean isRestartPending(Volume volume) {
+        return volume != null && isRestartPending(volume.getSerialNumber());
+    }
+
+    /**
+     * @deprecated Use {@link #restart(Volume)} instead.
+     */
+    @Deprecated
+    public void cancelRestart(Volume volume) {
+        if (volume != null) {
+            cooldowns.remove(volume.getSerialNumber());
+            pendingRestarts.remove(volume.getSerialNumber());
+        }
+    }
+
+    /**
+     * @deprecated Service lifecycle handles shutdown. Use {@link #stopService()} instead.
+     */
+    @Deprecated
+    public void shutdown() {
+        stopService();
     }
 }

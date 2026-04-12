@@ -1,7 +1,6 @@
 package com.superredrock.usbthief.core;
 
 import com.sun.jna.platform.win32.Kernel32;
-import com.sun.jna.platform.win32.WinNT;
 import com.sun.jna.ptr.IntByReference;
 
 import java.io.BufferedReader;
@@ -42,7 +41,7 @@ public class DeviceUtils {
      * @param drive drive letter (e.g., "E:" or "E:\\\")
      * @return volume serial number, or empty string if retrieval fails
      */
-    public static String getHardDiskSN(String drive) {
+    public static String getVolumeSN(String drive) {
         if (drive == null || drive.isEmpty()) {
             return "";
         }
@@ -351,8 +350,8 @@ public class DeviceUtils {
         Path root = target.getRoot();
         Path relative = root.relativize(target);
         String storeName = Files.getFileStore(target).name();
-        Device device = QueueManager.getDeviceManager().getDevice(target);
-        return workPath.resolve(storeName + "_" + device.getSerialNumber()).resolve(relative);
+        Volume volume = QueueManager.getDeviceManager().getVolume(target);
+        return workPath.resolve(storeName + "_" + volume.getSerialNumber()).resolve(relative);
     }
 
     /**
@@ -410,11 +409,18 @@ public class DeviceUtils {
     }
 
     /**
-     * Gets hardware serial number from a volume using WMI.
-     * 
+     * Gets hardware serial number from a volume using DeviceIoControl API.
+     *
      * <p>This method retrieves the hardware serial number of the physical device
-     * that contains the specified volume. It uses WMI to correlate volumes
-     * with their parent disk devices.
+     * that contains the specified volume. It uses Windows DeviceIoControl API
+     * instead of WMI or spawning external processes.
+     *
+     * <p>Fallback chain:
+     * <ol>
+     *   <li>Try DeviceIoControl with PhysicalDrive handle (requires admin)</li>
+     *   <li>Fallback to DeviceIoControl with volume handle</li>
+     *   <li>Final fallback to volume serial number via GetVolumeInformation</li>
+     * </ol>
      *
      * @param driveLetter the drive letter (e.g., "E:" or "E:\\")
      * @return hardware serial number, or empty string if retrieval fails
@@ -424,54 +430,15 @@ public class DeviceUtils {
             return "";
         }
 
-        // Normalize to "E:" format
-        String normalized = driveLetter.trim();
-        if (normalized.length() >= 2 && normalized.charAt(1) == ':') {
-            normalized = normalized.substring(0, 2);
-        } else if (normalized.length() == 1 && Character.isLetter(normalized.charAt(0))) {
-            normalized = normalized.toUpperCase() + ":";
-        } else {
-            return "";
+        // Try DeviceIoControl first (hardware serial)
+        String serial = DiskQueryUtil.getHardwareSerial(driveLetter);
+        if (!serial.isEmpty()) {
+            return serial;
         }
 
-        try {
-            // Use PowerShell to query WMI for hardware serial
-            // This query gets the disk serial by correlating volume with disk partition
-            String psCommand = String.format(
-                "Get-WmiObject Win32_Volume | Where-Object {{ $_.DeviceID -like '%s' }} | " +
-                "Select-Object -First 1 -ExpandProperty SerialNumber | " +
-                "ForEach-Object { $_.PSBase.GetRelated('Win32_DiskDrive') | Where-Object {{ $_.SerialNumber -ne $null } | Select-Object SerialNumber",
-                normalized
-            );
-
-            ProcessBuilder pb = new ProcessBuilder("powershell", "-NoProfile", "-Command", psCommand);
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String line;
-            String serial = null;
-            while ((line = reader.readLine()) != null) {
-                if (!line.trim().isEmpty() && serial == null) {
-                    // First non-empty line should be the serial number
-                    serial = line.trim();
-                    break;
-                }
-            }
-
-            int exitCode = process.waitFor();
-            if (exitCode == 0 && serial != null && !serial.isEmpty()) {
-                logger.fine("Got hardware serial via WMI for drive " + normalized + ": " + serial);
-                return serial;
-            }
-
-            logger.fine("WMI query returned no results for drive: " + normalized);
-            return "";
-
-        } catch (Exception e) {
-            logger.warning("Failed to get hardware serial via WMI for drive " + normalized + ": " + e.getMessage());
-            return "";
-        }
+        // Fallback to volume serial number (software serial)
+        logger.fine("DeviceIoControl failed for " + driveLetter + ", falling back to volume serial number");
+        return getVolumeSN(driveLetter);
     }
 
     /**

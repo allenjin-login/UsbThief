@@ -3,11 +3,11 @@ package com.superredrock.usbthief.core.event.device;
 import com.superredrock.usbthief.core.Device;
 
 /**
- * Event fired when a device is removed or goes offline.
+ * Event fired when a USB device interface is removed.
  */
-public final class DeviceRemovedEvent extends DeviceEvent {
+public final class DeviceRemovalEvent extends DeviceEvent {
 
-    public DeviceRemovedEvent(Device device) {
+    public DeviceRemovalEvent(Device device) {
         super(device);
     }
 

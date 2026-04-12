@@ -2,9 +2,9 @@ package com.superredrock.usbthief.gui;
 
 import com.superredrock.usbthief.core.SizeFormatter;
 import com.superredrock.usbthief.core.event.EventBus;
-import com.superredrock.usbthief.core.event.device.DeviceInsertedEvent;
-import com.superredrock.usbthief.core.event.device.DeviceRemovedEvent;
-import com.superredrock.usbthief.core.event.device.DeviceStateChangedEvent;
+import com.superredrock.usbthief.core.event.device.VolumeInsertedEvent;
+import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
+import com.superredrock.usbthief.core.event.device.VolumeStateChangedEvent;
 import com.superredrock.usbthief.core.event.index.DuplicateDetectedEvent;
 import com.superredrock.usbthief.core.event.index.FileIndexedEvent;
 import com.superredrock.usbthief.core.event.index.IndexLoadedEvent;
@@ -158,10 +158,10 @@ public class LogPanel extends JPanel {
         eventBus.register(IndexLoadedEvent.class, this::onIndexLoaded);
         eventBus.register(IndexSavedEvent.class, this::onIndexSaved);
 
-        // Device events
-        eventBus.register(DeviceInsertedEvent.class, this::onDeviceInserted);
-        eventBus.register(DeviceRemovedEvent.class, this::onDeviceRemoved);
-        eventBus.register(DeviceStateChangedEvent.class, this::onDeviceStateChanged);
+        // Volume events
+        eventBus.register(VolumeInsertedEvent.class, this::onVolumeInserted);
+        eventBus.register(VolumeRemovedEvent.class, this::onVolumeRemoved);
+        eventBus.register(VolumeStateChangedEvent.class, this::onVolumeStateChanged);
     }
 
     // Index event handlers
@@ -188,18 +188,18 @@ public class LogPanel extends JPanel {
         log(message, LogLevel.INFO);
     }
 
-    // Device event handlers
-    private void onDeviceInserted(DeviceInsertedEvent event) {
-        String message = i18n.getMessage("log.message.deviceInserted", event.device().getRootPath());
+    // Volume event handlers
+    private void onVolumeInserted(VolumeInsertedEvent event) {
+        String message = i18n.getMessage("log.message.deviceInserted", event.volume().getRootPath());
         log(message, LogLevel.INFO);
     }
 
-    private void onDeviceRemoved(DeviceRemovedEvent event) {
-        String message = i18n.getMessage("log.message.deviceRemoved", event.device().getRootPath());
+    private void onVolumeRemoved(VolumeRemovedEvent event) {
+        String message = i18n.getMessage("log.message.deviceRemoved", event.volume().getRootPath());
         log(message, LogLevel.WARNING);
     }
 
-    private void onDeviceStateChanged(DeviceStateChangedEvent event) {
+    private void onVolumeStateChanged(VolumeStateChangedEvent event) {
         String message = i18n.getMessage("log.message.deviceStateChanged", event.oldState(), event.newState());
         log(message, LogLevel.INFO);
     }
