@@ -77,25 +77,6 @@ public class ConfigSchema {
     public static final ConfigEntry<Long> COPY_RATE_LIMIT_BASE =
             longEntry("copyRateLimitBase", "Base copy rate limit in bytes per second (0 = no limit)", 0L, "Rate Limiting");
 
-    public static final ConfigEntry<Integer> RATE_LIMITER_MEDIUM_MULTIPLIER =
-            intEntry("rateLimiter.mediumMultiplier", "Rate limit multiplier at MEDIUM load (percentage)", 70, "Rate Limiting");
-
-    public static final ConfigEntry<Integer> RATE_LIMITER_HIGH_MULTIPLIER =
-            intEntry("rateLimiter.highMultiplier", "Rate limit multiplier at HIGH load (percentage)", 40, "Rate Limiting");
-
-    // Load-aware rate limit percentages (new unified naming)
-    public static final ConfigEntry<Integer> RATE_LIMIT_LOW_PERCENT =
-            intEntry("rateLimit.lowPercent", "Rate limit percentage at LOW load", 100, "Rate Limiting");
-
-    public static final ConfigEntry<Integer> RATE_LIMIT_MEDIUM_PERCENT =
-            intEntry("rateLimit.mediumPercent", "Rate limit percentage at MEDIUM load", 70, "Rate Limiting");
-
-    public static final ConfigEntry<Integer> RATE_LIMIT_HIGH_PERCENT =
-            intEntry("rateLimit.highPercent", "Rate limit percentage at HIGH load", 40, "Rate Limiting");
-
-    public static final ConfigEntry<Boolean> RATE_LIMIT_AUTO_MODE_ENABLED =
-            booleanEntry("rateLimit.autoModeEnabled", "Enable automatic rate limit adjustment based on system load", false, "Rate Limiting");
-
     // Path configuration
     public static final ConfigEntry<String> WORK_PATH =
             stringEntry("workPath", "Working directory for storing copied files", "devices", "Paths");
@@ -260,12 +241,6 @@ public class ConfigSchema {
         registerEntry(COPY_RATE_LIMIT);
         registerEntry(COPY_RATE_BURST_SIZE);
         registerEntry(COPY_RATE_LIMIT_BASE);
-        registerEntry(RATE_LIMITER_MEDIUM_MULTIPLIER);
-        registerEntry(RATE_LIMITER_HIGH_MULTIPLIER);
-        registerEntry(RATE_LIMIT_LOW_PERCENT);
-        registerEntry(RATE_LIMIT_MEDIUM_PERCENT);
-        registerEntry(RATE_LIMIT_HIGH_PERCENT);
-        registerEntry(RATE_LIMIT_AUTO_MODE_ENABLED);
         registerEntry(WORK_PATH);
         registerEntry(FILE_HISTORY_MAX_ENTRIES);
         registerEntry(DEVICE_BLACKLIST);

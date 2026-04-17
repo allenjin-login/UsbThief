@@ -3,7 +3,6 @@ package com.superredrock.usbthief.gui;
 import com.superredrock.usbthief.core.AutoStartManager;
 
 import com.superredrock.usbthief.Main;
-import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.SizeFormatter;
 import com.superredrock.usbthief.core.Version;
@@ -11,9 +10,6 @@ import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.statistics.Statistics;
-import com.superredrock.usbthief.worker.LoadEvaluator;
-import com.superredrock.usbthief.worker.LoadLevel;
-import com.superredrock.usbthief.worker.LoadScore;
 import com.superredrock.usbthief.worker.TaskScheduler;
 import com.superredrock.usbthief.worker.CopyTask;
 
@@ -45,7 +41,6 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     private JLabel totalLabel;
     private JLabel filesLabel;
     private JLabel queueLabel;
-    private JLabel loadLabel;
 
     // Window visibility state
     private boolean windowVisible = true;
@@ -146,13 +141,12 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     }
 
     private JPanel createCompactStatsBar() {
-        JPanel panel = new JPanel(new GridLayout(1, 4, 4, 0));
+        JPanel panel = new JPanel(new GridLayout(1, 3, 4, 0));
         panel.setOpaque(false);
 
         totalLabel = new JLabel("0 B", SwingConstants.CENTER);
         filesLabel = new JLabel("0", SwingConstants.CENTER);
         queueLabel = new JLabel("0", SwingConstants.CENTER);
-        loadLabel = new JLabel("LOW", SwingConstants.CENTER);
 
         Font statFont = new Font(Font.SANS_SERIF, Font.BOLD, 11);
         Font labelFont = new Font(Font.SANS_SERIF, Font.PLAIN, 8);
@@ -160,8 +154,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         for (var entry : new Object[][]{
                 {i18n.getMessage("chart.stats.total"), totalLabel},
                 {i18n.getMessage("chart.stats.files"), filesLabel},
-                {i18n.getMessage("chart.stats.queue"), queueLabel},
-                {i18n.getMessage("chart.stats.load"), loadLabel}
+                {i18n.getMessage("chart.stats.queue"), queueLabel}
         }) {
             JPanel card = new JPanel(new BorderLayout(2, 0));
             card.setOpaque(false);
@@ -188,16 +181,6 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         totalLabel.setText(SizeFormatter.format(stats.getTotalBytesCopied()));
         filesLabel.setText(String.valueOf(stats.getTotalFilesCopied()));
         queueLabel.setText(String.valueOf(TaskScheduler.getInstance().getQueueDepth()));
-
-        LoadScore score = LoadEvaluator.getInstance().evaluateLoad();
-        if (score != null) {
-            loadLabel.setText(score.level().name());
-            loadLabel.setForeground(switch (score.level()) {
-                case LOW -> ThemeManager.ACCENT_SUCCESS;
-                case MEDIUM -> ThemeManager.ACCENT_WARNING;
-                case HIGH -> ThemeManager.ACCENT_ERROR;
-            });
-        }
     }
 
     private void setWindowIcon() {
@@ -515,34 +498,21 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         SwingUtilities.invokeLater(() -> statusBar.setText(message));
     }
 
-    private String formatLoadLevel(LoadLevel level) {
-        return switch (level) {
-            case LOW -> "\uD83D\uDFE2" + i18n.getMessage("load.low");
-            case MEDIUM -> "\uD83D\uDFE1" + i18n.getMessage("load.medium");
-            case HIGH -> "\uD83D\uDD34" + i18n.getMessage("load.high");
-        };
-    }
-
     public void updateStatusBar() {
-        LoadScore loadScore = LoadEvaluator.getInstance().evaluateLoad();
-        if (loadScore != null){
-            String loadInfo = formatLoadLevel(loadScore.level());
+        int queueDepth = TaskScheduler.getInstance().getQueueDepth();
+        String queueInfo = i18n.getMessage("status.queue.format", queueDepth);
 
-            int queueDepth = TaskScheduler.getInstance().getQueueDepth();
-            String queueInfo = i18n.getMessage("status.queue.format", queueDepth);
+        int poolQueueSize = TaskScheduler.getInstance().getPool().getQueue().size();
+        String poolQueueInfo = i18n.getMessage("status.poolQueue.format", poolQueueSize);
 
-            int poolQueueSize = TaskScheduler.getInstance().getPool().getQueue().size();
-            String poolQueueInfo = i18n.getMessage("status.poolQueue.format", poolQueueSize);
+        double speed = CopyTask.getSpeedProbeGroup().getTotalSpeed();
+        String speedInfo = i18n.getMessage("status.speed.format", speed);
 
-            double speed = CopyTask.getSpeedProbeGroup().getTotalSpeed();
-            String speedInfo = i18n.getMessage("status.speed.format", speed);
+        String workPath = ConfigManager.getInstance().get(ConfigSchema.WORK_PATH);
+        String pathInfo = i18n.getMessage("status.path.format", workPath.isEmpty() ? i18n.getMessage("status.currentDir") : workPath);
 
-            String workPath = ConfigManager.getInstance().get(ConfigSchema.WORK_PATH);
-            String pathInfo = i18n.getMessage("status.path.format", workPath.isEmpty() ? i18n.getMessage("status.currentDir") : workPath);
-
-            String message = i18n.getMessage("status.combined", loadInfo, queueInfo, poolQueueInfo, speedInfo, pathInfo);
-            updateStatusBar(message);
-        }
+        String message = i18n.getMessage("status.combined", queueInfo, poolQueueInfo, speedInfo, pathInfo);
+        updateStatusBar(message);
     }
 
     private void applyWindowSettings() {

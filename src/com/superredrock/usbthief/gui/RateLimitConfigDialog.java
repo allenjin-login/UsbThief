@@ -8,7 +8,6 @@ import com.superredrock.usbthief.worker.CopyTask;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
-import javax.swing.event.ChangeListener;
 import java.awt.*;
 import java.util.Arrays;
 import java.util.Locale;
@@ -45,15 +44,8 @@ public class RateLimitConfigDialog extends JDialog implements I18NManager.Locale
     private JButton resetButton;
 
     // Config panel components
-    private JCheckBox autoModeCheckBox;
     private JSpinner baseRateLimitSpinner;
     private JLabel baseRateLimitLabel;
-    private JSlider lowPercentSlider;
-    private JLabel lowPercentValueLabel;
-    private JSlider mediumPercentSlider;
-    private JLabel mediumPercentValueLabel;
-    private JSlider highPercentSlider;
-    private JLabel highPercentValueLabel;
 
     // Button panel
     private JButton saveButton;
@@ -68,7 +60,6 @@ public class RateLimitConfigDialog extends JDialog implements I18NManager.Locale
     private Timer updateTimer;
 
     // Store listeners for proper cleanup
-    private final ChangeListener sliderChangeListener;
 
     /**
      * Creates a new rate limit configuration dialog.
@@ -77,9 +68,6 @@ public class RateLimitConfigDialog extends JDialog implements I18NManager.Locale
      */
     public RateLimitConfigDialog(JFrame parent) {
         super(parent, i18n.getMessage("ratelimit.dialog.title"), true);
-
-        // Initialize slider change listener
-        sliderChangeListener = _ -> updateSliderLabels();
 
         setSize(700, 500);
         setLocationRelativeTo(parent);
@@ -200,23 +188,15 @@ public class RateLimitConfigDialog extends JDialog implements I18NManager.Locale
         gbc.anchor = GridBagConstraints.WEST;
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        // Auto mode checkbox
-        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
-        autoModeCheckBox = new JCheckBox(i18n.getMessage("ratelimit.config.autoMode"));
-        autoModeCheckBox.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
-        autoModeCheckBox.setForeground(ThemeManager.TEXT_PRIMARY);
-        autoModeCheckBox.setBackground(ThemeManager.BACKGROUND_PRIMARY);
-        panel.add(autoModeCheckBox, gbc);
-
         // Base rate limit spinner
-        gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 1;
+        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 1;
         gbc.weightx = 0;
         baseRateLimitLabel = new JLabel(i18n.getMessage("ratelimit.config.baseRateLimit"));
         baseRateLimitLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
         baseRateLimitLabel.setForeground(ThemeManager.TEXT_SECONDARY);
         panel.add(baseRateLimitLabel, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 1; gbc.gridwidth = 2;
+        gbc.gridx = 1; gbc.gridy = 0; gbc.gridwidth = 1;
         gbc.weightx = 1.0;
         baseRateLimitSpinner = new JSpinner(new SpinnerNumberModel(0L, 0L, Long.MAX_VALUE, 1024 * 1024L));
         baseRateLimitSpinner.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
@@ -224,104 +204,16 @@ public class RateLimitConfigDialog extends JDialog implements I18NManager.Locale
         baseRateLimitSpinner.setToolTipText(i18n.getMessage("ratelimit.config.baseRateLimit.tooltip"));
         panel.add(baseRateLimitSpinner, gbc);
 
-        // LOW percentage slider
-        gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 1;
-        gbc.weightx = 0;
-        JLabel lowPercentLabel = new JLabel(i18n.getMessage("ratelimit.config.lowPercent"));
-        lowPercentLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
-        lowPercentLabel.setForeground(ThemeManager.TEXT_SECONDARY);
-        panel.add(lowPercentLabel, gbc);
-
-        gbc.gridx = 1; gbc.gridy = 2; gbc.gridwidth = 1;
-        gbc.weightx = 1.0;
-        lowPercentSlider = createPercentSlider();
-        panel.add(lowPercentSlider, gbc);
-
-        gbc.gridx = 2; gbc.gridy = 2; gbc.gridwidth = 1;
-        gbc.weightx = 0;
-        lowPercentValueLabel = new JLabel("100%");
-        lowPercentValueLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
-        lowPercentValueLabel.setForeground(ThemeManager.ACCENT_SUCCESS);
-        lowPercentValueLabel.setPreferredSize(new Dimension(45, 20));
-        panel.add(lowPercentValueLabel, gbc);
-
-        // MEDIUM percentage slider
-        gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 1;
-        gbc.weightx = 0;
-        JLabel mediumPercentLabel = new JLabel(i18n.getMessage("ratelimit.config.mediumPercent"));
-        mediumPercentLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
-        mediumPercentLabel.setForeground(ThemeManager.TEXT_SECONDARY);
-        panel.add(mediumPercentLabel, gbc);
-
-        gbc.gridx = 1; gbc.gridy = 3; gbc.gridwidth = 1;
-        gbc.weightx = 1.0;
-        mediumPercentSlider = createPercentSlider();
-        panel.add(mediumPercentSlider, gbc);
-
-        gbc.gridx = 2; gbc.gridy = 3; gbc.gridwidth = 1;
-        gbc.weightx = 0;
-        mediumPercentValueLabel = new JLabel("70%");
-        mediumPercentValueLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
-        mediumPercentValueLabel.setForeground(ThemeManager.ACCENT_WARNING);
-        mediumPercentValueLabel.setPreferredSize(new Dimension(45, 20));
-        panel.add(mediumPercentValueLabel, gbc);
-
-        // HIGH percentage slider
-        gbc.gridx = 0; gbc.gridy = 4; gbc.gridwidth = 1;
-        gbc.weightx = 0;
-        JLabel highPercentLabel = new JLabel(i18n.getMessage("ratelimit.config.highPercent"));
-        highPercentLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
-        highPercentLabel.setForeground(ThemeManager.TEXT_SECONDARY);
-        panel.add(highPercentLabel, gbc);
-
-        gbc.gridx = 1; gbc.gridy = 4; gbc.gridwidth = 1;
-        gbc.weightx = 1.0;
-        highPercentSlider = createPercentSlider();
-        panel.add(highPercentSlider, gbc);
-
-        gbc.gridx = 2; gbc.gridy = 4; gbc.gridwidth = 1;
-        gbc.weightx = 0;
-        highPercentValueLabel = new JLabel("40%");
-        highPercentValueLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
-        highPercentValueLabel.setForeground(ThemeManager.ACCENT_ERROR);
-        highPercentValueLabel.setPreferredSize(new Dimension(45, 20));
-        panel.add(highPercentValueLabel, gbc);
-
         // Add vertical glue
-        gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 3;
+        gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 2;
         gbc.weighty = 1.0;
         gbc.fill = GridBagConstraints.VERTICAL;
         panel.add(Box.createVerticalGlue(), gbc);
-
-        // Add slider listeners
-        lowPercentSlider.addChangeListener(sliderChangeListener);
-        mediumPercentSlider.addChangeListener(sliderChangeListener);
-        highPercentSlider.addChangeListener(sliderChangeListener);
 
         return panel;
     }
 
     /**
-     * Creates a percentage slider (0-100).
-     */
-    private JSlider createPercentSlider() {
-        JSlider slider = new JSlider(0, 100, 100);
-        slider.setMajorTickSpacing(25);
-        slider.setMinorTickSpacing(5);
-        slider.setPaintTicks(true);
-        slider.setPaintLabels(true);
-        slider.setBackground(ThemeManager.BACKGROUND_PRIMARY);
-        return slider;
-    }
-
-    /**
-     * Updates the slider value labels.
-     */
-    private void updateSliderLabels() {
-        lowPercentValueLabel.setText(lowPercentSlider.getValue() + "%");
-        mediumPercentValueLabel.setText(mediumPercentSlider.getValue() + "%");
-        highPercentValueLabel.setText(highPercentSlider.getValue() + "%");
-    }
 
     /**
      * Creates the button panel.
@@ -410,23 +302,14 @@ public class RateLimitConfigDialog extends JDialog implements I18NManager.Locale
      * Loads current settings from ConfigManager.
      */
     private void loadSettings() {
-        autoModeCheckBox.setSelected(configManager.get(ConfigSchema.RATE_LIMIT_AUTO_MODE_ENABLED));
         baseRateLimitSpinner.setValue(configManager.get(ConfigSchema.COPY_RATE_LIMIT_BASE));
-        lowPercentSlider.setValue(configManager.get(ConfigSchema.RATE_LIMIT_LOW_PERCENT));
-        mediumPercentSlider.setValue(configManager.get(ConfigSchema.RATE_LIMIT_MEDIUM_PERCENT));
-        highPercentSlider.setValue(configManager.get(ConfigSchema.RATE_LIMIT_HIGH_PERCENT));
-        updateSliderLabels();
     }
 
     /**
      * Applies settings without closing the dialog.
      */
     private void applySettings() {
-        configManager.set(ConfigSchema.RATE_LIMIT_AUTO_MODE_ENABLED, autoModeCheckBox.isSelected());
         configManager.set(ConfigSchema.COPY_RATE_LIMIT_BASE, ((Number) baseRateLimitSpinner.getValue()).longValue());
-        configManager.set(ConfigSchema.RATE_LIMIT_LOW_PERCENT, lowPercentSlider.getValue());
-        configManager.set(ConfigSchema.RATE_LIMIT_MEDIUM_PERCENT, mediumPercentSlider.getValue());
-        configManager.set(ConfigSchema.RATE_LIMIT_HIGH_PERCENT, highPercentSlider.getValue());
 
         logger.info("Rate limit configuration applied");
         
@@ -461,7 +344,6 @@ public class RateLimitConfigDialog extends JDialog implements I18NManager.Locale
             configBorder.setTitle(i18n.getMessage("ratelimit.config.title"));
             
             resetButton.setText(i18n.getMessage("ratelimit.stats.resetButton"));
-            autoModeCheckBox.setText(i18n.getMessage("ratelimit.config.autoMode"));
             baseRateLimitLabel.setText(i18n.getMessage("ratelimit.config.baseRateLimit"));
             
             saveButton.setText(i18n.getMessage("ratelimit.button.save"));
@@ -479,12 +361,7 @@ public class RateLimitConfigDialog extends JDialog implements I18NManager.Locale
             updateTimer.stop();
         }
         i18n.removeLocaleChangeListener(this);
-        
-        // Remove slider listeners
-        lowPercentSlider.removeChangeListener(sliderChangeListener);
-        mediumPercentSlider.removeChangeListener(sliderChangeListener);
-        highPercentSlider.removeChangeListener(sliderChangeListener);
-        
+
         super.dispose();
     }
 

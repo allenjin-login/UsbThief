@@ -1,7 +1,5 @@
 package com.superredrock.usbthief.worker;
 
-import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.statistics.SpeedStatistics;
 
 import java.util.concurrent.TimeUnit;
@@ -9,12 +7,11 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * Token bucket rate limiter with dynamic rate adjustment and load-aware adaptation.
+ * Token bucket rate limiter with dynamic rate adjustment.
  *
  * <p>Supports:</p>
  * <ul>
  *   <li>Dynamic rate limit changes via {@link #setRateLimit(long)}</li>
- *   <li>Load-aware adjustment via {@link #adjustRateByLoadLevel(LoadLevel)}</li>
  *   <li>Optional SpeedStatistics integration for tracking copy speeds</li>
  * </ul>
  *
@@ -35,38 +32,32 @@ public class RateLimiter {
     private final ReentrantLock lock = new ReentrantLock();
     private final Condition condition = lock.newCondition();
 
-    // Optional dependencies for load-aware and statistics features
-    private final LoadEvaluator loadEvaluator;
+    // Optional dependency for statistics tracking
     private final SpeedStatistics speedStats;
 
     /**
      * Creates a rate limiter with the specified limits.
      *
-     * <p>This constructor creates a rate limiter without load-aware adjustment
-     * or speed statistics tracking.</p>
-     *
      * @param rateLimitBytesPerSecond maximum bytes per second (0 = no limit)
      * @param burstSize maximum burst size in bytes
      */
     public RateLimiter(long rateLimitBytesPerSecond, long burstSize) {
-        this(rateLimitBytesPerSecond, burstSize,LoadEvaluator.getInstance(), null);
+        this(rateLimitBytesPerSecond, burstSize, null);
     }
 
     /**
-     * Creates a rate limiter with load-aware adjustment and speed statistics.
+     * Creates a rate limiter with speed statistics.
      *
      * @param rateLimitBytesPerSecond base rate limit in bytes per second (0 = no limit)
      * @param burstSize maximum burst size in bytes
-     * @param loadEvaluator optional LoadEvaluator for load-aware adjustment (can be null)
      * @param speedStats optional SpeedStatistics for tracking copy speeds (can be null)
      */
     public RateLimiter(long rateLimitBytesPerSecond, long burstSize,
-                       LoadEvaluator loadEvaluator, SpeedStatistics speedStats) {
+                       SpeedStatistics speedStats) {
         this.rateLimitBytesPerSecond = rateLimitBytesPerSecond;
         this.burstSize = burstSize;
         this.tokens = burstSize;
         this.lastRefillTimestamp = System.nanoTime();
-        this.loadEvaluator = loadEvaluator;
         this.speedStats = speedStats;
     }
 
@@ -98,44 +89,6 @@ public class RateLimiter {
      */
     public void setRateLimit(long bytesPerSecond) {
         this.rateLimitBytesPerSecond = bytesPerSecond;
-    }
-
-    /**
-     * Adjusts the rate limit based on the current load level.
-     *
-     * <p>Uses percentage values from ConfigSchema:</p>
-     * <ul>
-     *   <li>LOW: RATE_LIMIT_LOW_PERCENT (default 100%)</li>
-     *   <li>MEDIUM: RATE_LIMIT_MEDIUM_PERCENT (default 70%)</li>
-     *   <li>HIGH: RATE_LIMIT_HIGH_PERCENT (default 40%)</li>
-     * </ul>
-     *
-     * <p>The adjustment is relative to the current rateLimitBytesPerSecond value,
-     * which should be set to the base (maximum) rate before calling this method.</p>
-     *
-     * @param level the load level to adjust for
-     */
-    public void adjustRateByLoadLevel(LoadLevel level) {
-        if (level == null) {
-            return;
-        }
-
-        ConfigManager config = ConfigManager.getInstance();
-        int percent = switch (level) {
-            case LOW -> config.get(ConfigSchema.RATE_LIMIT_LOW_PERCENT);
-            case MEDIUM -> config.get(ConfigSchema.RATE_LIMIT_MEDIUM_PERCENT);
-            case HIGH -> config.get(ConfigSchema.RATE_LIMIT_HIGH_PERCENT);
-        };
-
-        // Get the base rate limit from config for load-adjusted calculations
-        long baseRate = config.get(ConfigSchema.COPY_RATE_LIMIT_BASE);
-        if (baseRate <= 0) {
-            // If no base rate configured, use current rate as base
-            baseRate = rateLimitBytesPerSecond;
-        }
-
-        long adjustedRate = (baseRate * percent) / 100;
-        setRateLimit(adjustedRate);
     }
 
     /**
@@ -213,15 +166,6 @@ public class RateLimiter {
         }
         long waitSeconds = (deficit + currentRateLimit - 1) / currentRateLimit;
         return TimeUnit.SECONDS.toNanos(waitSeconds);
-    }
-
-    /**
-     * Returns the LoadEvaluator associated with this rate limiter.
-     *
-     * @return LoadEvaluator or null if not configured
-     */
-    public LoadEvaluator getLoadEvaluator() {
-        return loadEvaluator;
     }
 
     /**

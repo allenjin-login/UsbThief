@@ -31,7 +31,6 @@ public class DeviceInfoDialog extends JDialog implements I18NManager.LocaleChang
     private final JLabel globalSizeLabel;
     private final JLabel globalErrorsLabel;
     private final JLabel globalDevicesLabel;
-    private EmptyStatePanel emptyStatePanel;
 
     private final Timer updateTimer;
 
@@ -125,10 +124,10 @@ public class DeviceInfoDialog extends JDialog implements I18NManager.LocaleChang
         Collection<Volume> volumes = deviceManager.getAllVolumes();
 
         if (volumes.isEmpty()) {
-            emptyStatePanel = new EmptyStatePanel(
-                "\uD83D\uDD0C",
-                i18n.getMessage("deviceinfo.empty.title"),
-                i18n.getMessage("deviceinfo.empty.description")
+            EmptyStatePanel emptyStatePanel = new EmptyStatePanel(
+                    "\uD83D\uDD0C",
+                    i18n.getMessage("deviceinfo.empty.title"),
+                    i18n.getMessage("deviceinfo.empty.description")
             );
             volumeCardsPanel.add(emptyStatePanel);
         } else {

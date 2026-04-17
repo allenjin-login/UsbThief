@@ -29,13 +29,11 @@ public class TaskScheduler extends Service {
     );
 
     private final PriorityQueue<PriorityTask<?, ?>> priorityQueue;
-    private LoadEvaluator loadEvaluator;
     private final PriorityRule priorityRule;
     private volatile boolean accumulating = false;
 
     private TaskScheduler() {
         this.priorityQueue = new PriorityQueue<>();
-        this.loadEvaluator = null;
         this.priorityRule = new PriorityRule();
     }
     
@@ -76,31 +74,12 @@ public ThreadPoolExecutor getPool() {
         if (getServiceState() != ServiceState.RUNNING) {
             return;
         }
-        LoadScore score;
 
-        if(loadEvaluator == null){
-            loadEvaluator = LoadEvaluator.getInstance();
-            score = new LoadScore(0,LoadLevel.LOW);
-        }else {
-            score = loadEvaluator.evaluateLoad();
+        if (priorityQueue.size() > 1000) {
+            dispatchBatch(500);
+        } else {
+            dispatchAll();
         }
-
-
-
-        switch (score.level()) {
-            case HIGH -> handleHighLoad();
-            case MEDIUM -> dispatchBatch(50);
-            case LOW -> {
-                if (priorityQueue.size() > 1000){
-                    dispatchBatch(500);
-                }else {
-                    dispatchAll();
-                }
-            }
-            default -> dispatchBatch(100);
-        }
-
-        adjustRateLimit(score.level());
     }
 
     @Override
@@ -132,14 +111,6 @@ public ThreadPoolExecutor getPool() {
         }
 
         return priorityTask;
-    }
-
-    private void handleHighLoad() {
-        if (!accumulating) {
-            accumulating = true;
-            int queueDepth = getQueueDepth();
-            logger.warning("High load detected - entering accumulation mode, queue depth: " + queueDepth);
-        }
     }
 
     private void dispatchBatch(int batchSize) {
@@ -210,26 +181,6 @@ public ThreadPoolExecutor getPool() {
 
     public synchronized int getQueueDepth() {
         return priorityQueue.size();
-    }
-
-    private void adjustRateLimit(LoadLevel level) {
-        ConfigManager config = ConfigManager.getInstance();
-
-        boolean enabled = config.get(ConfigSchema.RATE_LIMIT_AUTO_MODE_ENABLED);
-        if (!enabled) {
-            return;
-        }
-
-        RateLimiter rateLimiter = CopyTask.getSharedRateLimiter();
-        long oldRate = rateLimiter.getRateLimitBytesPerSecond();
-        
-        rateLimiter.adjustRateByLoadLevel(level);
-        
-        long newRate = rateLimiter.getRateLimitBytesPerSecond();
-        if (newRate != oldRate) {
-            logger.info("Adjusted rate limit to " + (newRate / 1024 / 1024) +
-                       " MB/s based on " + level + " load");
-        }
     }
 
     @Override
