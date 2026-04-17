@@ -6,11 +6,13 @@ import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
 import com.superredrock.usbthief.core.event.worker.FileDiscoveredEvent;
 
 import java.nio.file.Files;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
 import java.util.prefs.Preferences;
+import java.util.stream.Collectors;
 
 public final class Statistics {
     private static final Logger logger = Logger.getLogger(Statistics.class.getName());
@@ -34,6 +36,45 @@ public final class Statistics {
 
     private final AtomicLong sessionBytesDiscovered = new AtomicLong(0);
     private final AtomicLong sessionBytesCopied = new AtomicLong(0);
+
+    private final ConcurrentHashMap<String, VolumeStats> volumeStatsMap = new ConcurrentHashMap<>();
+
+    public static final class VolumeStats {
+        private final AtomicLong filesCopied = new AtomicLong(0);
+        private final AtomicLong bytesCopied = new AtomicLong(0);
+        private final AtomicLong errors = new AtomicLong(0);
+        private final ConcurrentHashMap<String, AtomicLong> extensionCounts = new ConcurrentHashMap<>();
+        private final long firstSeenTime;
+
+        public VolumeStats() {
+            this.firstSeenTime = System.currentTimeMillis();
+        }
+
+        public VolumeStats(long firstSeenTime) {
+            this.firstSeenTime = firstSeenTime;
+        }
+
+        public long getFilesCopied() { return filesCopied.get(); }
+        public long getBytesCopied() { return bytesCopied.get(); }
+        public long getErrors() { return errors.get(); }
+        public long getFirstSeenTime() { return firstSeenTime; }
+
+        public Map<String, Long> getExtensionCounts() {
+            return extensionCounts.entrySet().stream()
+                    .sorted(Map.Entry.<String, AtomicLong>comparingByValue(java.util.Comparator.comparingLong(AtomicLong::get)).reversed())
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            e -> e.getValue().get(),
+                            (a, b) -> a,
+                            LinkedHashMap::new
+                    ));
+        }
+
+        AtomicLong filesCopiedRef() { return filesCopied; }
+        AtomicLong bytesCopiedRef() { return bytesCopied; }
+        AtomicLong errorsRef() { return errors; }
+        ConcurrentHashMap<String, AtomicLong> extensionCountsMap() { return extensionCounts; }
+    }
 
     private final Preferences prefs;
     private volatile boolean dirty;
@@ -90,9 +131,25 @@ public final class Statistics {
                 if (extension != null) {
                     extensionCounts.computeIfAbsent(extension, _ -> new AtomicLong(0)).incrementAndGet();
                 }
+
+                if (!serial.isEmpty()) {
+                    VolumeStats vs = getVolumeStats(serial);
+                    vs.filesCopiedRef().incrementAndGet();
+                    vs.bytesCopiedRef().addAndGet(event.bytesCopied());
+                    if (extension != null) {
+                        vs.extensionCountsMap().computeIfAbsent(extension, _ -> new AtomicLong(0)).incrementAndGet();
+                    }
+                }
+
                 markDirty();
             } else if (event.isFailure()) {
                 totalErrors.incrementAndGet();
+
+                if (!serial.isEmpty()) {
+                    VolumeStats vs = getVolumeStats(serial);
+                    vs.errorsRef().incrementAndGet();
+                }
+
                 markDirty();
             }
         }
@@ -144,6 +201,36 @@ public final class Statistics {
             logger.warning("Failed to load extension counts: " + e.getMessage());
         }
 
+        // Load per-volume stats
+        try {
+            int count = prefs.getInt("volumeStats.count", 0);
+            for (int i = 0; i < count; i++) {
+                String prefix = "vs." + i + ".";
+                String serial = prefs.get(prefix + "serial", null);
+                if (serial == null || serial.isEmpty()) continue;
+
+                long firstSeenTime = prefs.getLong(prefix + "firstSeenTime", System.currentTimeMillis());
+                VolumeStats vs = new VolumeStats(firstSeenTime);
+                vs.filesCopiedRef().set(prefs.getLong(prefix + "filesCopied", 0));
+                vs.bytesCopiedRef().set(prefs.getLong(prefix + "bytesCopied", 0));
+                vs.errorsRef().set(prefs.getLong(prefix + "errors", 0));
+
+                for (String key : prefs.keys()) {
+                    if (key.startsWith(prefix + "ext.")) {
+                        String ext = key.substring((prefix + "ext.").length());
+                        long extCount = prefs.getLong(key, 0);
+                        if (extCount > 0) {
+                            vs.extensionCountsMap().put(ext, new AtomicLong(extCount));
+                        }
+                    }
+                }
+
+                volumeStatsMap.put(serial, vs);
+            }
+        } catch (Exception e) {
+            logger.warning("Failed to load volume stats: " + e.getMessage());
+        }
+
         logger.info("Statistics loaded: " + totalFilesCopied.get() + " files, " + SizeFormatter.format(totalBytesCopied.get()));
     }
 
@@ -160,6 +247,23 @@ public final class Statistics {
         extensionCounts.forEach((ext, count) -> {
             prefs.putLong(KEY_EXT_COUNT + ext, count.get());
         });
+
+        // Save per-volume stats
+        int idx = 0;
+        for (var entry : volumeStatsMap.entrySet()) {
+            String prefix = "vs." + idx + ".";
+            prefs.put(prefix + "serial", entry.getKey());
+            VolumeStats vs = entry.getValue();
+            prefs.putLong(prefix + "filesCopied", vs.getFilesCopied());
+            prefs.putLong(prefix + "bytesCopied", vs.getBytesCopied());
+            prefs.putLong(prefix + "errors", vs.getErrors());
+            prefs.putLong(prefix + "firstSeenTime", vs.getFirstSeenTime());
+            vs.extensionCountsMap().forEach((ext, count) -> {
+                prefs.putLong(prefix + "ext." + ext, count.get());
+            });
+            idx++;
+        }
+        prefs.putInt("volumeStats.count", idx);
 
         dirty = false;
         logger.info("Statistics saved");
@@ -184,6 +288,14 @@ public final class Statistics {
         return (int) (sessionBytesCopied.get() * 100 / discovered);
     }
 
+    public VolumeStats getVolumeStats(String serial) {
+        return volumeStatsMap.computeIfAbsent(serial, _ -> new VolumeStats());
+    }
+
+    public Map<String, VolumeStats> getAllVolumeStats() {
+        return new LinkedHashMap<>(volumeStatsMap);
+    }
+
     public void resetSession() {
         sessionBytesDiscovered.set(0);
         sessionBytesCopied.set(0);
@@ -197,6 +309,7 @@ public final class Statistics {
         totalDevicesCopied.set(0);
         extensionCounts.clear();
         copiedDeviceSerials.clear();
+        volumeStatsMap.clear();
 
         prefs.putLong(KEY_TOTAL_FILES, 0);
         prefs.putLong(KEY_TOTAL_BYTES, 0);
@@ -207,12 +320,12 @@ public final class Statistics {
 
         try {
             for (String key : prefs.keys()) {
-                if (key.startsWith(KEY_EXT_COUNT)) {
+                if (key.startsWith(KEY_EXT_COUNT) || key.startsWith("vs.") || key.equals("volumeStats.count")) {
                     prefs.remove(key);
                 }
             }
         } catch (Exception e) {
-            logger.warning("Failed to clear extension counts: " + e.getMessage());
+            logger.warning("Failed to clear extension/volume stats: " + e.getMessage());
         }
 
         resetSession();
