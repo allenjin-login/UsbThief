@@ -1,0 +1,173 @@
+<h2>三种设计方案</h2>
+<p class="subtitle">托盘为主 + 动态图标 + 速度曲线图 + 紧凑主窗口</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1e1e2e;padding:16px;border-radius:8px;color:#cdd6f4;font-family:monospace;font-size:12px;">
+        <!-- Tray icon simulation -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;background:#313244;padding:6px 12px;border-radius:4px;">
+          <div style="width:16px;height:16px;border-radius:50%;border:2px solid #a6e3a1;border-top-color:transparent;animation:spin 1s linear infinite;"></div>
+          <span style="color:#a6e3a1;font-size:11px;">12.5 MB/s</span>
+          <span style="color:#6c7086;margin-left:auto;">UsbThief</span>
+        </div>
+        <!-- Compact main window -->
+        <div style="border:1px solid #45475a;border-radius:6px;overflow:hidden;">
+          <div style="background:#313244;padding:4px 8px;display:flex;align-items:center;gap:4px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#f38ba8;"></div>
+            <div style="width:8px;height:8px;border-radius:50%;background:#f9e2af;"></div>
+            <div style="width:8px;height:8px;border-radius:50%;background:#a6e3a1;"></div>
+            <span style="margin-left:auto;font-size:10px;color:#6c7086;">UsbThief</span>
+          </div>
+          <!-- Speed curve chart area -->
+          <div style="background:#181825;padding:8px;border-bottom:1px solid #313244;">
+            <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:4px;">
+              <span style="color:#89b4fa;">Speed</span>
+              <span style="color:#a6e3a1;">12.5 MB/s</span>
+            </div>
+            <div style="position:relative;height:50px;background:#11111b;border-radius:4px;overflow:hidden;">
+              <svg viewBox="0 0 300 50" style="width:100%;height:100%;">
+                <polyline points="0,40 30,35 60,30 90,25 120,28 150,15 180,20 210,10 240,18 270,12 300,8" fill="none" stroke="#89b4fa" stroke-width="2"/>
+                <polyline points="0,40 30,35 60,30 90,25 120,28 150,15 180,20 210,10 240,18 270,12 300,8 300,50 0,50" fill="url(#grad1)" stroke="none"/>
+                <defs><linearGradient id="grad1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#89b4fa" stop-opacity="0.3"/><stop offset="100%" stop-color="#89b4fa" stop-opacity="0"/></linearGradient></defs>
+              </svg>
+            </div>
+          </div>
+          <!-- Device list compact -->
+          <div style="padding:6px;font-size:11px;">
+            <div style="background:#313244;padding:4px 8px;border-radius:4px;margin-bottom:4px;display:flex;justify-content:space-between;">
+              <span>USB Drive (E:)</span><span style="color:#a6e3a1;">Scanning...</span>
+            </div>
+            <div style="background:#313244;padding:4px 8px;border-radius:4px;display:flex;justify-content:space-between;">
+              <span>Flash Disk (F:)</span><span style="color:#6c7086;">Idle</span>
+            </div>
+          </div>
+        </div>
+        <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案 A: 极简曲线面板</h3>
+      <p>速度曲线图占据窗口顶部主区域，设备列表精简为单行卡片。窗口约 500x400。托盘图标动态旋转+速度数值。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>速度曲线一目了然</li><li>空间利用高效</li><li>视觉冲击力强</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>日志查看需要单独面板</li><li>设备详情空间有限</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1e1e2e;padding:16px;border-radius:8px;color:#cdd6f4;font-family:monospace;font-size:12px;">
+        <!-- Tray icon simulation -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;background:#313244;padding:6px 12px;border-radius:4px;">
+          <div style="width:16px;height:16px;border-radius:50%;border:2px solid #a6e3a1;border-top-color:transparent;animation:spin 1s linear infinite;"></div>
+          <span style="color:#a6e3a1;font-size:11px;">12.5 MB/s</span>
+          <span style="color:#6c7086;margin-left:auto;">UsbThief</span>
+        </div>
+        <!-- Tab-based compact window -->
+        <div style="border:1px solid #45475a;border-radius:6px;overflow:hidden;">
+          <div style="background:#313244;padding:4px 8px;display:flex;align-items:center;gap:4px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#f38ba8;"></div>
+            <div style="width:8px;height:8px;border-radius:50%;background:#f9e2af;"></div>
+            <div style="width:8px;height:8px;border-radius:50%;background:#a6e3a1;"></div>
+            <span style="margin-left:auto;font-size:10px;color:#6c7086;">UsbThief</span>
+          </div>
+          <!-- Tab bar -->
+          <div style="display:flex;background:#181825;border-bottom:1px solid #313244;">
+            <div style="padding:4px 12px;font-size:10px;color:#89b4fa;border-bottom:2px solid #89b4fa;">Dashboard</div>
+            <div style="padding:4px 12px;font-size:10px;color:#6c7086;">Devices</div>
+            <div style="padding:4px 12px;font-size:10px;color:#6c7086;">Log</div>
+          </div>
+          <!-- Dashboard tab content -->
+          <div style="padding:8px;">
+            <!-- Speed stats row -->
+            <div style="display:flex;gap:6px;margin-bottom:6px;">
+              <div style="flex:1;background:#313244;padding:4px;border-radius:4px;text-align:center;">
+                <div style="font-size:9px;color:#6c7086;">Speed</div>
+                <div style="font-size:12px;color:#a6e3a1;">12.5 MB/s</div>
+              </div>
+              <div style="flex:1;background:#313244;padding:4px;border-radius:4px;text-align:center;">
+                <div style="font-size:9px;color:#6c7086;">Queue</div>
+                <div style="font-size:12px;color:#f9e2af;">3 files</div>
+              </div>
+              <div style="flex:1;background:#313244;padding:4px;border-radius:4px;text-align:center;">
+                <div style="font-size:9px;color:#6c7086;">Devices</div>
+                <div style="font-size:12px;color:#89b4fa;">2</div>
+              </div>
+            </div>
+            <!-- Speed chart -->
+            <div style="position:relative;height:50px;background:#11111b;border-radius:4px;overflow:hidden;">
+              <svg viewBox="0 0 300 50" style="width:100%;height:100%;">
+                <polyline points="0,40 30,38 60,30 90,25 120,28 150,15 180,20 210,10 240,18 270,12 300,8" fill="none" stroke="#89b4fa" stroke-width="2"/>
+                <polyline points="0,40 30,38 60,30 90,25 120,28 150,15 180,20 210,10 240,18 270,12 300,8 300,50 0,50" fill="url(#grad2)" stroke="none"/>
+                <defs><linearGradient id="grad2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#89b4fa" stop-opacity="0.3"/><stop offset="100%" stop-color="#89b4fa" stop-opacity="0"/></linearGradient></defs>
+              </svg>
+            </div>
+          </div>
+        </div>
+        <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案 B: 标签页仪表盘</h3>
+      <p>用标签页分离 Dashboard/设备/日志。Dashboard 显示统计卡片+速度曲线。窗口约 550x420。Tab 切换不同功能视图。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>功能分区清晰</li><li>保留完整功能</li><li>扩展性好</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>需要切换标签查看不同信息</li><li>标签页增加点击操作</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1e1e2e;padding:16px;border-radius:8px;color:#cdd6f4;font-family:monospace;font-size:12px;">
+        <!-- Tray icon simulation -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;background:#313244;padding:6px 12px;border-radius:4px;">
+          <div style="width:16px;height:16px;border-radius:50%;border:2px solid #a6e3a1;border-top-color:transparent;animation:spin 1s linear infinite;"></div>
+          <span style="color:#a6e3a1;font-size:11px;">12.5 MB/s</span>
+          <span style="color:#6c7086;margin-left:auto;">UsbThief</span>
+        </div>
+        <!-- Collapsible panel -->
+        <div style="border:1px solid #45475a;border-radius:6px;overflow:hidden;">
+          <div style="background:#313244;padding:4px 8px;display:flex;align-items:center;gap:4px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#f38ba8;"></div>
+            <div style="width:8px;height:8px;border-radius:50%;background:#f9e2af;"></div>
+            <div style="width:8px;height:8px;border-radius:50%;background:#a6e3a1;"></div>
+            <span style="margin-left:auto;font-size:10px;color:#6c7086;">UsbThief</span>
+          </div>
+          <!-- Collapsed view: just speed + devices -->
+          <div style="padding:6px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <div style="flex:1;">
+                <div style="position:relative;height:30px;background:#11111b;border-radius:4px;overflow:hidden;">
+                  <svg viewBox="0 0 300 30" style="width:100%;height:100%;">
+                    <polyline points="0,25 40,22 80,18 120,15 160,10 200,12 240,8 300,5" fill="none" stroke="#89b4fa" stroke-width="1.5"/>
+                    <polyline points="0,25 40,22 80,18 120,15 160,10 200,12 240,8 300,5 300,30 0,30" fill="url(#grad3)" stroke="none"/>
+                    <defs><linearGradient id="grad3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#89b4fa" stop-opacity="0.3"/><stop offset="100%" stop-color="#89b4fa" stop-opacity="0"/></linearGradient></defs>
+                  </svg>
+                </div>
+              </div>
+              <div style="text-align:center;min-width:70px;">
+                <div style="font-size:14px;color:#a6e3a1;font-weight:bold;">12.5</div>
+                <div style="font-size:9px;color:#6c7086;">MB/s</div>
+              </div>
+            </div>
+            <div style="background:#313244;padding:3px 8px;border-radius:3px;font-size:10px;display:flex;justify-content:space-between;">
+              <span>2 devices</span><span style="color:#a6e3a1;">3 copying</span>
+            </div>
+          </div>
+        </div>
+        <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案 C: 可折叠迷你窗</h3>
+      <p>默认极小（约 320x150），仅显示迷你速度曲线和核心数据。可展开为完整窗口。托盘图标动态变化。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>最省屏幕空间</li><li>信息密度极高</li><li>展开后仍可查看详情</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>折叠态信息有限</li><li>展开/折叠增加操作步骤</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn compile:*)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); p=d.get\\('projects',{}\\).get\\('E:/IdeaProjects/UsbThief',{}\\); print\\(json.dumps\\({'mcpServers':p.get\\('mcpServers'\\), 'enabledMcpjsonServers':p.get\\('enabledMcpjsonServers'\\)}, indent=2\\)\\)\")",
+      "Read(//c/Users/jinha/**)",
+      "mcp__exa__web_search_exa",
+      "Bash(git checkout:*)",
+      "Bash(mvn clean:*)",
+      "Update",
+      "mcp__ide__getDiagnostics",
+      "Bash(java -cp target/classes -Djava.util.prefs.userRoot=. -e 'java.util.prefs.Preferences.userNodeForPackage\\(com.superredrock.usbthief.Main.class\\).getBoolean\\(\"startHidden\", false\\)')",
+      "Bash(bash:*)",
+      "Bash(cat E:/IdeaProjects/UsbThief/.superpowers/brainstorm/*/state/server-info)",
+      "Bash(mvn test:*)",
+      "Bash(cmd.exe /c \"echo %PATH%\")",
+      "Bash(powershell -Command \"[Environment]::GetEnvironmentVariable\\('Path', 'Machine'\\)\")",
+      "Bash(powershell:*)",
+      "Bash(where jdtls:*)",
+      "Bash(where jdtls.bat)",
+      "Bash(cat \"/c/Users/jinha/.claude/plugins/cache/claude-plugins-official/jdtls-lsp/1.0.0/bin/\"*)",
+      "Bash(java --version)",
+      "WebSearch",
+      "mcp__exa__web_fetch_exa",
+      "Bash(git add *)"
+    ]
+  }
+}

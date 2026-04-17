@@ -1,0 +1,136 @@
+<h2>详细设计: 速度曲线图组件</h2>
+<p class="subtitle">第三部分：SpeedChartPanel 实现细节</p>
+
+<div class="section">
+  <h3>组件行为</h3>
+  <div class="option" style="background:#f8f9fa;padding:16px;border-radius:8px;">
+    <table style="width:100%;font-size:13px;border-collapse:collapse;">
+      <tr style="border-bottom:1px solid #ddd;">
+        <td style="padding:6px;font-weight:bold;color:#1e1e2e;">数据源</td>
+        <td style="padding:6px;color:#555;">监听 EventBus 的 CopySpeedEvent，聚合所有 CopyTask 的速度</td>
+      </tr>
+      <tr style="border-bottom:1px solid #ddd;">
+        <td style="padding:6px;font-weight:bold;color:#1e1e2e;">采样间隔</td>
+        <td style="padding:6px;color:#555;">每 500ms 采样一次当前速度值</td>
+      </tr>
+      <tr style="border-bottom:1px solid #ddd;">
+        <td style="padding:6px;font-weight:bold;color:#1e1e2e;">数据窗口</td>
+        <td style="padding:6px;color:#555;">保留最近 60 个采样点（30 秒历史），新数据从右侧进入，旧数据从左侧推出</td>
+      </tr>
+      <tr style="border-bottom:1px solid #ddd;">
+        <td style="padding:6px;font-weight:bold;color:#1e1e2e;">Y轴</td>
+        <td style="padding:6px;color:#555;">自动缩放，0 到当前最大值的 120%，带 4 条水平虚线网格</td>
+      </tr>
+      <tr style="border-bottom:1px solid #ddd;">
+        <td style="padding:6px;font-weight:bold;color:#1e1e2e;">渲染方式</td>
+        <td style="padding:6px;color:#555;">自定义 JPanel + paintComponent()，直接 Graphics2D 绘制（不用第三方库）</td>
+      </tr>
+      <tr>
+        <td style="padding:6px;font-weight:bold;color:#1e1e2e;">刷新频率</td>
+        <td style="padding:6px;color:#555;">javax.swing.Timer 驱动，每 500ms repaint()</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div class="section">
+  <h3>视觉效果</h3>
+  <div class="mockup">
+    <div class="mockup-header">速度曲线图 — 放大视图</div>
+    <div class="mockup-body" style="background:#11111b;padding:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="color:#89b4fa;font-size:12px;font-weight:bold;">TRANSFER SPEED</span>
+          <span style="background:#45475a;padding:2px 8px;border-radius:4px;font-size:10px;color:#a6e3a1;animation:pulse 2s infinite;">● LIVE</span>
+        </div>
+        <div>
+          <span style="font-size:24px;color:#a6e3a1;font-weight:bold;">12.5</span>
+          <span style="font-size:12px;color:#6c7086;"> MB/s</span>
+          <span style="font-size:10px;color:#a6e3a1;margin-left:6px;">▲ 2.3</span>
+        </div>
+      </div>
+      <div style="position:relative;height:160px;background:#0a0a14;border-radius:8px;overflow:hidden;border:1px solid #313244;">
+        <!-- Grid lines -->
+        <div style="position:absolute;top:20%;left:30px;right:0;border-top:1px dashed #313244;"></div>
+        <div style="position:absolute;top:40%;left:30px;right:0;border-top:1px dashed #313244;"></div>
+        <div style="position:absolute;top:60%;left:30px;right:0;border-top:1px dashed #313244;"></div>
+        <div style="position:absolute;top:80%;left:30px;right:0;border-top:1px dashed #313244;"></div>
+        <!-- Y-axis labels -->
+        <div style="position:absolute;left:4px;top:16%;font-size:9px;color:#585b70;font-family:monospace;">20.0</div>
+        <div style="position:absolute;left:4px;top:36%;font-size:9px;color:#585b70;font-family:monospace;">15.0</div>
+        <div style="position:absolute;left:4px;top:56%;font-size:9px;color:#585b70;font-family:monospace;">10.0</div>
+        <div style="position:absolute;left:4px;top:76%;font-size:9px;color:#585b70;font-family:monospace;">5.0</div>
+        <div style="position:absolute;left:4px;top:93%;font-size:9px;color:#585b70;font-family:monospace;">0</div>
+        <!-- Time labels -->
+        <div style="position:absolute;bottom:2px;right:4px;font-size:8px;color:#585b70;">now</div>
+        <div style="position:absolute;bottom:2px;right:60px;font-size:8px;color:#585b70;">-10s</div>
+        <div style="position:absolute;bottom:2px;left:50%;transform:translateX(-50%);font-size:8px;color:#585b70;">-15s</div>
+        <div style="position:absolute;bottom:2px;left:30px;font-size:8px;color:#585b70;">-30s</div>
+        <!-- Speed curve -->
+        <svg viewBox="0 0 500 160" style="position:absolute;bottom:0;left:30px;width:calc(100% - 30px);height:100%;" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#89b4fa" stop-opacity="0.5"/>
+              <stop offset="100%" stop-color="#89b4fa" stop-opacity="0.02"/>
+            </linearGradient>
+          </defs>
+          <!-- Fill area -->
+          <polyline points="0,130 15,125 30,120 45,110 60,105 75,95 90,100 105,85 120,80 135,70 150,75 165,65 180,60 195,50 210,55 225,45 240,40 255,35 270,45 285,30 300,25 315,35 330,20 345,25 360,18 375,22 390,15 405,20 420,12 435,15 450,10 465,14 480,8 495,12 510,5 500,160 0,160" fill="url(#chartGrad)" stroke="none"/>
+          <!-- Line -->
+          <polyline points="0,130 15,125 30,120 45,110 60,105 75,95 90,100 105,85 120,80 135,70 150,75 165,65 180,60 195,50 210,55 225,45 240,40 255,35 270,45 285,30 300,25 315,35 330,20 345,25 360,18 375,22 390,15 405,20 420,12 435,15 450,10 465,14 480,8 495,12 510,5" fill="none" stroke="#89b4fa" stroke-width="2" stroke-linejoin="round"/>
+          <!-- Dot at current position -->
+          <circle cx="510" cy="5" r="4" fill="#89b4fa"/>
+          <circle cx="510" cy="5" r="6" fill="none" stroke="#89b4fa" stroke-width="1" opacity="0.5"/>
+        </svg>
+      </div>
+      <style>@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }</style>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>技术实现要点</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div style="background:#f0f4ff;padding:12px;border-radius:8px;">
+      <strong style="color:#1e1e2e;">数据结构</strong>
+      <pre style="font-size:12px;color:#555;margin:8px 0 0;white-space:pre-wrap;">ArrayDeque&lt;Double&gt; speedHistory
+- 容量固定 60
+- 新数据 addLast()
+- 超出时 removeFirst()
+- 线程安全：synchronized 块</pre>
+    </div>
+    <div style="background:#f0fff4;padding:12px;border-radius:8px;">
+      <strong style="color:#1e1e2e;">绘制流程</strong>
+      <pre style="font-size:12px;color:#555;margin:8px 0 0;white-space:pre-wrap;">paintComponent(Graphics g):
+1. 设置抗锯齿
+2. 计算Y轴缩放 (max * 1.2)
+3. 画网格虚线 + Y轴标签
+4. 构建曲线 Path2D
+5. 画渐变填充区域
+6. 画曲线描边
+7. 画当前点 (圆点+光晕)</pre>
+    </div>
+    <div style="background:#fff8f0;padding:12px;border-radius:8px;">
+      <strong style="color:#1e1e2e;">主题适配</strong>
+      <pre style="font-size:12px;color:#555;margin:8px 0 0;white-space:pre-wrap;">- 曲线颜色: ThemeManager accent
+- 背景色: 自动跟随深/浅主题
+- 网格线: 自动计算对比色
+- 文字: 跟随主题前景色</pre>
+    </div>
+    <div style="background:#f8f0ff;padding:12px;border-radius:8px;">
+      <strong style="color:#1e1e2e;">动画与平滑</strong>
+      <pre style="font-size:12px;color:#555;margin:8px 0 0;white-space:pre-wrap;">- 贝塞尔曲线平滑 (Path2D.curveTo)
+- 500ms repaint via javax.swing.Timer
+- 无速度时显示平缓零线
+- Tooltip: 悬停显示该点速度值</pre>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>需要新增的文件</h3>
+  <div style="background:#f8f9fa;padding:12px;border-radius:8px;font-size:13px;color:#555;">
+    <code style="background:#e8ecf0;padding:2px 6px;border-radius:3px;">gui/SpeedChartPanel.java</code> — 自定义 JPanel，负责速度曲线的采样、存储和绘制<br/>
+    <code style="background:#e8ecf0;padding:2px 6px;border-radius:3px;">gui/TrayIconManager.java</code> — 托盘图标管理，状态切换，右键菜单
+  </div>
+</div>
