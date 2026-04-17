@@ -93,7 +93,7 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
 
     public Volume getVolume(Path path) {
         return volumesMap.search(1, (_, volume) ->
-                path.equals(volume.getRootPath()) ? volume : null);
+                path.startsWith(volume.getRootPath()) ? volume : null);
     }
 
     public Volume getVolumeBySerial(String serial) {

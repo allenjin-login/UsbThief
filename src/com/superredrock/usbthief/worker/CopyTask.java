@@ -29,6 +29,7 @@ public class CopyTask implements Callable<CopyResult> {
 
     protected final Path processingPath;
     private final String deviceSerial;
+    private final CheckSum preVerifiedHash;
     private static volatile RateLimiter rateLimiter;
     private static final Object rateLimiterLock = new Object();
     private static final SpeedProbeGroup speedProbeGroup = new SpeedProbeGroup("copy-tasks");
@@ -40,8 +41,13 @@ public class CopyTask implements Callable<CopyResult> {
 
 
     public CopyTask(Path path, String deviceSerial){
+        this(path, deviceSerial, null);
+    }
+
+    public CopyTask(Path path, String deviceSerial, CheckSum preVerifiedHash){
         this.processingPath = path;
         this.deviceSerial = deviceSerial != null ? deviceSerial : "";
+        this.preVerifiedHash = preVerifiedHash;
         this.taskProbe = new SpeedProbe("CopyTask-" + path.getFileName());
         speedProbeGroup.addProbe(taskProbe);
     }
@@ -54,16 +60,6 @@ public class CopyTask implements Callable<CopyResult> {
         return speedProbeGroup;
     }
 
-    /**
-     * Returns the shared RateLimiter instance used by all copy tasks.
-     * This method provides access for external components (like TaskScheduler)
-     * to adjust the rate limit based on system load.
-     *
-     * @return the shared RateLimiter instance
-     */
-    public static RateLimiter getSharedRateLimiter() {
-        return getRateLimiter();
-    }
 
     private static RateLimiter getRateLimiter() {
         RateLimiter current = rateLimiter;
@@ -99,12 +95,12 @@ public class CopyTask implements Callable<CopyResult> {
             if (storage.isStorageCritical()) {
                 logger.warning("Storage critical, skipping copy: " + processingPath);
                 result = CopyResult.SKIPPED;
-            } else if (QueueManager.getDeviceManager().getVolume(processingPath) != null) {
+            } else {
                 Volume volume = QueueManager.getDeviceManager().getVolume(processingPath);
-                if(!volume.isAccessible()){
+                if (volume != null && !volume.isAccessible()) {
                     return CopyResult.FAIL;
                 }
-            } else {
+
                 size = Files.size(processingPath);
                 destinationPath = getPath(processingPath);
 
@@ -119,50 +115,17 @@ public class CopyTask implements Callable<CopyResult> {
                     // File fits - proceed with copy
                     if (Files.isDirectory(processingPath)){
                         Files.createDirectories(destinationPath);
-                    }else {
+                    } else if (preVerifiedHash != null) {
+                        doCopy(processingPath, destinationPath, size, preVerifiedHash, buffer);
+                        bytesCopied = size;
+                    } else {
                         CheckSum hash = CheckSum.verify(processingPath);
                         if (QueueManager.getIndex().checkDuplicate(processingPath, hash)){
                             logger.info("Path Ignore: " + processingPath);
-                            // File already exists in index - treat as success (no copy needed)
-                            bytesCopied = size;
                         } else {
-                            Files.createDirectories(destinationPath.getParent());
-                            BasicFileAttributes attributes = Files.readAttributes(processingPath, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-                            try (FileChannel readChannel = FileChannel.open(processingPath, StandardOpenOption.READ);
-                                 FileChannel writeChannel = FileChannel.open(destinationPath, StandardOpenOption.WRITE, StandardOpenOption.CREATE)) {
-                                logger.fine("Copying:" + processingPath + " to " + destinationPath);
-                                while (readChannel.read(buffer) != -1) {
-                                    if (Thread.currentThread().isInterrupted()){
-                                        result = CopyResult.CANCEL;
-                                        return result;
-                                    }
-                                    buffer.flip();
-                                    int bytesWritten = writeChannel.write(buffer);
-                                    bytesCopied += bytesWritten;
-                                    taskProbe.record(bytesWritten);  // Record to task-specific probe
-                                    getRateLimiter().acquire(bytesWritten);
-
-                                    long now = System.currentTimeMillis();
-                                    long lastLog = lastLogTime.get();
-                                    if (now - lastLog >= LOG_INTERVAL_MS) {
-                                        if (lastLogTime.compareAndSet(lastLog, now)) {
-                                            double speed = speedProbeGroup.getTotalSpeed();
-                                            logger.info(String.format("Copying: %s - Global: %.2f MB/s",
-                                                processingPath.getFileName(),
-                                                speed));
-                                        }
-                                    }
-
-                                    buffer.clear();
-                                }
-                            }
-
-                            // Copy file attributes (timestamps, read-only, etc.)
-                            copyFileAttributes(processingPath, destinationPath, attributes);
-
-                            // Add to index (checksum + history) - FileIndexedEvent will be dispatched by Index.addFile()
-                            QueueManager.getIndex().addFile(hash, processingPath, size);
+                            doCopy(processingPath, destinationPath, size, hash, buffer);
                         }
+                        bytesCopied = size;
                     }
                 }
             }
@@ -187,6 +150,38 @@ public class CopyTask implements Callable<CopyResult> {
             result = CopyResult.CANCEL;
         }
         return result;
+    }
+
+    private void doCopy(Path source, Path dest, long size, CheckSum hash, ByteBuffer buffer) throws IOException, InterruptedException {
+        Files.createDirectories(dest.getParent());
+        BasicFileAttributes attributes = Files.readAttributes(source, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        try (FileChannel readChannel = FileChannel.open(source, StandardOpenOption.READ);
+             FileChannel writeChannel = FileChannel.open(dest, StandardOpenOption.WRITE, StandardOpenOption.CREATE)) {
+            logger.fine("Copying:" + source + " to " + dest);
+            while (readChannel.read(buffer) != -1) {
+                if (Thread.currentThread().isInterrupted()){
+                    throw new InterruptedException("Copy cancelled");
+                }
+                buffer.flip();
+                int bytesWritten = writeChannel.write(buffer);
+                taskProbe.record(bytesWritten);
+                getRateLimiter().acquire(bytesWritten);
+
+                long now = System.currentTimeMillis();
+                long lastLog = lastLogTime.get();
+                if (now - lastLog >= LOG_INTERVAL_MS) {
+                    if (lastLogTime.compareAndSet(lastLog, now)) {
+                        double speed = speedProbeGroup.getTotalSpeed();
+                        logger.info(String.format("Copying: %s - Global: %.2f MB/s",
+                            source.getFileName(), speed));
+                    }
+                }
+
+                buffer.clear();
+            }
+        }
+        copyFileAttributes(source, dest, attributes);
+        QueueManager.getIndex().addFile(hash, source, size);
     }
 
     /**

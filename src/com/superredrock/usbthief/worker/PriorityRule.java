@@ -85,9 +85,8 @@ public class PriorityRule {
     public int calculatePriority(Callable<?> task) {
         return switch (task){
             case CopyTask copyTask -> calculatePriority(copyTask.getProcessingPath());
+            case VerifyTask verifyTask -> calculatePriority(verifyTask.getProcessingPath());
             default -> DEFAULT_PRIORITY;
         };
-
-
     }
 }

@@ -57,6 +57,9 @@ public class ConfigSchema {
     public static final ConfigEntry<Long> TIMEOUT_MILLIS =
             longEntry("timeoutMillis", "Timeout for retry queue polling (milliseconds)", 100L, "File Copy");
 
+    public static final ConfigEntry<Boolean> COPY_VERIFY_ENABLED =
+            booleanEntry("copyVerifyEnabled", "Enable pre-copy verification (checksum + dedup before copy)", true, "File Copy");
+
     // File watch configuration
     public static final ConfigEntry<Boolean> WATCH_ENABLED =
             booleanEntry("watchEnabled", "Enable/disable real-time file monitoring", true, "File Watch");
@@ -235,6 +238,7 @@ public class ConfigSchema {
         registerEntry(MAX_FILE_SIZE);
         registerEntry(RETRY_COUNT);
         registerEntry(TIMEOUT_MILLIS);
+        registerEntry(COPY_VERIFY_ENABLED);
         registerEntry(WATCH_ENABLED);
         registerEntry(WATCH_THRESHOLD);
         registerEntry(WATCH_RESET_INTERVAL_SECONDS);

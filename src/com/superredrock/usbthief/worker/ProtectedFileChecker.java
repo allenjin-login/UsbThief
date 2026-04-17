@@ -3,6 +3,7 @@ package com.superredrock.usbthief.worker;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
@@ -107,7 +108,7 @@ public final class ProtectedFileChecker {
 
             // Cannot acquire lock - file is locked by another process
             return true;
-        } catch (java.nio.channels.OverlappingFileLockException e) {
+        } catch (OverlappingFileLockException e) {
             // File is already locked (possibly by our own test)
             return true;
         } catch (IOException e) {
