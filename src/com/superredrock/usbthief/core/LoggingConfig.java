@@ -26,10 +26,7 @@ public class LoggingConfig {
     }
 
     public static void initialize() {
-        File logsDir = new File("logs");
-        if (!logsDir.exists()) {
-            logsDir.mkdirs();
-        }
+        new File("logs").mkdirs();
 
         try {
             LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
@@ -82,7 +79,7 @@ public class LoggingConfig {
 
             ctx.updateLoggers();
         } catch (Exception e) {
-            // Fallback: minimal console logging
+            System.err.println("Failed to configure logging: " + e.getMessage());
         }
     }
 }
