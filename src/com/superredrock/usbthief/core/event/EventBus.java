@@ -326,7 +326,7 @@ public final class EventBus {
                         try {
                             results.add(future.join());
                         } catch (Exception e) {
-                            logger.error("Exception collecting result from async listener: {}", e);
+                            logger.error("Exception collecting result from async listener:", e);
                         }
                     }
                     return results;
@@ -388,7 +388,7 @@ public final class EventBus {
                         try {
                             results.put(listener, future.join());
                         } catch (Exception e) {
-                            logger.error("Exception collecting result from async listener: {}", e);
+                            logger.error("Exception collecting result from async listener:", e);
                         }
                     });
                     return results;

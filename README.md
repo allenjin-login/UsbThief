@@ -23,7 +23,7 @@
   <a href="https://github.com/superRedRock/usb-thief/blob/master/LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License">
   </a>
-  <img src="https://img.shields.io/badge/Java-24%20%28Preview%29-orange?style=flat-square" alt="Java 24">
+  <img src="https://img.shields.io/badge/Java-25%20%28Preview%29-orange?style=flat-square" alt="Java 25">
   <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=flat-square" alt="Platform">
   <a href="https://github.com/superRedRock/usb-thief/actions">
     <img src="https://img.shields.io/github/actions/workflow/status/superRedRock/usb-thief/build.yml?branch=master&style=flat-square" alt="Build">
@@ -34,7 +34,7 @@
 
 ## Overview
 
-UsbThief is a Windows desktop application that automatically detects USB drives, monitors file changes in real-time, and copies files with intelligent deduplication. Built with Java 24 and a modern Swing UI, it runs quietly in the background or system tray.
+UsbThief is a Windows desktop application that automatically detects USB drives, monitors file changes in real-time, and copies files with intelligent deduplication. Built with Java 25 and a modern Swing UI, it runs quietly in the background or system tray.
 
 **Why UsbThief?**
 - Automatic USB detection and file monitoring
@@ -134,18 +134,18 @@ mvn package
 ```
 
 The built files will be in `target/`:
-- `UsbThief-1.1.0.exe` - Windows executable
-- `UsbThief-1.1.0.zip` - Distribution package
+- `UsbThief-{version}.exe` - Windows executable
+- `UsbThief-{version}.zip` - Distribution package
 - `runtime/` - Custom JRE
 
 #### Run from Source (Development)
 
 ```bash
-# Compile first
-mvn compile
+# Compile and copy dependencies
+mvn compile dependency:copy-dependencies -DoutputDirectory=target/libs
 
 # Run directly
-java -p out -m UsbThief/com.superredrock.usbthief.Main --enable-preview
+java -p "target/classes;target/libs" -m UsbThief/com.superredrock.usbthief.Main --enable-preview
 ```
 
 </details>
@@ -229,7 +229,7 @@ default.language=en
 
 | Category | Technology |
 |----------|------------|
-| **Language** | Java 24 (modular, JPMS, preview features) |
+| **Language** | Java 25 (modular, JPMS, preview features) |
 | **UI Framework** | Swing with FlatLaf 3.5.4 |
 | **Build System** | Maven 3.9+ |
 | **Runtime** | Custom JRE via jlink |
