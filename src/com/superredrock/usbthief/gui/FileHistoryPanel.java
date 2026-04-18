@@ -15,11 +15,12 @@ import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class FileHistoryPanel extends JPanel {
 
-    private static final Logger logger = Logger.getLogger(FileHistoryPanel.class.getName());
+    private static final Logger logger = LogManager.getLogger(FileHistoryPanel.class);
     private final I18NManager i18n = I18NManager.getInstance();
     private final JTable historyTable;
     private final HistoryTableModel tableModel;

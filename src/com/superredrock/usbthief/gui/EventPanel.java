@@ -16,7 +16,8 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Event panel that displays all events from the EventBus.
@@ -24,7 +25,7 @@ import java.util.logging.Logger;
  */
 public class EventPanel extends JPanel {
 
-    private static final Logger logger = Logger.getLogger(EventPanel.class.getName());
+    private static final Logger logger = LogManager.getLogger(EventPanel.class);
     private final I18NManager i18n = I18NManager.getInstance();
     private final JTable eventTable;
     private final EventTableModel tableModel;

@@ -4,8 +4,7 @@ package com.superredrock.usbthief.core;
  * 服务状态枚举
  * <p>
  * 状态转换规则：
- * STOPPED → STARTING → RUNNING
- * RUNNING → STOPPING → STOPPED
+ * STOPPED → STARTING → RUNNING *  → STOPPING → STOPPED
  * RUNNING → PAUSED → RUNNING
  * 任意状态 → FAILED（发生错误时）
  * FAILED → STOPPING → STOPPED（恢复时）

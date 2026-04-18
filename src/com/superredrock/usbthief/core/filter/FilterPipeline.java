@@ -7,7 +7,8 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiPredicate;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A pipeline that combines multiple file filters using AND logic.
@@ -20,7 +21,7 @@ import java.util.logging.Logger;
  */
 public class FilterPipeline implements FileFilter {
 
-    protected static final Logger logger = Logger.getLogger(FilterPipeline.class.getName());
+    protected static final Logger logger = LogManager.getLogger(FilterPipeline.class);
 
     private final List<FileFilter> filters;
 
@@ -117,7 +118,7 @@ public class FilterPipeline implements FileFilter {
         // Evaluate each filter with short-circuit evaluation
         for (FileFilter filter : filters) {
             if (!filter.test(path, attrs)) {
-                logger.fine("File blocked by filter " + filter.getClass().getSimpleName() + ": " + path);
+                logger.debug("File blocked by filter {}: {}", filter.getClass().getSimpleName(), path);
                 return false;
             }
         }

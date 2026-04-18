@@ -3,7 +3,8 @@ package com.superredrock.usbthief.gui;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Configuration for language settings.
@@ -11,7 +12,7 @@ import java.util.logging.Logger;
  */
 public class LanguageConfig {
 
-    private static final Logger logger = Logger.getLogger(LanguageConfig.class.getName());
+    private static final Logger logger = LogManager.getLogger(LanguageConfig.class);
     private static final String CONFIG_FILE = "languages.properties";
     private static final String PRIORITY_SUFFIX = ".priority";
     private static final String DISPLAY_NAME_SUFFIX = ".displayName";
@@ -32,7 +33,7 @@ public class LanguageConfig {
             try {
                 Files.createDirectories(dataDir);
             } catch (IOException e) {
-                logger.warning("Failed to create data directory: " + e.getMessage());
+                logger.warn("Failed to create data directory: {}", e);
             }
         }
         return dataDir.resolve(CONFIG_FILE);
@@ -42,9 +43,9 @@ public class LanguageConfig {
         if (Files.exists(configPath)) {
             try (InputStream in = Files.newInputStream(configPath)) {
                 config.load(in);
-                logger.info("Loaded language config from: " + configPath);
+                logger.info("Loaded language config from: {}", configPath);
             } catch (IOException e) {
-                logger.warning("Failed to load language config: " + e.getMessage());
+                logger.warn("Failed to load language config: {}", e);
             }
         }
     }
@@ -52,9 +53,9 @@ public class LanguageConfig {
     public void save() {
         try (OutputStream out = Files.newOutputStream(configPath)) {
             config.store(out, "UsbThief Language Configuration");
-            logger.info("Saved language config to: " + configPath);
+            logger.info("Saved language config to: {}", configPath);
         } catch (IOException e) {
-            logger.warning("Failed to save language config: " + e.getMessage());
+            logger.warn("Failed to save language config: {}", e);
         }
     }
 

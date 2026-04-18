@@ -1,7 +1,8 @@
 package com.superredrock.usbthief.statistics;
 
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Thread-safe speed statistics with sliding window calculation.
@@ -23,7 +24,7 @@ import java.util.logging.Logger;
  * @since 2026-02-21
  */
 public final class SpeedStatistics {
-    private static final Logger logger = Logger.getLogger(SpeedStatistics.class.getName());
+    private static final Logger logger = LogManager.getLogger(SpeedStatistics.class);
 
     // Window configuration: 10 samples over ~10 seconds
     private static final int WINDOW_SIZE = 10;
@@ -260,7 +261,7 @@ public final class SpeedStatistics {
         // Reset timing
         lastSampleTime = System.nanoTime();
 
-        logger.fine("SpeedStatistics reset");
+        logger.debug("SpeedStatistics reset");
     }
 
     /**

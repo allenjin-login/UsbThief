@@ -7,11 +7,12 @@ import java.util.Locale;
 import java.util.MissingResourceException;
 import java.util.ResourceBundle;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class I18NManager {
 
-    private static final Logger logger = Logger.getLogger(I18NManager.class.getName());
+    private static final Logger logger = LogManager.getLogger(I18NManager.class);
     private static final String BUNDLE_NAME = "com.superredrock.usbthief.gui.messages";
 
     private static volatile I18NManager INSTANCE;
@@ -39,11 +40,11 @@ public class I18NManager {
         if (savedLanguage != null && !savedLanguage.isEmpty()) {
             Locale savedLocale = parseLocale(savedLanguage);
             if (savedLocale != null) {
-                logger.info("Using saved language preference: " + savedLanguage);
+                logger.info("Using saved language preference: {}", savedLanguage);
                 return savedLocale;
             }
         }
-        logger.info("Using system default locale: " + Locale.getDefault());
+        logger.info("Using system default locale: {}", Locale.getDefault());
         return Locale.getDefault();
     }
 
@@ -66,7 +67,7 @@ public class I18NManager {
 
     public void refreshAvailableLanguages() {
         this.availableLanguages = LanguageDiscovery.discoverLanguages();
-        logger.info("Refreshed available languages: " + availableLanguages.size());
+        logger.info("Refreshed available languages: {}", availableLanguages.size());
         notifyLanguageListChanged();
     }
 
@@ -91,7 +92,7 @@ public class I18NManager {
             try {
                 listener.onLanguageListChanged(new ArrayList<>(availableLanguages));
             } catch (Exception e) {
-                logger.warning("Error notifying language list change listener: " + e.getMessage());
+                logger.warn("Error notifying language list change listener: {}", e);
             }
         }
     }
@@ -110,11 +111,9 @@ public class I18NManager {
     private void loadResourceBundle() {
         try {
             resourceBundle = ResourceBundle.getBundle(BUNDLE_NAME, currentLocale);
-            logger.info("Loaded resource bundle for locale: " + currentLocale);
-            String testValue = resourceBundle.getString("main.title");
-            logger.info("Test message 'main.title': " + testValue);
+            logger.debug("Loaded resource bundle for locale: {}", currentLocale);
         } catch (MissingResourceException e) {
-            logger.severe("Failed to load resource bundle: " + e.getMessage());
+            logger.error("Failed to load resource bundle: {}", e);
             resourceBundle = null;
         }
     }
@@ -134,7 +133,7 @@ public class I18NManager {
             Locale oldLocale = this.currentLocale;
             this.currentLocale = locale;
             loadResourceBundle();
-            logger.info("Locale changed from " + oldLocale + " to " + locale);
+            logger.info("Locale changed from {} to {}", oldLocale, locale);
             notifyLocaleChanged();
         }
     }
@@ -144,7 +143,7 @@ public class I18NManager {
             try {
                 listener.onLocaleChanged(currentLocale);
             } catch (Exception e) {
-                logger.warning("Error notifying locale change listener: " + e.getMessage());
+                logger.warn("Error notifying locale change listener: {}", e);
             }
         }
     }
@@ -155,17 +154,14 @@ public class I18NManager {
 
     public String getMessage(String key) {
         if (resourceBundle == null) {
-            logger.warning("Resource bundle not loaded, returning key: " + key);
+            logger.warn("Resource bundle not loaded, returning key: {}", key);
             return "!" + key + "!";
         }
         try {
             String value = resourceBundle.getString(key);
-            if (key.equals("main.title") || key.equals("tab.events")) {
-                logger.fine("getMessage(" + key + ") = " + value);
-            }
             return value;
         } catch (MissingResourceException e) {
-            logger.warning("Missing resource for key: " + key);
+            logger.warn("Missing resource for key: {}", key);
             return "!" + key + "!";
         }
     }

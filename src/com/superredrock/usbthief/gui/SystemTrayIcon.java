@@ -10,7 +10,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.util.Objects;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * System tray integration for UsbThief.
@@ -19,7 +20,7 @@ import java.util.logging.Logger;
  * All text is hardcoded in English - not affected by i18n.
  */
 public class SystemTrayIcon {
-    private static final Logger logger = Logger.getLogger(SystemTrayIcon.class.getName());
+    private static final Logger logger = LogManager.getLogger(SystemTrayIcon.class);
 
     private final MainFrame mainFrame;
     private TrayIcon trayIcon;
@@ -42,7 +43,7 @@ public class SystemTrayIcon {
      */
     public boolean initialize() {
         if (!SystemTray.isSupported()) {
-            logger.warning("System tray is not supported on this platform");
+            logger.warn("System tray is not supported on this platform");
             return false;
         }
 
@@ -90,7 +91,7 @@ public class SystemTrayIcon {
 
         Image trayImage = createTrayIconImage();
         if (trayImage == null) {
-            logger.warning("Failed to create tray icon image, using generated icon");
+            logger.warn("Failed to create tray icon image, using generated icon");
             trayImage = trayIconManager.generateIcon(TrayIconManager.TrayState.IDLE, iconSize);
         }
 
@@ -121,7 +122,7 @@ public class SystemTrayIcon {
 
             return true;
         } catch (AWTException e) {
-            logger.severe("Failed to add tray icon: " + e.getMessage());
+            logger.error("Failed to add tray icon: {}", e);
             return false;
         }
     }
@@ -146,7 +147,7 @@ public class SystemTrayIcon {
             try {
                 ImageIcon icon = new ImageIcon(Objects.requireNonNull(getClass().getResource(name)));
                 if (icon.getIconWidth() > 0) {
-                    logger.fine("Loaded tray icon: " + name);
+                    logger.debug("Loaded tray icon: {}", name);
                     return icon.getImage();
                 }
             } catch (Exception _) {
@@ -175,7 +176,7 @@ public class SystemTrayIcon {
 
         alwaysHideItem.setLabel("Start Hide: " + (newValue ? "Yes" : "No"));
 
-        logger.info("Always Hidden setting changed to: " + newValue);
+        logger.info("Always Hidden setting changed to: {}", newValue);
 
         if (newValue && mainFrame.isVisible()) {
             mainFrame.hideWindow();

@@ -4,7 +4,8 @@ import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 
 import java.io.IOException;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Manages Windows auto-start functionality via registry.
@@ -12,7 +13,7 @@ import java.util.logging.Logger;
  */
 public final class AutoStartManager {
     
-    private static final Logger logger = Logger.getLogger(AutoStartManager.class.getName());
+    private static final Logger logger = LogManager.getLogger(AutoStartManager.class);
     private static final String REG_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
     private static final String APP_NAME = "UsbThief";
     
@@ -52,7 +53,7 @@ public final class AutoStartManager {
             p.getInputStream().readAllBytes();
             return p.waitFor() == 0;
         } catch (IOException | InterruptedException e) {
-            logger.warning("Failed to check auto-start status: " + e.getMessage());
+            logger.warn("Failed to check auto-start status: {}", e);
             Thread.currentThread().interrupt();
             return false;
         }
@@ -64,7 +65,7 @@ public final class AutoStartManager {
      */
     public boolean enableAutoStart() {
         if (!isWindows()) {
-            logger.warning("Auto-start only supported on Windows");
+            logger.warn("Auto-start only supported on Windows");
             return false;
         }
         
@@ -83,15 +84,15 @@ public final class AutoStartManager {
             int exitCode = p.waitFor();
             
             if (exitCode == 0) {
-                logger.info("Auto-start enabled: " + command);
+                logger.info("Auto-start enabled: {}", command);
                 ConfigManager.getInstance().set(ConfigSchema.AUTO_START_ENABLED, true);
                 return true;
             } else {
-                logger.warning("Failed to enable auto-start: " + output);
+                logger.warn("Failed to enable auto-start: {}", output);
                 return false;
             }
         } catch (IOException | InterruptedException e) {
-            logger.severe("Failed to enable auto-start: " + e.getMessage());
+            logger.error("Failed to enable auto-start: {}", e);
             Thread.currentThread().interrupt();
             return false;
         }
@@ -119,11 +120,11 @@ public final class AutoStartManager {
                 ConfigManager.getInstance().set(ConfigSchema.AUTO_START_ENABLED, false);
                 return true;
             } else {
-                logger.warning("Failed to disable auto-start: " + output);
+                logger.warn("Failed to disable auto-start: {}", output);
                 return false;
             }
         } catch (IOException | InterruptedException e) {
-            logger.severe("Failed to disable auto-start: " + e.getMessage());
+            logger.error("Failed to disable auto-start: {}", e);
             Thread.currentThread().interrupt();
             return false;
         }
@@ -155,7 +156,7 @@ public final class AutoStartManager {
         }
         
         // Not running from packaged EXE - auto-start not available
-        logger.warning("Auto-start only available when running from packaged EXE");
+        logger.warn("Auto-start only available when running from packaged EXE");
         return null;
     }
 }

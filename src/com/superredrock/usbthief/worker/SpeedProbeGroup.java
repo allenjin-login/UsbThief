@@ -5,7 +5,8 @@ import java.lang.ref.WeakReference;
 import java.lang.ref.ReferenceQueue;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Aggregates multiple speed probes for combined monitoring.
@@ -19,7 +20,7 @@ import java.util.logging.Logger;
  * @since 2026-02-03
  */
 public final class SpeedProbeGroup implements Closeable {
-    private static final Logger logger = Logger.getLogger(SpeedProbeGroup.class.getName());
+    private static final Logger logger = LogManager.getLogger(SpeedProbeGroup.class);
 
     private final String name;
     private final ConcurrentLinkedQueue<WeakReference<SpeedProbe>> probes;
@@ -48,7 +49,7 @@ public final class SpeedProbeGroup implements Closeable {
     public void addProbe(SpeedProbe probe) {
         Objects.requireNonNull(probe, "Probe cannot be null");
         probes.offer(new WeakReference<>(probe, refQueue));
-        logger.fine("Added probe [" + probe.getName() + "] to group [" + name + "]");
+        logger.debug("Added probe [{}] to group [{}]", probe.getName(), name);
     }
 
     /**
@@ -64,7 +65,7 @@ public final class SpeedProbeGroup implements Closeable {
         });
 
         if (removed) {
-            logger.fine("Removed probe [" + probe.getName() + "] from group [" + name + "]");
+            logger.debug("Removed probe [{}] from group [{}]", probe.getName(), name);
         }
         return removed;
     }
@@ -156,7 +157,7 @@ public final class SpeedProbeGroup implements Closeable {
             }
         });
         probes.clear();
-        logger.fine("SpeedProbeGroup [" + name + "] closed");
+        logger.debug("SpeedProbeGroup [{}] closed", name);
     }
 
     @Override

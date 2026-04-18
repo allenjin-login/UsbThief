@@ -1,25 +1,19 @@
 package com.superredrock.usbthief.gui;
 
+import com.superredrock.usbthief.core.LoggingConfig;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.text.*;
 import java.awt.*;
 import java.awt.event.KeyEvent;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.*;
+import java.util.function.Consumer;
 
-/**
- * Independent log window that captures java.util.logging output.
- * Registers a custom Handler to receive all log records.
- */
 public class LogWindow extends JDialog {
 
     private static final I18NManager i18n = I18NManager.getInstance();
-    private static final Logger ROOT_LOGGER = Logger.getLogger("");
 
     private final JTextPane logTextPane;
     private final StyledDocument doc;
@@ -30,10 +24,8 @@ public class LogWindow extends JDialog {
     private JCheckBox severeCheckBox;
     private final JLabel countLabel;
 
-    private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
-    private final List<LogEntry> allEntries = new ArrayList<>();
-
-    private static final int MAX_LOG_ENTRIES = 10000;
+    private int visibleCount = 0;
+    private int totalCount = 0;
 
     // Styles for different log levels
     private final Style fineStyle;
@@ -42,8 +34,8 @@ public class LogWindow extends JDialog {
     private final Style severeStyle;
     private final Style timestampStyle;
 
-    // Custom handler to capture JUL logs
-    private final GuiLogHandler guiHandler;
+    // Listener reference for cleanup
+    private Consumer<LogBufferAppender.LogEntry> listener;
 
     public LogWindow(JFrame parent) {
         super(parent, i18n.getMessage("logwindow.title"), false);
@@ -98,9 +90,19 @@ public class LogWindow extends JDialog {
         add(scrollPane, BorderLayout.CENTER);
         add(countLabel, BorderLayout.SOUTH);
 
-        // Register custom handler to capture logs
-        guiHandler = new GuiLogHandler();
-        ROOT_LOGGER.addHandler(guiHandler);
+        // Load existing entries from buffer
+        loadExistingEntries();
+
+        // Register listener for new entries
+        listener = entry -> SwingUtilities.invokeLater(() -> {
+            totalCount++;
+            if (isLevelVisible(entry.level()) && matchesSearch(entry.message())) {
+                appendLogEntry(entry);
+                visibleCount++;
+            }
+            updateCountLabel();
+        });
+        LoggingConfig.BUFFER_APPENDER.setListener(listener);
 
         // ESC to close
         getRootPane().registerKeyboardAction(
@@ -108,6 +110,20 @@ public class LogWindow extends JDialog {
             KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
             JComponent.WHEN_IN_FOCUSED_WINDOW
         );
+    }
+
+    private void loadExistingEntries() {
+        List<LogBufferAppender.LogEntry> entries = LoggingConfig.BUFFER_APPENDER.getEntries();
+        totalCount = entries.size();
+        visibleCount = 0;
+
+        for (LogBufferAppender.LogEntry entry : entries) {
+            if (isLevelVisible(entry.level()) && matchesSearch(entry.message())) {
+                appendLogEntry(entry);
+                visibleCount++;
+            }
+        }
+        updateCountLabel();
     }
 
     private JPanel createControlPanel() {
@@ -177,113 +193,35 @@ public class LogWindow extends JDialog {
         return controlPanel;
     }
 
-    /**
-     * Called by GuiLogHandler when a log record is published.
-     */
-    private void publishLog(LogRecord record) {
-        SwingUtilities.invokeLater(() -> {
-            String timestamp = LocalDateTime.now().format(timeFormatter);
-            String loggerName = shortenLoggerName(record.getLoggerName());
-            String message = formatMessage(record);
-            LogLevel level = mapLevel(record.getLevel());
-
-            LogEntry entry = new LogEntry(timestamp, level, loggerName, message);
-            allEntries.add(entry);
-
-            // Limit entries
-            while (allEntries.size() > MAX_LOG_ENTRIES) {
-                allEntries.removeFirst();
-            }
-
-            // Check if this level is filtered
-            if (isLevelVisible(level) && matchesSearch(message)) {
-                appendLogEntry(entry);
-            }
-
-            updateCountLabel();
-        });
-    }
-
-    private String shortenLoggerName(String name) {
-        if (name == null || name.isEmpty()) return "";
-        // com.superredrock.usbthief.worker.DeviceScanner -> c.s.u.worker.DeviceScanner
-        String[] parts = name.split("\\.");
-        if (parts.length <= 2) return name;
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < parts.length; i++) {
-            if (i < parts.length - 2) {
-                sb.append(parts[i].charAt(0)).append(".");
-            } else {
-                sb.append(parts[i]);
-                if (i < parts.length - 1) sb.append(".");
-            }
-        }
-        return sb.toString();
-    }
-
-    private String formatMessage(LogRecord record) {
-        String msg = record.getMessage();
-        if (msg == null || msg.isEmpty()) {
-            return "";
-        }
-        Object[] params = record.getParameters();
-        if (params != null && params.length > 0) {
-            try {
-                return String.format(msg, params);
-            } catch (Exception e) {
-                return msg;
-            }
-        }
-        return msg;
-    }
-
-    private LogLevel mapLevel(Level level) {
-        if (level.intValue() >= Level.SEVERE.intValue()) {
-            return LogLevel.SEVERE;
-        } else if (level.intValue() >= Level.WARNING.intValue()) {
-            return LogLevel.WARNING;
-        } else if (level.intValue() >= Level.INFO.intValue()) {
-            return LogLevel.INFO;
-        } else {
-            return LogLevel.FINE;
-        }
-    }
-
-    private void appendLogEntry(LogEntry entry) {
+    private void appendLogEntry(LogBufferAppender.LogEntry entry) {
         try {
-            // Append timestamp
             doc.insertString(doc.getLength(), "[" + entry.timestamp() + "] ", timestampStyle);
-            // Append level
             Style levelStyle = getStyleForLevel(entry.level());
-            String levelText = String.format("[%-7s] ", entry.level().name());
+            String levelText = String.format("[%-7s] ", entry.level());
             doc.insertString(doc.getLength(), levelText, levelStyle);
-            // Append logger name
             doc.insertString(doc.getLength(), "[" + entry.loggerName() + "] ", timestampStyle);
-            // Append message
             doc.insertString(doc.getLength(), entry.message() + "\n", levelStyle);
-
-            // Auto-scroll to bottom
             logTextPane.setCaretPosition(doc.getLength());
         } catch (BadLocationException e) {
             // Ignore
         }
     }
 
-    private Style getStyleForLevel(LogLevel level) {
+    private Style getStyleForLevel(String level) {
         return switch (level) {
-            case FINE -> fineStyle;
-            case INFO -> infoStyle;
-            case WARNING -> warningStyle;
-            case SEVERE -> severeStyle;
+            case "DEBUG", "TRACE", "FINE" -> fineStyle;
+            case "WARN" -> warningStyle;
+            case "ERROR", "FATAL" -> severeStyle;
+            default -> infoStyle;
         };
     }
 
-    private boolean isLevelVisible(LogLevel level) {
+    private boolean isLevelVisible(String level) {
         return switch (level) {
-            case FINE -> fineCheckBox.isSelected();
-            case INFO -> infoCheckBox.isSelected();
-            case WARNING -> warningCheckBox.isSelected();
-            case SEVERE -> severeCheckBox.isSelected();
+            case "DEBUG", "TRACE", "FINE" -> fineCheckBox.isSelected();
+            case "WARN" -> warningCheckBox.isSelected();
+            case "ERROR", "FATAL" -> severeCheckBox.isSelected();
+            default -> infoCheckBox.isSelected();
         };
     }
 
@@ -297,10 +235,12 @@ public class LogWindow extends JDialog {
         SwingUtilities.invokeLater(() -> {
             try {
                 doc.remove(0, doc.getLength());
+                visibleCount = 0;
 
-                for (LogEntry entry : allEntries) {
+                for (LogBufferAppender.LogEntry entry : LoggingConfig.BUFFER_APPENDER.getEntries()) {
                     if (isLevelVisible(entry.level()) && matchesSearch(entry.message())) {
                         appendLogEntry(entry);
+                        visibleCount++;
                     }
                 }
 
@@ -313,7 +253,9 @@ public class LogWindow extends JDialog {
 
     public void clear() {
         SwingUtilities.invokeLater(() -> {
-            allEntries.clear();
+            LoggingConfig.BUFFER_APPENDER.clear();
+            totalCount = 0;
+            visibleCount = 0;
             try {
                 doc.remove(0, doc.getLength());
             } catch (BadLocationException e) {
@@ -324,9 +266,6 @@ public class LogWindow extends JDialog {
     }
 
     private void updateCountLabel() {
-        int visibleCount = logTextPane.getText().split("\n").length - 1;
-        if (logTextPane.getText().isEmpty()) visibleCount = 0;
-        int totalCount = allEntries.size();
         countLabel.setText(i18n.getMessage("logwindow.count", visibleCount, totalCount));
     }
 
@@ -334,52 +273,13 @@ public class LogWindow extends JDialog {
         SwingUtilities.invokeLater(() -> {
             setTitle(i18n.getMessage("logwindow.title"));
             searchField.setToolTipText(i18n.getMessage("logwindow.search.tooltip"));
-            // Other components would need field references to update
         });
     }
 
-    /**
-     * Cleanup when window is disposed.
-     */
     @Override
     public void dispose() {
-        ROOT_LOGGER.removeHandler(guiHandler);
-        guiHandler.close();
+        LoggingConfig.BUFFER_APPENDER.setListener(null);
+        listener = null;
         super.dispose();
-    }
-
-    private record LogEntry(String timestamp, LogLevel level, String loggerName, String message) {}
-
-    public enum LogLevel {
-        FINE, INFO, WARNING, SEVERE
-    }
-
-    /**
-     * Custom java.util.logging.Handler that forwards log records to the GUI.
-     */
-    private class GuiLogHandler extends Handler {
-
-        public GuiLogHandler() {
-            setLevel(Level.ALL);
-            setFormatter(new SimpleFormatter());
-        }
-
-        @Override
-        public void publish(LogRecord record) {
-            if (!isLoggable(record)) {
-                return;
-            }
-            publishLog(record);
-        }
-
-        @Override
-        public void flush() {
-            // No buffer to flush
-        }
-
-        @Override
-        public void close() throws SecurityException {
-            // No resources to close
-        }
     }
 }

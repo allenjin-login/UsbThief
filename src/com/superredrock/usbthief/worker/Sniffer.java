@@ -17,13 +17,13 @@ import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class Sniffer extends Thread implements Closeable {
-    protected static final Logger logger = Logger.getLogger(Sniffer.class.getName());
+    protected static final Logger logger = LogManager.getLogger(Sniffer.class);
 
     private final Path root;
     private final WatchService monitor;
@@ -57,7 +57,7 @@ public class Sniffer extends Thread implements Closeable {
         try {
             ws = FileSystems.getDefault().newWatchService();
         } catch (IOException e) {
-            logger.warning("Failed to create WatchService: " + e.getMessage());
+            logger.warn("Failed to create WatchService: {}", e);
             ws = null;
         }
         this.monitor = ws;
@@ -76,17 +76,17 @@ public class Sniffer extends Thread implements Closeable {
             return;
         }
 
-        logger.info("Starting file monitoring for " + root);
+        logger.info("Starting file monitoring for {}", root);
 
         if (monitor == null) {
-            logger.warning("WatchService not available, skipping file monitoring");
+            logger.warn("WatchService not available, skipping file monitoring");
         } else {
             startMonitoring();
         }
     }
 
     private void performInitialScan() {
-        logger.info("Scanning Disk " + root);
+        logger.info("Scanning Disk {}", root);
         BiPredicate<Path, BasicFileAttributes> filter = new BasicFileFilter(ConfigManager.getInstance());
         SuffixFilter suffixFilter = new SuffixFilter(ConfigManager.getInstance());
 
@@ -105,7 +105,7 @@ public class Sniffer extends Thread implements Closeable {
                             submitCopyTask(path);
                         });
                     } catch (IOException e) {
-                        logger.log(Level.WARNING,"Fail",e);
+                        logger.warn("Fail",e);
                     }
                 }
                 );
@@ -116,7 +116,7 @@ public class Sniffer extends Thread implements Closeable {
             this.interrupt();
         }
 
-        logger.info("Initial scan completed for " + root);
+        logger.info("Initial scan completed for {}", root);
     }
 
 
@@ -124,9 +124,9 @@ public class Sniffer extends Thread implements Closeable {
         try {
             submitCopyTask(dir);
             registerDirectoryWatch(dir);
-            logger.fine("Registered directory: " + dir);
+            logger.debug("Registered directory: {}", dir);
         } catch (IOException e) {
-            logger.warning("Error processing directory " + dir + ": " + e.getMessage());
+            logger.warn("Error processing directory {}: {}", dir, e);
         }
     }
 
@@ -164,17 +164,17 @@ public class Sniffer extends Thread implements Closeable {
                             try {
                                 fileSize = Files.size(path);
                             } catch (IOException e) {
-                                logger.fine("Could not get file size for " + path + ": " + e.getMessage());
+                                logger.debug("Could not get file size for {}: {}", path, e);
                             }
                             EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, fileSize, volume.getSerialNumber()));
                             submitCopyTask(path);
                         });
                 } catch (IOException e) {
-                    logger.log(Level.WARNING,"",e);
+                    logger.warn("",e);
                 }
             }).get();
         }  catch (ExecutionException | InterruptedException e) {
-            logger.log(Level.WARNING,"Unknowable Exception, skip scanning " + dir,e);
+            logger.warn("Unknowable Exception, skip scanning {}", dir,e);
         }
     }
 
@@ -192,7 +192,7 @@ public class Sniffer extends Thread implements Closeable {
                 key.pollEvents().stream()
                     .peek(event -> {
                         if (event.kind() == StandardWatchEventKinds.OVERFLOW) {
-                            logger.warning("WatchEvent overflow detected");
+                            logger.warn("WatchEvent overflow detected");
                         }
                     })
                     .filter(event -> event.kind() != StandardWatchEventKinds.OVERFLOW)
@@ -212,7 +212,7 @@ public class Sniffer extends Thread implements Closeable {
             logger.info("Monitoring interrupted");
             Thread.currentThread().interrupt();
         } catch (Exception e) {
-            logger.severe("Error in monitoring loop: " + e.getMessage());
+            logger.error("Error in monitoring loop: {}", e);
             hadError = true;
         } finally {
             running = false;
@@ -232,7 +232,7 @@ public class Sniffer extends Thread implements Closeable {
                     TimeUnit.SECONDS.sleep(ConfigManager.getInstance().get(ConfigSchema.WATCH_RESET_INTERVAL_SECONDS));
                     int count = changeCount.getAndSet(0);
                     if (count > 0) {
-                        logger.fine("Reset change count: " + count);
+                        logger.debug("Reset change count: {}", count);
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -259,11 +259,11 @@ public class Sniffer extends Thread implements Closeable {
         }
 
         int newCount = changeCount.incrementAndGet();
-        logger.fine("File event: " + kind + " on " + fullPath + " (count: " + newCount + ")");
+        logger.debug("File event: {} on {} (count: {})", kind, fullPath, newCount);
 
         if (newCount >= ConfigManager.getInstance().get(ConfigSchema.WATCH_THRESHOLD)) {
             int threshold = ConfigManager.getInstance().get(ConfigSchema.WATCH_THRESHOLD);
-            logger.info("Change threshold reached (" + threshold + "), triggering copy");
+            logger.info("Change threshold reached ({}), triggering copy", threshold);
             changeCount.set(0);
             handleChangedPath(fullPath, kind);
         }
@@ -277,7 +277,7 @@ public class Sniffer extends Thread implements Closeable {
                 submitCopyTask(path);
             }
         } catch (IOException e) {
-            logger.warning("Error handling changed path: " + e.getMessage());
+            logger.warn("Error handling changed path: {}", e);
         }
     }
 
@@ -290,7 +290,7 @@ public class Sniffer extends Thread implements Closeable {
             StandardWatchEventKinds.ENTRY_MODIFY,
             StandardWatchEventKinds.ENTRY_DELETE);
         watchKeys.put(dir, key);
-        logger.fine("Registered watch for directory: " + dir);
+        logger.debug("Registered watch for directory: {}", dir);
     }
 
     public void stopMonitoring() {
@@ -299,7 +299,7 @@ public class Sniffer extends Thread implements Closeable {
             try {
                 monitor.close();
             } catch (IOException e) {
-                logger.warning("Error closing WatchService: " + e.getMessage());
+                logger.warn("Error closing WatchService: {}", e);
             }
         }
     }
@@ -314,7 +314,7 @@ public class Sniffer extends Thread implements Closeable {
             try {
                 monitor.close();
             } catch (IOException e) {
-                logger.warning("Error closing WatchService: " + e.getMessage());
+                logger.warn("Error closing WatchService: {}", e);
             }
         }
     }

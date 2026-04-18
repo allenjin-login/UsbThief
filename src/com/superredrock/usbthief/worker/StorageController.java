@@ -9,7 +9,8 @@ import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Storage controller for monitoring disk space and providing storage status.
@@ -29,7 +30,7 @@ import java.util.logging.Logger;
  */
 public class StorageController {
 
-    protected static final Logger logger = Logger.getLogger(StorageController.class.getName());
+    protected static final Logger logger = LogManager.getLogger(StorageController.class);
 
     private static volatile StorageController INSTANCE;
 
@@ -67,7 +68,7 @@ public class StorageController {
 
             return new StorageStatus(freeBytes, usedBytes, totalBytes, level);
         } catch (IOException e) {
-            logger.throwing("StorageController", "getStorageStatus", e);
+            logger.error("Failed to get storage status", e);
             // Return conservative values on error
             return new StorageStatus(0, 0, 0, StorageLevel.CRITICAL);
         }
@@ -83,7 +84,7 @@ public class StorageController {
             long freeBytes = getFileStore().getUsableSpace();
             return calculateStorageLevel(freeBytes);
         } catch (IOException e) {
-            logger.throwing("StorageController", "getStorageLevel", e);
+            logger.error("Failed to get storage level", e);
             // Return conservative value on error
             return StorageLevel.CRITICAL;
         }

@@ -10,12 +10,13 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import java.util.prefs.Preferences;
 import java.util.stream.Collectors;
 
 public final class Statistics {
-    private static final Logger logger = Logger.getLogger(Statistics.class.getName());
+    private static final Logger logger = LogManager.getLogger(Statistics.class);
     private static volatile Statistics INSTANCE;
 
     private static final String KEY_TOTAL_FILES = "totalFilesCopied";
@@ -184,7 +185,7 @@ public final class Statistics {
                 copiedDeviceSerials.addAll(java.util.Arrays.asList(serialsStr.split(",")));
             }
         } catch (Exception e) {
-            logger.warning("Failed to load device serials: " + e.getMessage());
+            logger.warn("Failed to load device serials: {}", e);
         }
 
         try {
@@ -198,7 +199,7 @@ public final class Statistics {
                 }
             }
         } catch (Exception e) {
-            logger.warning("Failed to load extension counts: " + e.getMessage());
+            logger.warn("Failed to load extension counts: {}", e);
         }
 
         // Load per-volume stats
@@ -228,10 +229,10 @@ public final class Statistics {
                 volumeStatsMap.put(serial, vs);
             }
         } catch (Exception e) {
-            logger.warning("Failed to load volume stats: " + e.getMessage());
+            logger.warn("Failed to load volume stats: {}", e);
         }
 
-        logger.info("Statistics loaded: " + totalFilesCopied.get() + " files, " + SizeFormatter.format(totalBytesCopied.get()));
+        logger.info("Statistics loaded: {} files, {}", totalFilesCopied.get(), SizeFormatter.format(totalBytesCopied.get()));
     }
 
     public void save() {
@@ -325,7 +326,7 @@ public final class Statistics {
                 }
             }
         } catch (Exception e) {
-            logger.warning("Failed to clear extension/volume stats: " + e.getMessage());
+            logger.warn("Failed to clear extension/volume stats: {}", e);
         }
 
         resetSession();

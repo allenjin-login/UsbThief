@@ -13,7 +13,6 @@ import com.superredrock.usbthief.core.event.device.VolumeStateChangedEvent;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
 
 /**
  * Manages Sniffer lifecycle as a background Service.
@@ -85,13 +84,13 @@ public class SnifferLifecycleManager extends Service {
 
         bus.register(VolumeInsertedEvent.class, event -> {
             Volume volume = event.volume();
-            logger.info("Volume inserted, scheduling sniffer for: " + volume.getSerialNumber());
+            logger.info("Volume inserted, scheduling sniffer for: {}", volume.getSerialNumber());
             // Don't create sniffer immediately — tick() will pick it up
         });
 
         bus.register(VolumeRemovedEvent.class, event -> {
             String serial = event.volume().getSerialNumber();
-            logger.info("Volume removed, stopping sniffer: " + serial);
+            logger.info("Volume removed, stopping sniffer: {}", serial);
             stop(serial);
             cooldowns.remove(serial);
             pendingRestarts.remove(serial);
@@ -104,17 +103,17 @@ public class SnifferLifecycleManager extends Service {
 
             switch (newState) {
                 case OFFLINE -> {
-                    logger.fine("Volume OFFLINE, stopping sniffer: " + serial);
+                    logger.debug("Volume OFFLINE, stopping sniffer: {}", serial);
                     stop(serial);
                 }
                 case DISABLED -> {
-                    logger.fine("Volume DISABLED, stopping sniffer: " + serial);
+                    logger.debug("Volume DISABLED, stopping sniffer: {}", serial);
                     stop(serial);
                 }
                 case IDLE -> {
                     if (event.oldState() == Volume.VolumeState.OFFLINE ||
                         event.oldState() == Volume.VolumeState.UNAVAILABLE) {
-                        logger.fine("Volume became IDLE, will create sniffer on next tick: " + serial);
+                        logger.debug("Volume became IDLE, will create sniffer on next tick: {}", serial);
                     }
                 }
                 default -> {}
@@ -151,7 +150,7 @@ public class SnifferLifecycleManager extends Service {
                 it.remove();
                 Volume volume = QueueManager.getDeviceManager().getVolumeBySerial(serial);
                 if (volume != null && volume.getState() == Volume.VolumeState.IDLE && !sniffers.containsKey(serial)) {
-                    logger.info("Cooldown elapsed, restarting sniffer for: " + serial);
+                    logger.info("Cooldown elapsed, restarting sniffer for: {}", serial);
                     createSniffer(volume);
                 }
             }
@@ -161,7 +160,7 @@ public class SnifferLifecycleManager extends Service {
         sniffers.entrySet().removeIf(entry -> {
             SnifferEntry se = entry.getValue();
             if (!se.sniffer.isAlive()) {
-                logger.fine("Cleaned up finished sniffer for: " + se.serialNumber);
+                logger.debug("Cleaned up finished sniffer for: {}", se.serialNumber);
                 return true;
             }
             return false;
@@ -193,7 +192,7 @@ public class SnifferLifecycleManager extends Service {
 
         SnifferEntry existing = sniffers.get(serial);
         if (existing != null && existing.sniffer.isAlive()) {
-            logger.fine("Sniffer already active for: " + serial);
+            logger.debug("Sniffer already active for: {}", serial);
             return;
         }
 
@@ -202,9 +201,9 @@ public class SnifferLifecycleManager extends Service {
                                                      () -> onSnifferError(volume));
             sniffers.put(serial, new SnifferEntry(sniffer, serial));
             sniffer.start();
-            logger.info("Sniffer started for volume: " + serial + " at " + volume.getRootPath());
+            logger.info("Sniffer started for volume: {} at {}", serial, volume.getRootPath());
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Failed to create sniffer for " + serial, e);
+            logger.warn("Failed to create sniffer for {}", serial, e);
             scheduleRestart(serial, RestartReason.ERROR);
         }
     }
@@ -214,7 +213,7 @@ public class SnifferLifecycleManager extends Service {
      */
     private void onSnifferFinished(Volume volume, RestartReason reason) {
         String serial = volume.getSerialNumber();
-        logger.info("Sniffer finished for " + serial + " (reason: " + reason + ")");
+        logger.info("Sniffer finished for {} (reason: {})", serial, reason);
         scheduleRestart(serial, reason);
     }
 
@@ -223,7 +222,7 @@ public class SnifferLifecycleManager extends Service {
      */
     private void onSnifferError(Volume volume) {
         String serial = volume.getSerialNumber();
-        logger.warning("Sniffer error for " + serial);
+        logger.warn("Sniffer error for {}", serial);
         scheduleRestart(serial, RestartReason.ERROR);
     }
 
@@ -241,7 +240,7 @@ public class SnifferLifecycleManager extends Service {
         long cooldownEnd = System.currentTimeMillis() + delayMs;
         cooldowns.put(serial, cooldownEnd);
         pendingRestarts.add(serial);
-        logger.info("Scheduled restart for " + serial + " in " + TimeUnit.MILLISECONDS.toMinutes(delayMs) + " min (reason: " + reason + ")");
+        logger.info("Scheduled restart for {} in {} min (reason: {})", serial, TimeUnit.MILLISECONDS.toMinutes(delayMs), reason);
     }
 
     /**
@@ -280,7 +279,7 @@ public class SnifferLifecycleManager extends Service {
         SnifferEntry entry = sniffers.remove(serialNumber);
         if (entry != null) {
             entry.sniffer.close();
-            logger.fine("Stopped scanner for: " + serialNumber);
+            logger.debug("Stopped scanner for: {}", serialNumber);
         }
     }
 
@@ -345,7 +344,7 @@ public class SnifferLifecycleManager extends Service {
             try {
                 entry.sniffer.close();
             } catch (Exception e) {
-                logger.warning("Error closing sniffer for " + entry.serialNumber + ": " + e.getMessage());
+                logger.warn("Error closing sniffer for {}: {}", entry.serialNumber, e);
             }
         }
         sniffers.clear();

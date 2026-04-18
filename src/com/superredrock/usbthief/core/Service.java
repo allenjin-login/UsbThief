@@ -3,11 +3,12 @@ package com.superredrock.usbthief.core;
 import java.io.Closeable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public abstract class Service extends Thread implements Closeable {
 
-    protected final Logger logger = Logger.getLogger(getClass().getName());
+    protected final Logger logger = LogManager.getLogger(getClass());
 
     protected volatile ServiceState state = ServiceState.STOPPED;
     protected volatile boolean running = false;
@@ -24,7 +25,7 @@ public abstract class Service extends Thread implements Closeable {
     public final void run() {
         running = true;
         state = ServiceState.RUNNING;
-        logger.info(getServiceName() + " service started");
+        logger.info("{} service started", getServiceName());
 
         while (running && !Thread.currentThread().isInterrupted()) {
             stateLock.lock();
@@ -35,11 +36,11 @@ public abstract class Service extends Thread implements Closeable {
                 TimeUnit.MILLISECONDS.sleep(getTickIntervalMs());
             } catch (InterruptedException e) {
                 if (running) {
-                    logger.severe(getServiceName() + " interrupted unexpectedly");
+                    logger.error("{} interrupted unexpectedly", getServiceName());
                 }
                 Thread.currentThread().interrupt();
             } catch (Exception e) {
-                logger.severe(getServiceName() + " tick failed: " + e.getMessage());
+                logger.error("{} tick failed: {}", getServiceName(), e);
                 state = ServiceState.FAILED;
             }finally {
                 stateLock.unlock();
@@ -47,7 +48,7 @@ public abstract class Service extends Thread implements Closeable {
         }
 
         state = ServiceState.STOPPED;
-        logger.info(getServiceName() + " service stopped");
+        logger.info(" service stopped{}", getServiceName());
     }
 
     @Override
@@ -55,12 +56,12 @@ public abstract class Service extends Thread implements Closeable {
         stateLock.lock();
         try {
             if (state == ServiceState.RUNNING || state == ServiceState.STARTING) {
-                logger.warning(getServiceName() + " service is already running");
+                logger.warn("{} service is already running", getServiceName());
                 return;
             }
 
             if (isAlive()) {
-                logger.warning(getServiceName() + " thread is already alive");
+                logger.warn("{} thread is already alive", getServiceName());
                 return;
             }
 
@@ -68,7 +69,7 @@ public abstract class Service extends Thread implements Closeable {
             super.start();
 
         } catch (Exception e) {
-            logger.severe(getServiceName() + " start failed: " + e.getMessage());
+            logger.error("{} start failed: {}", getServiceName(), e);
             state = ServiceState.FAILED;
         } finally {
             stateLock.unlock();
@@ -90,17 +91,17 @@ public abstract class Service extends Thread implements Closeable {
                 try {
                     join(5000);
                 } catch (InterruptedException e) {
-                    logger.warning(getServiceName() + " stop interrupted while waiting for thread");
+                    logger.warn("{} stop interrupted while waiting for thread", getServiceName());
                 }
             }
 
             cleanup();
 
             state = ServiceState.STOPPED;
-            logger.info(getServiceName() + " service stopped");
+            logger.info(" service stopped{}", getServiceName());
 
         } catch (Exception e) {
-            logger.severe(getServiceName() + " stop failed: " + e.getMessage());
+            logger.error("{} stop failed: {}", getServiceName(), e);
             state = ServiceState.FAILED;
         }
     }
@@ -109,16 +110,16 @@ public abstract class Service extends Thread implements Closeable {
         stateLock.lock();
         try {
             if (state != ServiceState.RUNNING) {
-                logger.warning(getServiceName() + " service is not running, cannot pause");
+                logger.warn("{} service is not running, cannot pause", getServiceName());
                 return;
             }
 
             paused = true;
             state = ServiceState.PAUSED;
-            logger.info(getServiceName() + " service paused");
+            logger.info("{} service paused", getServiceName());
 
         } catch (Exception e) {
-            logger.severe(getServiceName() + " pause failed: " + e.getMessage());
+            logger.error("{} pause failed: {}", getServiceName(), e);
             state = ServiceState.FAILED;
         } finally {
             stateLock.unlock();
@@ -129,16 +130,16 @@ public abstract class Service extends Thread implements Closeable {
         stateLock.lock();
         try {
             if (state != ServiceState.PAUSED) {
-                logger.warning(getServiceName() + " service is not paused, cannot resume");
+                logger.warn("{} service is not paused, cannot resume", getServiceName());
                 return;
             }
 
             paused = false;
             state = ServiceState.RUNNING;
-            logger.info(getServiceName() + " service resumed");
+            logger.info("{} service resumed", getServiceName());
 
         } catch (Exception e) {
-            logger.severe(getServiceName() + " resume failed: " + e.getMessage());
+            logger.error("{} resume failed: {}", getServiceName(), e);
             state = ServiceState.FAILED;
         } finally {
             stateLock.unlock();

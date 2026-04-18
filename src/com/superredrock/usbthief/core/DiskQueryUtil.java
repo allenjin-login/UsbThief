@@ -10,7 +10,8 @@ import com.sun.jna.platform.win32.WinBase;
 import com.sun.jna.platform.win32.WinNT;
 import com.sun.jna.ptr.IntByReference;
 
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Utility class for querying disk hardware information using Windows DeviceIoControl API.
@@ -26,7 +27,7 @@ import java.util.logging.Logger;
  */
 public final class DiskQueryUtil {
 
-    private static final Logger logger = Logger.getLogger(DiskQueryUtil.class.getName());
+    private static final Logger logger = LogManager.getLogger(DiskQueryUtil.class);
 
     // DeviceIoControl codes
     private static final int IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS = 0x00560000;
@@ -96,7 +97,7 @@ public final class DiskQueryUtil {
 
             if (hVolume == null || WinBase.INVALID_HANDLE_VALUE.equals(hVolume)) {
                 int error = Kernel32.INSTANCE.GetLastError();
-                logger.fine("Failed to open volume " + volumePath + ", error: " + error);
+                logger.debug("Failed to open volume {}, error: {}", volumePath, error);
                 return "";
             }
 
@@ -115,18 +116,18 @@ public final class DiskQueryUtil {
 
             if (!success) {
                 int error = Kernel32.INSTANCE.GetLastError();
-                logger.fine("Failed to get disk extents for " + normalized + ", error: " + error);
+                logger.debug("Failed to get disk extents for {}, error: {}", normalized, error);
                 return "";
             }
 
             int numberOfExtents = extentsBuffer.getInt(0);
             if (numberOfExtents == 0) {
-                logger.fine("No disk extents returned for " + normalized);
+                logger.debug("No disk extents returned for {}", normalized);
                 return "";
             }
 
             int diskNumber = extentsBuffer.getInt(8);
-            logger.fine("Drive " + normalized + " maps to PhysicalDrive" + diskNumber);
+            logger.debug("Drive {} maps to PhysicalDrive{}", normalized, diskNumber);
 
             // Step 3: Try to open physical disk (requires admin rights)
             String diskPath = "\\\\.\\PhysicalDrive" + diskNumber;
@@ -143,10 +144,10 @@ public final class DiskQueryUtil {
             WinNT.HANDLE hQuery;
             if (hDisk != null && !WinBase.INVALID_HANDLE_VALUE.equals(hDisk)) {
                 hQuery = hDisk;
-                logger.fine("Using PhysicalDrive" + diskNumber + " for query");
+                logger.debug("Using PhysicalDrive{} for query", diskNumber);
             } else {
                 int error = Kernel32.INSTANCE.GetLastError();
-                logger.fine("Failed to open disk " + diskPath + ", error: " + error + ", falling back to volume handle");
+                logger.debug("Failed to open disk {}, error: {}, falling back to volume handle", diskPath, error);
                 hQuery = hVolume;
             }
 
@@ -170,27 +171,27 @@ public final class DiskQueryUtil {
 
             if (!success || bytesReturned.getValue() < 40) {
                 int error = Kernel32.INSTANCE.GetLastError();
-                logger.fine("Failed to query storage property, error: " + error);
+                logger.debug("Failed to query storage property, error: {}", error);
                 return "";
             }
 
             int serialNumberOffset = buffer.getInt(36);
             if (serialNumberOffset == 0 || serialNumberOffset >= bytesReturned.getValue()) {
-                logger.fine("No serial number offset in descriptor for " + normalized);
+                logger.debug("No serial number offset in descriptor for {}", normalized);
                 return "";
             }
 
             String serial = buffer.getString(serialNumberOffset);
             if (serial != null && !serial.isEmpty()) {
-                logger.fine("Got hardware serial via DeviceIoControl for " + normalized + ": " + serial);
+                logger.debug("Got hardware serial via DeviceIoControl for {}: {}", normalized, serial);
                 return serial.trim();
             }
 
-            logger.fine("No serial number found for drive: " + normalized);
+            logger.debug("No serial number found for drive: {}", normalized);
             return "";
 
         } catch (Exception e) {
-            logger.fine("DeviceIoControl query failed for " + normalized + ": " + e.getMessage());
+            logger.debug("DeviceIoControl query failed for {}: {}", normalized, e);
             return "";
         } finally {
             if (hVolume != null) {
@@ -275,11 +276,11 @@ public final class DiskQueryUtil {
         // Step 1: Get the disk number
         int diskNumber = getDiskNumber(normalized);
         if (diskNumber < 0) {
-            logger.fine("Failed to get disk number for " + normalized);
+            logger.debug("Failed to get disk number for {}", normalized);
             return "";
         }
 
-        logger.fine("Drive " + normalized + " maps to disk " + diskNumber);
+        logger.debug("Drive {} maps to disk {}", normalized, diskNumber);
 
         // Step 2: Use SetupAPI to find matching disk device
         return findDiskDeviceInstanceId(diskNumber);
@@ -305,7 +306,7 @@ public final class DiskQueryUtil {
 
             if (hVolume == null || WinBase.INVALID_HANDLE_VALUE.equals(hVolume)) {
                 int error = Kernel32.INSTANCE.GetLastError();
-                logger.fine("Failed to open volume " + volumePath + ", error: " + error);
+                logger.debug("Failed to open volume {}, error: {}", volumePath, error);
                 return -1;
             }
 
@@ -323,20 +324,20 @@ public final class DiskQueryUtil {
 
             if (!success) {
                 int error = Kernel32.INSTANCE.GetLastError();
-                logger.fine("Failed to get disk extents for " + driveLetter + ", error: " + error);
+                logger.debug("Failed to get disk extents for {}, error: {}", driveLetter, error);
                 return -1;
             }
 
             int numberOfExtents = extentsBuffer.getInt(0);
             if (numberOfExtents == 0) {
-                logger.fine("No disk extents returned for " + driveLetter);
+                logger.debug("No disk extents returned for {}", driveLetter);
                 return -1;
             }
 
             return extentsBuffer.getInt(8);
 
         } catch (Exception e) {
-            logger.fine("Exception getting disk number for " + driveLetter + ": " + e.getMessage());
+            logger.debug("Exception getting disk number for {}: {}", driveLetter, e);
             return -1;
         } finally {
             if (hVolume != null) {
@@ -362,7 +363,7 @@ public final class DiskQueryUtil {
 
             if (hDevInfo == null || WinBase.INVALID_HANDLE_VALUE.equals(hDevInfo)) {
                 int error = Kernel32.INSTANCE.GetLastError();
-                logger.fine("SetupDiGetClassDevs failed, error: " + error);
+                logger.debug("SetupDiGetClassDevs failed, error: {}", error);
                 return "";
             }
 
@@ -383,7 +384,7 @@ public final class DiskQueryUtil {
                 if (!result) {
                     int error = Kernel32.INSTANCE.GetLastError();
                     if (error != 259) { // ERROR_NO_MORE_ITEMS
-                        logger.fine("SetupDiEnumDeviceInterfaces failed at index " + memberIndex + ", error: " + error);
+                        logger.debug("SetupDiEnumDeviceInterfaces failed at index {}, error: {}", memberIndex, error);
                     }
                     break;
                 }
@@ -418,32 +419,32 @@ public final class DiskQueryUtil {
 
                 if (!result) {
                     int error = Kernel32.INSTANCE.GetLastError();
-                    logger.fine("SetupDiGetDeviceInterfaceDetail failed at index " + memberIndex + ", error: " + error);
+                    logger.debug("SetupDiGetDeviceInterfaceDetail failed at index {}, error: {}", memberIndex, error);
                     memberIndex++;
                     continue;
                 }
 
                 // Extract device path (after cbSize)
                 String devicePath = detailBuffer.getWideString(cbSize);
-                logger.fine("Found disk device: " + devicePath);
+                logger.debug("Found disk device: {}", devicePath);
 
                 // Open device and get its device number
                 int deviceDiskNumber = getDeviceDiskNumber(devicePath);
                 if (deviceDiskNumber == diskNumber) {
                     // Match found - get device instance ID
                     String instanceId = getDeviceInstanceIdFromDevInfo(hDevInfo, devInfoData);
-                    logger.info("Matched disk " + diskNumber + " to device instance: " + instanceId);
+                    logger.info("Matched disk {} to device instance: {}", diskNumber, instanceId);
                     return instanceId;
                 }
 
                 memberIndex++;
             }
 
-            logger.fine("No matching disk device found for disk number " + diskNumber);
+            logger.debug("No matching disk device found for disk number {}", diskNumber);
             return "";
 
         } catch (Exception e) {
-            logger.fine("Exception finding disk device instance ID: " + e.getMessage());
+            logger.debug("Exception finding disk device instance ID: {}", e);
             return "";
         } finally {
             if (hDevInfo != null) {
@@ -471,7 +472,7 @@ public final class DiskQueryUtil {
 
             if (hDevice == null || WinBase.INVALID_HANDLE_VALUE.equals(hDevice)) {
                 int error = Kernel32.INSTANCE.GetLastError();
-                logger.fine("Failed to open device " + devicePath + ", error: " + error);
+                logger.debug("Failed to open device {}, error: {}", devicePath, error);
                 return -1;
             }
 
@@ -488,7 +489,7 @@ public final class DiskQueryUtil {
 
             if (!success) {
                 int error = Kernel32.INSTANCE.GetLastError();
-                logger.fine("IOCTL_STORAGE_GET_DEVICE_NUMBER failed for " + devicePath + ", error: " + error);
+                logger.debug("IOCTL_STORAGE_GET_DEVICE_NUMBER failed for {}, error: {}", devicePath, error);
                 return -1;
             }
 
@@ -496,7 +497,7 @@ public final class DiskQueryUtil {
             return sdn.DeviceNumber;
 
         } catch (Exception e) {
-            logger.fine("Exception getting device disk number: " + e.getMessage());
+            logger.debug("Exception getting device disk number: {}", e);
             return -1;
         } finally {
             if (hDevice != null) {
@@ -534,7 +535,7 @@ public final class DiskQueryUtil {
 
             if (!result) {
                 int error = Kernel32.INSTANCE.GetLastError();
-                logger.fine("SetupDiGetDeviceInstanceId failed, error: " + error);
+                logger.debug("SetupDiGetDeviceInstanceId failed, error: {}", error);
                 return "";
             }
 
@@ -547,7 +548,7 @@ public final class DiskQueryUtil {
             return new String(buffer, 0, len);
 
         } catch (Exception e) {
-            logger.fine("Exception getting device instance ID: " + e.getMessage());
+            logger.debug("Exception getting device instance ID: {}", e);
             return "";
         }
     }
@@ -590,7 +591,7 @@ public final class DiskQueryUtil {
             }
         }
 
-        logger.fine("Could not parse serial from instance ID: " + instanceId);
+        logger.debug("Could not parse serial from instance ID: {}", instanceId);
         return "";
     }
 

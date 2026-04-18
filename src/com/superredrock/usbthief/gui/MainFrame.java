@@ -20,12 +20,13 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import javax.imageio.ImageIO;
 
 public class MainFrame extends JFrame implements I18NManager.LocaleChangeListener, I18NManager.LanguageListChangeListener {
 
-    private static final Logger logger = Logger.getLogger(MainFrame.class.getName());
+    private static final Logger logger = LogManager.getLogger(MainFrame.class);
     private final I18NManager i18n = I18NManager.getInstance();
 
     private final JMenuBar menuBar;
@@ -190,12 +191,12 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
                 BufferedImage image = ImageIO.read(iconUrl);
                 if (image != null) {
                     setIconImage(image);
-                    logger.fine("Window icon loaded from App.png");
+                    logger.debug("Window icon loaded from App.png");
                     return;
                 }
             }
         } catch (IOException e) {
-            logger.warning("Failed to load window icon: " + e.getMessage());
+            logger.warn("Failed to load window icon: {}", e);
         }
 
         BufferedImage defaultIcon = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
@@ -207,7 +208,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         g2d.fillRect(10, 12, 12, 8);
         g2d.dispose();
         setIconImage(defaultIcon);
-        logger.fine("Using default window icon");
+        logger.debug("Using default window icon");
     }
 
     private void createMenus() {
@@ -331,7 +332,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         JCheckBoxMenuItem languageItem = new JCheckBoxMenuItem(displayText);
         languageItem.setSelected(langInfo.locale().equals(currentLocale));
         languageItem.addActionListener(_ -> {
-            logger.info("Switching to language: " + langInfo.locale());
+            logger.info("Switching to language: {}", langInfo.locale());
             languageConfig.setDefaultLanguage(langInfo.localeString());
             languageConfig.save();
             i18n.setLocale(langInfo.locale());
@@ -415,7 +416,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
             i18n.getMessage("starthidden.enabled") :
             i18n.getMessage("starthidden.disabled");
         updateStatusBar(status);
-        logger.info("Start hidden setting changed to: " + enabled);
+        logger.info("Start hidden setting changed to: {}", enabled);
     }
 
     private void saveIndex() {
@@ -472,7 +473,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
                         JOptionPane.INFORMATION_MESSAGE);
                 logger.info("Index cache cleared from menu");
             } catch (Exception e) {
-                logger.severe("Failed to clear index cache: " + e.getMessage());
+                logger.error("Failed to clear index cache: {}", e);
                 JOptionPane.showMessageDialog(
                         this,
                         i18n.getMessage("message.clearIndexFailed", e.getMessage()),
@@ -556,7 +557,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
             logger.info("Unified shutdown completed");
 
         } catch (Exception e) {
-            logger.severe("Error during shutdown: " + e.getMessage());
+            logger.error("Error during shutdown: {}", e);
         }
         System.exit(0);
     }
@@ -622,7 +623,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
                 ConfigManager config = ConfigManager.getInstance();
                 config.set(ConfigSchema.CLOSE_ACTION, shouldMinimize ? "MINIMIZE_TO_TRAY" : "EXIT");
                 config.set(ConfigSchema.CLOSE_ACTION_REMEMBER, true);
-                logger.info("Close action saved: " + (shouldMinimize ? "MINIMIZE_TO_TRAY" : "EXIT"));
+                logger.info("Close action saved: {}", (shouldMinimize ? "MINIMIZE_TO_TRAY" : "EXIT"));
             }
 
             if (shouldMinimize) {
@@ -688,7 +689,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
                 trayIcon = null;
             }
         } catch (Exception e) {
-            logger.warning("Failed to initialize system tray: " + e.getMessage());
+            logger.warn("Failed to initialize system tray: {}", e);
             trayIcon = null;
         }
     }
@@ -709,7 +710,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
     @Override
     public void onLocaleChanged(Locale newLocale) {
-        logger.info("MainFrame received locale change event: " + newLocale);
+        logger.info("MainFrame received locale change event: {}", newLocale);
         SwingUtilities.invokeLater(() -> {
             setTitle(i18n.getMessage("main.title") + " v" + Version.getVersion());
             menuBar.removeAll();
@@ -734,7 +735,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
     @Override
     public void onLanguageListChanged(List<LanguageInfo> languages) {
-        logger.info("Language list changed, refreshing menu: " + languages.size() + " languages");
+        logger.info("Language list changed, refreshing menu: {} languages", languages.size());
         SwingUtilities.invokeLater(() -> {
             menuBar.removeAll();
             createMenus();

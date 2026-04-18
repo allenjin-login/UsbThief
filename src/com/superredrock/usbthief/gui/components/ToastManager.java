@@ -6,7 +6,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.Deque;
 import java.util.LinkedList;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Manages toast notifications for the application.
@@ -14,7 +15,7 @@ import java.util.logging.Logger;
  */
 public class ToastManager {
 
-    private static final Logger logger = Logger.getLogger(ToastManager.class.getName());
+    private static final Logger logger = LogManager.getLogger(ToastManager.class);
     private static volatile ToastManager INSTANCE;
 
     private final Deque<Toast> activeToasts = new LinkedList<>();
@@ -123,7 +124,7 @@ public class ToastManager {
             // Show with animation
             toast.show();
 
-            logger.fine("Showing toast: " + type + " - " + message);
+            logger.debug("Showing toast: {} - {}", type, message);
         });
     }
 

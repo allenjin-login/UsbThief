@@ -9,7 +9,8 @@ import com.sun.jna.platform.win32.WinDef.*;
 import com.sun.jna.platform.win32.WinUser.*;
 
 import javax.swing.SwingUtilities;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * USB hot-plug monitor using Windows API via JNA.
@@ -27,7 +28,7 @@ import java.util.logging.Logger;
  */
 public class UsbHotplugMonitor {
 
-    private static final Logger logger = Logger.getLogger(UsbHotplugMonitor.class.getName());
+    private static final Logger logger = LogManager.getLogger(UsbHotplugMonitor.class);
 
     // Windows message constants
     private static final int WM_DEVICECHANGE = 0x0219;
@@ -164,10 +165,10 @@ public class UsbHotplugMonitor {
                 SwingUtilities.invokeLater(() -> {
                     if (volumeListener != null) {
                         if (eventType == DBT_DEVICEARRIVAL) {
-                            logger.info("Volume arrived: " + driveLetter);
+                            logger.info("Volume arrived: {}", driveLetter);
                             volumeListener.onVolumeArrival(driveLetter);
                         } else {
-                            logger.info("Volume removed: " + driveLetter);
+                            logger.info("Volume removed: {}", driveLetter);
                             volumeListener.onVolumeRemoval(driveLetter);
                         }
                     }
@@ -181,10 +182,10 @@ public class UsbHotplugMonitor {
                 SwingUtilities.invokeLater(() -> {
                     if (deviceListener != null) {
                         if (eventType == DBT_DEVICEARRIVAL) {
-                            logger.info("Device arrived: " + dbccName);
+                            logger.info("Device arrived: {}", dbccName);
                             deviceListener.onDeviceArrival(dbccName);
                         } else {
-                            logger.info("Device removed: " + dbccName);
+                            logger.info("Device removed: {}", dbccName);
                             deviceListener.onDeviceRemoval(dbccName);
                         }
                     }
@@ -231,7 +232,7 @@ public class UsbHotplugMonitor {
                     );
 
                     if (hwnd == null) {
-                        logger.severe("Failed to create hidden window for UsbHotplugMonitor");
+                        logger.error("Failed to create hidden window for UsbHotplugMonitor");
                         return;
                     }
 
@@ -239,11 +240,11 @@ public class UsbHotplugMonitor {
                     hDeviceNotify = registerDeviceInterfaceNotification(hwnd);
                     if (hDeviceNotify == null) {
                         int error = Kernel32.INSTANCE.GetLastError();
-                        logger.warning("Failed to register for device interface notifications, error: " + error + " (continuing with volume-only mode)");
+                        logger.warn("Failed to register for device interface notifications, error: {} (continuing with volume-only mode)", error);
                     }
 
                     running = true;
-                    logger.info("USB hot-plug monitor started with hidden window hwnd=" + hwnd);
+                    logger.info("USB hot-plug monitor started with hidden window hwnd={}", hwnd);
 
                     // Message loop — blocks until WM_QUIT
                     MSG msg = new MSG();
@@ -308,9 +309,9 @@ public class UsbHotplugMonitor {
         );
 
         if (result == null) {
-            logger.severe("RegisterDeviceNotification failed, error: " + Kernel32.INSTANCE.GetLastError());
+            logger.error("RegisterDeviceNotification failed, error: {}", Kernel32.INSTANCE.GetLastError());
         } else {
-            logger.info("Device interface notification registered: " + result);
+            logger.info("Device interface notification registered: {}", result);
         }
 
         return result;

@@ -9,12 +9,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class VerifyTask implements Callable<CopyResult> {
 
-    private static final Logger logger = Logger.getLogger(VerifyTask.class.getName());
+    private static final Logger logger = LogManager.getLogger(VerifyTask.class);
 
     private final Path processingPath;
     private final String deviceSerial;
@@ -38,7 +38,7 @@ public class VerifyTask implements Callable<CopyResult> {
             CheckSum hash = CheckSum.verify(processingPath);
 
             if (QueueManager.getIndex().checkDuplicate(processingPath, hash)) {
-                logger.info("Path Ignore (verify): " + processingPath);
+                logger.info("Path Ignore (verify): {}", processingPath);
                 result = CopyResult.SKIPPED;
             } else {
                 TaskScheduler.getInstance().submit(new CopyTask(processingPath, deviceSerial, hash));
@@ -46,7 +46,7 @@ public class VerifyTask implements Callable<CopyResult> {
             }
         } catch (IOException e) {
             result = CopyResult.FAIL;
-            logger.log(Level.WARNING, "Verify failed: " + processingPath, e);
+            logger.warn("Verify failed: {}", processingPath, e);
         }
 
         EventBus.getInstance().dispatch(new CopyCompletedEvent(

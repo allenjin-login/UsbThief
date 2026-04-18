@@ -10,7 +10,8 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import javax.swing.Timer;
 
 /**
@@ -20,7 +21,7 @@ import javax.swing.Timer;
  */
 public class TrayIconManager {
 
-    private static final Logger logger = Logger.getLogger(TrayIconManager.class.getName());
+    private static final Logger logger = LogManager.getLogger(TrayIconManager.class);
 
     public enum TrayState { IDLE, SCANNING, COPYING, ERROR }
 
@@ -39,7 +40,7 @@ public class TrayIconManager {
         for (TrayState state : TrayState.values()) {
             iconCache.put(state, generateIcon(state, size));
         }
-        logger.fine("Tray icons generated for size: " + size);
+        logger.debug("Tray icons generated for size: {}", size);
     }
 
     /**

@@ -8,7 +8,8 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Thread-safe event bus for dispatching events to registered listeners.
@@ -31,7 +32,7 @@ import java.util.logging.Logger;
 public final class EventBus {
 
     private static final EventBus INSTANCE = new EventBus();
-    private static final Logger logger = Logger.getLogger(EventBus.class.getName());
+    private static final Logger logger = LogManager.getLogger(EventBus.class);
 
     // Synchronous listeners stored per event type, using CopyOnWriteArrayList for thread-safe iteration
     @SuppressWarnings("rawtypes")
@@ -70,13 +71,13 @@ public final class EventBus {
         // Check for duplicates
         for (EventListenerWrapper<?> existing : listeners) {
             if (existing.equals(wrapper)) {
-                logger.warning("Listener already registered for event type: " + eventClass.getName());
+                logger.warn("Listener already registered for event type: {}", eventClass.getName());
                 return;
             }
         }
 
         listeners.add(wrapper);
-        logger.fine("Registered listener for event type: " + eventClass.getName());
+        logger.debug("Registered listener for event type: {}", eventClass.getName());
     }
 
     /**
@@ -96,7 +97,7 @@ public final class EventBus {
 
         boolean removed = listeners.remove(wrapper);
         if (removed) {
-            logger.fine("Unregistered listener for event type: " + eventClass.getName());
+            logger.debug("Unregistered listener for event type: {}", eventClass.getName());
         }
     }
 
@@ -121,8 +122,7 @@ public final class EventBus {
                         EventListener<T> listener = (EventListener<T>) wrapper.listener();
                         listener.onEvent(event);
                     } catch (Exception e) {
-                        logger.severe("Exception in event listener for " + event.getClass().getName()
-                                + ": " + e.getMessage());
+                        logger.error("Exception in event listener for {}: {}", event.getClass().getName(), e);
                     }
                 });
     }
@@ -133,7 +133,7 @@ public final class EventBus {
     public void clearAll() {
         listeners.clear();
         asyncListeners.clear();
-        logger.fine("Cleared all event listeners");
+        logger.debug("Cleared all event listeners");
     }
 
     /**
@@ -167,13 +167,13 @@ public final class EventBus {
         // Check for duplicates
         for (AsyncEventListenerWrapper<?, ?> existing : asyncListeners) {
             if (existing.equals(wrapper)) {
-                logger.warning("Async listener already registered for event type: " + eventClass.getName());
+                logger.warn("Async listener already registered for event type: {}", eventClass.getName());
                 return;
             }
         }
 
         asyncListeners.add(wrapper);
-        logger.fine("Registered async listener for event type: " + eventClass.getName());
+        logger.debug("Registered async listener for event type: {}", eventClass.getName());
     }
 
     /**
@@ -195,13 +195,13 @@ public final class EventBus {
         // Check for duplicates
         for (AsyncEventListenerWrapper<?, ?> existing : asyncListeners) {
             if (existing.equals(wrapper)) {
-                logger.warning("Async listener already registered for event type: " + eventClass.getName());
+                logger.warn("Async listener already registered for event type: {}", eventClass.getName());
                 return;
             }
         }
 
         asyncListeners.add(wrapper);
-        logger.fine("Registered async listener for event type: " + eventClass.getName());
+        logger.debug("Registered async listener for event type: {}", eventClass.getName());
     }
 
     /**
@@ -222,7 +222,7 @@ public final class EventBus {
 
         boolean removed = asyncListeners.remove(wrapper);
         if (removed) {
-            logger.fine("Unregistered async listener for event type: " + eventClass.getName());
+            logger.debug("Unregistered async listener for event type: {}", eventClass.getName());
         }
     }
 
@@ -252,8 +252,7 @@ public final class EventBus {
                         EventListener<T> listener = (EventListener<T>) wrapper.listener();
                         listener.onEvent(event);
                     } catch (Exception e) {
-                        logger.severe("Exception in event listener for " + event.getClass().getName()
-                                + ": " + e.getMessage());
+                        logger.error("Exception in event listener for {}: {}", event.getClass().getName(), e);
                     }
                 });
                 futures.add(future);
@@ -313,8 +312,7 @@ public final class EventBus {
                         EventListener<T> listener = (EventListener<T>) wrapper.listener();
                         listener.onEvent(event);
                     } catch (Exception e) {
-                        logger.severe("Exception in event listener for " + event.getClass().getName()
-                                + ": " + e.getMessage());
+                        logger.error("Exception in event listener for {}: {}", event.getClass().getName(), e);
                     }
                 });
             }
@@ -328,7 +326,7 @@ public final class EventBus {
                         try {
                             results.add(future.join());
                         } catch (Exception e) {
-                            logger.severe("Exception collecting result from async listener: " + e.getMessage());
+                            logger.error("Exception collecting result from async listener: {}", e);
                         }
                     }
                     return results;
@@ -376,8 +374,7 @@ public final class EventBus {
                         EventListener<T> listener = (EventListener<T>) wrapper.listener();
                         listener.onEvent(event);
                     } catch (Exception e) {
-                        logger.severe("Exception in event listener for " + event.getClass().getName()
-                                + ": " + e.getMessage());
+                        logger.error("Exception in event listener for {}: {}", event.getClass().getName(), e);
                     }
                 });
             }
@@ -391,7 +388,7 @@ public final class EventBus {
                         try {
                             results.put(listener, future.join());
                         } catch (Exception e) {
-                            logger.severe("Exception collecting result from async listener: " + e.getMessage());
+                            logger.error("Exception collecting result from async listener: {}", e);
                         }
                     });
                     return results;

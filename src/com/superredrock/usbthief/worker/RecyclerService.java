@@ -72,8 +72,7 @@ public class RecyclerService extends Service {
             }
 
         } catch (Exception e) {
-            logger.severe("RecyclerService tick failed: " + e.getMessage());
-            logger.throwing(getClass().getName(), "tick", e);
+            logger.error("RecyclerService tick failed", e);
         }
     }
 
@@ -104,7 +103,7 @@ public class RecyclerService extends Service {
         Path workPath = Path.of(configManager.get(ConfigSchema.WORK_PATH));
 
         if (!Files.exists(workPath)) {
-            logger.warning("Work path does not exist: " + workPath);
+            logger.warn("Work path does not exist: {}", workPath);
             return;
         }
 
@@ -127,7 +126,7 @@ public class RecyclerService extends Service {
                             }
                         }
                     } catch (IOException e) {
-                        logger.warning("Failed to check if directory is empty: " + dir);
+                        logger.warn("Failed to check if directory is empty: {}", dir);
                     }
                     return FileVisitResult.CONTINUE;
                 }
@@ -145,20 +144,20 @@ public class RecyclerService extends Service {
             for (Path folder : toDelete) {
                 try {
                     Files.delete(folder);
-                    logger.info("Deleted empty folder: " + folder);
+                    logger.debug("Deleted empty folder: {}", folder);
                 } catch (IOException e) {
-                    logger.warning("Failed to delete empty folder: " + folder + " - " + e.getMessage());
+                    logger.warn("Failed to delete empty folder: {} - {}", folder, e);
                 }
             }
 
             // Dispatch event if any folders were deleted
             if (!toDelete.isEmpty()) {
                 EventBus.getInstance().dispatch(new EmptyFoldersDeletedEvent(toDelete, toDelete.size()));
-                logger.info("Deleted " + toDelete.size() + " empty folders");
+                logger.info("Deleted {} empty folders", toDelete.size());
             }
 
         } catch (IOException e) {
-            logger.severe("Failed to delete empty folders: " + e.getMessage());
+            logger.error("Failed to delete empty folders: {}", e);
         }
     }
 
@@ -181,7 +180,7 @@ public class RecyclerService extends Service {
         Path workPath = Path.of(configManager.get(ConfigSchema.WORK_PATH));
 
         if (!Files.exists(workPath)) {
-            logger.warning("Work path does not exist: " + workPath);
+            logger.warn("Work path does not exist: {}", workPath);
             return;
         }
 
@@ -225,7 +224,7 @@ public class RecyclerService extends Service {
                     });
 
             if (files.isEmpty()) {
-                logger.fine("No files found for recycling");
+                logger.debug("No files found for recycling");
                 return;
             }
 
@@ -246,7 +245,7 @@ public class RecyclerService extends Service {
             }
 
             if (selectedFiles.isEmpty()) {
-                logger.fine("No files selected for recycling");
+                logger.debug("No files selected for recycling");
                 return;
             }
 
@@ -259,9 +258,9 @@ public class RecyclerService extends Service {
                     Files.delete(file.path());
                     bytesFreed += file.size();
                     deletedFiles.add(file.path());
-                    logger.fine("Recycled file: " + file.path() + " (" + file.size() + " bytes)");
+                    logger.debug("Recycled file: {} ({} bytes)", file.path(), file.size());
                 } catch (IOException e) {
-                    logger.warning("Failed to delete file: " + file.path() + " - " + e.getMessage());
+                    logger.warn("Failed to delete file: {} - {}", file.path(), e);
                 }
             }
 
@@ -269,12 +268,11 @@ public class RecyclerService extends Service {
             if (!deletedFiles.isEmpty()) {
                 EventBus.getInstance().dispatch(
                         new FilesRecycledEvent(deletedFiles, bytesFreed, actualStrategy));
-                logger.info("Recycled " + deletedFiles.size() + " files (" + bytesFreed + " bytes freed)");
+                logger.info("Recycled {} files ({} bytes freed)", deletedFiles.size(), bytesFreed);
             }
 
         } catch (IOException e) {
-            logger.severe("Failed to recycle files: " + e.getMessage());
-            logger.throwing(getClass().getName(), "recycleFiles", e);
+            logger.error("Failed to recycle files", e);
         }
     }
 
@@ -292,7 +290,7 @@ public class RecyclerService extends Service {
         try {
             return RecycleStrategy.valueOf(strategy.toUpperCase());
         } catch (IllegalArgumentException e) {
-            logger.warning("Invalid recycle strategy in config: " + strategy + ", using AUTO");
+            logger.warn("Invalid recycle strategy in config: {}, using AUTO", strategy);
             return RecycleStrategy.AUTO;
         }
     }

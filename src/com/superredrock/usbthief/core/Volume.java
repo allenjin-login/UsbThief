@@ -3,7 +3,8 @@ package com.superredrock.usbthief.core;
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.Objects;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Represents a USB storage volume (drive) with its metadata and state.
@@ -20,7 +21,7 @@ public class Volume {
         DISABLED       // Manually disabled by user (user-controlled, requires manual action)
     }
 
-    private static final Logger logger = Logger.getLogger(Volume.class.getName());
+    private static final Logger logger = LogManager.getLogger(Volume.class);
 
     private Path rootPath;
     private FileStore fileStore;
@@ -70,7 +71,7 @@ public class Volume {
             this.fileStore = Files.getFileStore(rootPath);
             this.volumeName = fileStore.name();
         } catch (IOException e) {
-            logger.fine("Failed to get FileStore for " + rootPath + ": " + e.getMessage());
+            logger.debug("Failed to get FileStore for {}: {}", rootPath, e);
             this.fileStore = null;
             this.volumeName = "";
         }

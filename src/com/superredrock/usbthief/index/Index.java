@@ -20,11 +20,11 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class Index extends Service {
-    private static final Logger logger = Logger.getLogger(Index.class.getName());
+    private static final Logger logger = LogManager.getLogger(Index.class);
     
     private static volatile Index INSTANCE;
 
@@ -89,14 +89,14 @@ public class Index extends Service {
             }
         } catch (EOFException _) {
         } catch (IOException | ClassNotFoundException e) {
-            logger.log(Level.WARNING, "Failed to load digest", e);
+            logger.warn("Failed to load digest", e);
             digest.clear();
         }
     }
 
     public void save() {
         if (!dirty) {
-            logger.fine("Index not dirty, skipping save");
+            logger.debug("Index not dirty, skipping save");
             return;
         }
 
@@ -116,7 +116,7 @@ public class Index extends Service {
             }
             objectOutput.flush();
         } catch (IOException e) {
-            logger.log(Level.SEVERE, "Failed to save digest", e);
+            logger.error("Failed to save digest", e);
         }
     }
 
@@ -124,13 +124,13 @@ public class Index extends Service {
     protected void tick() {
         try {
             if (dirty) {
-                logger.fine("Executing periodic index save");
+                logger.debug("Executing periodic index save");
                 save();
             } else {
-                logger.fine("Index not modified, skipping periodic save");
+                logger.debug("Index not modified, skipping periodic save");
             }
         } catch (Exception e) {
-            logger.severe("Index save failed: " + e.getMessage());
+            logger.error("Index save failed: {}", e);
             state = ServiceState.FAILED;
         }
     }

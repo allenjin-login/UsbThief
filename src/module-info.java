@@ -1,10 +1,11 @@
 module UsbThief {
-    requires java.logging;
     requires java.prefs;
     requires java.desktop;
     requires com.formdev.flatlaf;
     requires com.sun.jna;
     requires com.sun.jna.platform;
+    requires org.apache.logging.log4j;
+    requires org.apache.logging.log4j.core;
 
     exports com.superredrock.usbthief.index;
     exports com.superredrock.usbthief.core;

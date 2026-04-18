@@ -2,7 +2,8 @@ package com.superredrock.usbthief.worker;
 
 import java.io.Closeable;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * High-performance speed monitoring probe with thread-safe data collection.
@@ -20,7 +21,7 @@ import java.util.logging.Logger;
  * @since 2026-02-03
  */
 public final class SpeedProbe implements Closeable {
-    private static final Logger logger = Logger.getLogger(SpeedProbe.class.getName());
+    private static final Logger logger = LogManager.getLogger(SpeedProbe.class);
 
     // Window configuration
     private static final int WINDOW_SIZE = 10;
@@ -220,7 +221,7 @@ public final class SpeedProbe implements Closeable {
             closed = true;
             merge(System.nanoTime());
             threadLocalBytes.remove();
-            logger.fine("SpeedProbe [" + name + "] closed");
+            logger.debug("SpeedProbe [{}] closed", name);
         }
     }
 

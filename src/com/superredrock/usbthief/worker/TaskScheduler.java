@@ -10,11 +10,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class TaskScheduler extends Service {
-    private static final Logger logger = Logger.getLogger(TaskScheduler.class.getName());
+    private static final Logger logger = LogManager.getLogger(TaskScheduler.class);
     
     private static volatile TaskScheduler INSTANCE;
 
@@ -117,7 +117,7 @@ public ThreadPoolExecutor getPool() {
         if (accumulating) {
             accumulating = false;
             int queueDepth = getQueueDepth();
-            logger.info("Load decreased - resuming submissions, accumulated tasks: " + queueDepth);
+            logger.info("Load decreased - resuming submissions, accumulated tasks: {}", queueDepth);
         }
 
         List<PriorityTask<?, ?>> batch = new ArrayList<>(batchSize);
@@ -132,7 +132,7 @@ public ThreadPoolExecutor getPool() {
             return;
         }
 
-        logger.fine("Dispatching batch of " + batch.size() + " tasks");
+        logger.debug("Dispatching batch of {} tasks", batch.size());
 
         dispatchTask(batch);
     }
@@ -141,7 +141,7 @@ public ThreadPoolExecutor getPool() {
         if (accumulating) {
             accumulating = false;
             int queueDepth = getQueueDepth();
-            logger.info("Load decreased - resuming submissions, accumulated tasks: " + queueDepth);
+            logger.info("Load decreased - resuming submissions, accumulated tasks: {}", queueDepth);
         }
 
         List<PriorityTask<?, ?>> allTasks = new ArrayList<>();
@@ -156,7 +156,7 @@ public ThreadPoolExecutor getPool() {
             return;
         }
 
-        logger.fine("Dispatching all " + allTasks.size() + " tasks (LOW load mode)");
+        logger.debug("Dispatching all {} tasks (LOW load mode)", allTasks.size());
 
         dispatchTask(allTasks);
     }
@@ -168,13 +168,13 @@ public ThreadPoolExecutor getPool() {
                 Future<?> future = pool.submit((Callable<Object>) task.unwrap());
                 task.setFuture(future);
             } catch (RejectedExecutionException e) {
-                logger.warning("Task rejected during dispatch, re-queuing");
+                logger.warn("Task rejected during dispatch, re-queuing");
                 synchronized (priorityQueue) {
                     priorityQueue.offer(task);
                 }
                 break;
             } catch (Exception e) {
-                logger.log(Level.SEVERE, "Failed to submit task, dropping", e);
+                logger.error("Failed to submit task, dropping", e);
             }
         }
     }
@@ -196,14 +196,14 @@ public ThreadPoolExecutor getPool() {
                         pool.submit(task.unwrap());
                         drained++;
                     } catch (Exception e) {
-                        logger.warning("Failed to submit task during cleanup: " + e.getMessage());
+                        logger.warn("Failed to submit task during cleanup: {}", e);
                     }
                 }
             }
         }
 
         if (drained > 0) {
-            logger.info("Drained " + drained + " tasks during cleanup");
+            logger.info("Drained {} tasks during cleanup", drained);
         }
     }
 

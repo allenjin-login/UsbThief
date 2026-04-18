@@ -14,7 +14,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -25,7 +26,7 @@ import java.util.stream.Collectors;
  */
 public class LanguageDiscovery {
 
-    private static final Logger logger = Logger.getLogger(LanguageDiscovery.class.getName());
+    private static final Logger logger = LogManager.getLogger(LanguageDiscovery.class);
     private static final Pattern BUNDLE_PATTERN = Pattern.compile("^messages_([a-z]{2})(?:_([A-Z]{2}))?\\.properties$");
     private static final Pattern JAR_ENTRY_PATTERN = Pattern.compile("^com/superredrock/usbthief/gui/messages_([a-z]{2})(?:_([A-Z]{2}))?\\.properties$");
 
@@ -39,7 +40,7 @@ public class LanguageDiscovery {
 
         // Try development mode first (file system)
         if (tryDevMode(languages)) {
-            logger.fine("Discovered languages from file system");
+            logger.debug("Discovered languages from file system");
         } else {
             // Try JAR mode
             tryJarMode(languages);
@@ -79,7 +80,7 @@ public class LanguageDiscovery {
 
                             LanguageInfo info = new LanguageInfo(locale);
                             languages.add(info);
-                            logger.fine("Discovered language from file system: " + locale);
+                            logger.debug("Discovered language from file system: {}", locale);
                         }
 
                         return FileVisitResult.CONTINUE;
@@ -88,7 +89,7 @@ public class LanguageDiscovery {
                 return !languages.isEmpty();
             }
         } catch (IOException e) {
-            logger.fine("File system discovery failed (expected in JAR mode): " + e.getMessage());
+            logger.debug("File system discovery failed (expected in JAR mode): {}", e);
         }
         return false;
     }
@@ -100,7 +101,7 @@ public class LanguageDiscovery {
         try {
             // Get the JAR location
             URL jarUrl = LanguageDiscovery.class.getProtectionDomain().getCodeSource().getLocation();
-            logger.fine("CodeSource location: " + jarUrl);
+            logger.debug("CodeSource location: {}", jarUrl);
 
             Path jarPath;
             try {
@@ -110,7 +111,7 @@ public class LanguageDiscovery {
                 jarPath = Path.of(jarUrl.getPath());
             }
 
-            logger.fine("JAR path: " + jarPath);
+            logger.debug("JAR path: {}", jarPath);
 
             if (Files.isRegularFile(jarPath) && jarPath.toString().endsWith(".jar")) {
                 try (JarFile jarFile = new JarFile(jarPath.toFile())) {
@@ -131,7 +132,7 @@ public class LanguageDiscovery {
 
                             LanguageInfo info = new LanguageInfo(locale);
                             languages.add(info);
-                            logger.fine("Discovered language from JAR: " + locale);
+                            logger.debug("Discovered language from JAR: {}", locale);
                         }
                     }
                 }
@@ -155,14 +156,14 @@ public class LanguageDiscovery {
 
                                         LanguageInfo info = new LanguageInfo(locale);
                                         languages.add(info);
-                                        logger.fine("Discovered language from classes directory: " + locale);
+                                        logger.debug("Discovered language from classes directory: {}", locale);
                                     }
                                 });
                     }
                 }
             }
         } catch (IOException e) {
-            logger.warning("Failed to discover languages from JAR: " + e.getMessage());
+            logger.warn("Failed to discover languages from JAR: {}", e);
         }
     }
 

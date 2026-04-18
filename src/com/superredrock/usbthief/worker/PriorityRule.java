@@ -5,15 +5,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Calculates task priority based on file attributes (extension, size, path).
  * Priority range: 0-100, higher = more important.
  */
 public class PriorityRule {
-    private static final Logger logger = Logger.getLogger(PriorityRule.class.getName());
+    private static final Logger logger = LogManager.getLogger(PriorityRule.class);
 
     private static final Map<String, Integer> EXTENSION_PRIORITIES = Map.of(
         "pdf", 10,
@@ -49,10 +49,10 @@ public class PriorityRule {
             int sizeAdjustment = calculateSizeAdjustment(file);
 
             // Clamp to valid range
-            return Math.max(0, Math.min(100, basePriority + sizeAdjustment));
+            return Math.clamp(basePriority + sizeAdjustment, 0, 100);
 
         } catch (Exception e) {
-            logger.log(Level.WARNING, "优先级计算失败，使用默认值: " + file, e);
+            logger.warn("优先级计算失败，使用默认值: {}", file, e);
             return DEFAULT_PRIORITY;
         }
     }
@@ -77,7 +77,7 @@ public class PriorityRule {
             return 0; // Medium files, no adjustment
 
         } catch (IOException e) {
-            logger.log(Level.FINE, "无法获取文件大小: " + file, e);
+            logger.debug("无法获取文件大小: {}", file, e);
             return 0; // If we can't get size, no adjustment
         }
     }

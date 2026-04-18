@@ -56,7 +56,7 @@ public interface SetupApiExt extends Library {
      */
     @Structure.FieldOrder({"cbSize", "ClassGuid", "DevInst", "Reserved"})
     class SP_DEVINFO_DATA extends Structure {
-        public int cbSize;
+        public final int cbSize;
         public Guid.GUID ClassGuid;
         public int DevInst;
         public long Reserved;
@@ -72,7 +72,7 @@ public interface SetupApiExt extends Library {
      */
     @Structure.FieldOrder({"cbSize", "InterfaceClassGuid", "Flags", "Reserved"})
     class SP_DEVICE_INTERFACE_DATA extends Structure {
-        public int cbSize;
+        public final int cbSize;
         public Guid.GUID InterfaceClassGuid;
         public int Flags;
         public long Reserved;

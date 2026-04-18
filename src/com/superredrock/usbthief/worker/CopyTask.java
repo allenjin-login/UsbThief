@@ -18,12 +18,12 @@ import java.nio.file.attribute.DosFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class CopyTask implements Callable<CopyResult> {
 
-    protected static final Logger logger = Logger.getLogger(CopyTask.class.getName());
+    protected static final Logger logger = LogManager.getLogger(CopyTask.class);
 
     private static final ThreadLocal<ByteBuffer> bufferThreadLocal = ThreadLocal.withInitial(() -> ByteBuffer.allocate(ConfigManager.getInstance().get(ConfigSchema.BUFFER_SIZE)));
 
@@ -93,7 +93,7 @@ public class CopyTask implements Callable<CopyResult> {
             // Space check at start - skip copy if storage is CRITICAL
             StorageController storage = StorageController.getInstance();
             if (storage.isStorageCritical()) {
-                logger.warning("Storage critical, skipping copy: " + processingPath);
+                logger.warn("Storage critical, skipping copy: {}", processingPath);
                 result = CopyResult.SKIPPED;
             } else {
                 Volume volume = QueueManager.getDeviceManager().getVolume(processingPath);
@@ -108,8 +108,7 @@ public class CopyTask implements Callable<CopyResult> {
                 StorageController.StorageStatus status = storage.getStorageStatus();
                 long availableWithBuffer = (long) (status.freeBytes() * 0.9);
                 if (size > availableWithBuffer) {
-                    logger.warning("File too large for available space (size: " + size +
-                        ", available with buffer: " + availableWithBuffer + "), skipping copy: " + processingPath);
+                    logger.warn("File too large for available space (size: {}, available with buffer: {}), skipping copy: {}", size, availableWithBuffer, processingPath);
                     result = CopyResult.SKIPPED;
                 } else {
                     // File fits - proceed with copy
@@ -121,7 +120,7 @@ public class CopyTask implements Callable<CopyResult> {
                     } else {
                         CheckSum hash = CheckSum.verify(processingPath);
                         if (QueueManager.getIndex().checkDuplicate(processingPath, hash)){
-                            logger.info("Path Ignore: " + processingPath);
+                            logger.info("Path Ignore: {}", processingPath);
                         } else {
                             doCopy(processingPath, destinationPath, size, hash, buffer);
                         }
@@ -131,7 +130,7 @@ public class CopyTask implements Callable<CopyResult> {
             }
         } catch (IOException | InterruptedException e) {
             result = CopyResult.FAIL;
-            logger.log(Level.WARNING,"Fail Copy" ,e);
+            logger.warn("Fail Copy" ,e);
         } finally {
             buffer.clear();
             // Dispatch CopyCompletedEvent - ALWAYS dispatch, even for SKIPPED
@@ -157,7 +156,7 @@ public class CopyTask implements Callable<CopyResult> {
         BasicFileAttributes attributes = Files.readAttributes(source, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         try (FileChannel readChannel = FileChannel.open(source, StandardOpenOption.READ);
              FileChannel writeChannel = FileChannel.open(dest, StandardOpenOption.WRITE, StandardOpenOption.CREATE)) {
-            logger.fine("Copying:" + source + " to " + dest);
+            logger.debug("Copying:{} to {}", source, dest);
             while (readChannel.read(buffer) != -1) {
                 if (Thread.currentThread().isInterrupted()){
                     throw new InterruptedException("Copy cancelled");
@@ -172,8 +171,8 @@ public class CopyTask implements Callable<CopyResult> {
                 if (now - lastLog >= LOG_INTERVAL_MS) {
                     if (lastLogTime.compareAndSet(lastLog, now)) {
                         double speed = speedProbeGroup.getTotalSpeed();
-                        logger.info(String.format("Copying: %s - Global: %.2f MB/s",
-                            source.getFileName(), speed));
+                        logger.info("Copying: {} - Global: {} MB/s",
+                            source.getFileName(), String.format("%.2f", speed));
                     }
                 }
 
@@ -199,7 +198,7 @@ public class CopyTask implements Callable<CopyResult> {
             Files.setAttribute(destination, "basic:lastAccessTime", lastAccess);
             // Note: creationTime is not set as it requires elevated privileges on some filesystems
             
-            logger.fine("Copied timestamps: modified=" + lastModified + ", access=" + lastAccess + ", creation=" + creation);
+            logger.debug("Copied timestamps: modified={}, access={}, creation={}", lastModified, lastAccess, creation);
             
             // Try to copy DOS attributes (Windows)
             try {
@@ -208,14 +207,14 @@ public class CopyTask implements Callable<CopyResult> {
                 Files.setAttribute(destination, "dos:hidden", dosAttrs.isHidden());
                 Files.setAttribute(destination, "dos:system", dosAttrs.isSystem());
                 Files.setAttribute(destination, "dos:archive", dosAttrs.isArchive());
-                logger.fine("Copied DOS attributes: readonly=" + dosAttrs.isReadOnly() + ", hidden=" + dosAttrs.isHidden());
+                logger.debug("Copied DOS attributes: readonly={}, hidden={}", dosAttrs.isReadOnly(), dosAttrs.isHidden());
             } catch (UnsupportedOperationException e) {
                 // Not a DOS filesystem (e.g., Linux), ignore
-                logger.fine("DOS attributes not supported on this filesystem");
+                logger.debug("DOS attributes not supported on this filesystem");
             }
             
         } catch (IOException e) {
-            logger.warning("Failed to copy file attributes: " + e.getMessage());
+            logger.warn("Failed to copy file attributes: {}", e);
         }
     }
 

@@ -3,7 +3,8 @@ package com.superredrock.usbthief.core;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Application version information.
@@ -11,7 +12,7 @@ import java.util.logging.Logger;
  */
 public final class Version {
     
-    private static final Logger logger = Logger.getLogger(Version.class.getName());
+    private static final Logger logger = LogManager.getLogger(Version.class);
     
     private static final String VERSION_FILE = "version.properties";
     
@@ -37,10 +38,10 @@ public final class Version {
                 patch = props.getProperty("version.patch", "0");
                 build = props.getProperty("version.build", "");
             } else {
-                logger.warning("version.properties not found, using defaults");
+                logger.warn("version.properties not found, using defaults");
             }
         } catch (IOException e) {
-            logger.warning("Failed to load version.properties: " + e.getMessage());
+            logger.warn("Failed to load version.properties: {}", e);
         }
         
         MAJOR = major;

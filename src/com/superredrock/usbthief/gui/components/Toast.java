@@ -4,7 +4,8 @@ import com.superredrock.usbthief.gui.theme.ThemeManager;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A toast notification component that displays non-intrusive messages.
@@ -12,7 +13,7 @@ import java.util.logging.Logger;
  */
 public class Toast extends JPanel {
 
-    private static final Logger logger = Logger.getLogger(Toast.class.getName());
+    private static final Logger logger = LogManager.getLogger(Toast.class);
 
     /**
      * Toast type enumeration with corresponding colors and icons.

@@ -11,7 +11,8 @@ import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.util.Arrays;
 import java.util.Locale;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Dialog for configuring rate limit settings.
@@ -27,7 +28,7 @@ import java.util.logging.Logger;
  */
 public class RateLimitConfigDialog extends JDialog implements I18NManager.LocaleChangeListener {
 
-    private static final Logger logger = Logger.getLogger(RateLimitConfigDialog.class.getName());
+    private static final Logger logger = LogManager.getLogger(RateLimitConfigDialog.class);
     private static final I18NManager i18n = I18NManager.getInstance();
     private final ConfigManager configManager = ConfigManager.getInstance();
 
@@ -281,7 +282,7 @@ public class RateLimitConfigDialog extends JDialog implements I18NManager.Locale
         try {
             return CopyTask.getSpeedProbeGroup().getTotalSpeed();
         } catch (Exception e) {
-            logger.warning("Failed to get speed: " + e.getMessage());
+            logger.warn("Failed to get speed: {}", e);
         }
         return 0.0;
     }

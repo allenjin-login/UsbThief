@@ -1,7 +1,7 @@
 package com.superredrock.usbthief.gui;
 
 import javax.swing.*;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
 
 public class GuiUtils {
     /**
@@ -35,7 +35,7 @@ public class GuiUtils {
                 return com.sun.jna.Pointer.nativeValue(hwnd.getPointer());
             }
         } catch (Exception e) {
-            Logger.getLogger(MainFrame.class.getName()).fine("Could not get HWND: " + e.getMessage());
+            LogManager.getLogger(MainFrame.class).debug("Could not get HWND", e);
         }
         return 0;
     }

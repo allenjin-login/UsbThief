@@ -9,7 +9,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * File filter based on file extension (suffix).
@@ -32,7 +33,7 @@ import java.util.logging.Logger;
  */
 public class SuffixFilter implements FileFilter {
 
-    protected static final Logger logger = Logger.getLogger(SuffixFilter.class.getName());
+    protected static final Logger logger = LogManager.getLogger(SuffixFilter.class);
 
     /** Filter mode constants */
     public static final String MODE_NONE = "NONE";
@@ -74,7 +75,7 @@ public class SuffixFilter implements FileFilter {
         // Handle files without extension
         if (!hasExtension) {
             boolean allow = shouldAllowNoExtension();
-            logger.fine("File has no extension, " + (allow ? "allowing" : "blocking") + ": " + path);
+            logger.debug("File has no extension, {}: {}", (allow ? "allowing" : "blocking"), path);
             return allow;
         }
 
@@ -88,14 +89,14 @@ public class SuffixFilter implements FileFilter {
             // Whitelist mode: extension must be in list
             boolean inList = extensions.contains(extension);
             if (!inList) {
-                logger.fine("Extension '" + extension + "' not in whitelist: " + path);
+                logger.debug("Extension '{}' not in whitelist: {}", extension, path);
             }
             return inList;
         } else if (MODE_BLACKLIST.equalsIgnoreCase(mode)) {
             // Blacklist mode: extension must NOT be in list
             boolean inList = extensions.contains(extension);
             if (inList) {
-                logger.fine("Extension '" + extension + "' is blacklisted: " + path);
+                logger.debug("Extension '{}' is blacklisted: {}", extension, path);
                 return false;
             }
             return true;
@@ -139,7 +140,7 @@ public class SuffixFilter implements FileFilter {
                 }
                 return extensions;
             } catch (IllegalArgumentException e) {
-                logger.warning("Unknown preset: " + presetName + ", falling back to direct config");
+                logger.warn("Unknown preset: {}, falling back to direct config", presetName);
             }
         }
 

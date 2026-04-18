@@ -45,16 +45,27 @@
             <artifactId>flatlaf</artifactId>
             <version>3.5.4</version>
         </dependency>
-        <!-- JNA - Java Native Access for Windows API -->
+        <!-- JNA JPMS - Java Native Access with module-info for jlink -->
         <dependency>
             <groupId>net.java.dev.jna</groupId>
-            <artifactId>jna</artifactId>
-            <version>5.14.0</version>
+            <artifactId>jna-jpms</artifactId>
+            <version>5.18.1</version>
         </dependency>
         <dependency>
             <groupId>net.java.dev.jna</groupId>
-            <artifactId>jna-platform</artifactId>
-            <version>5.14.0</version>
+            <artifactId>jna-platform-jpms</artifactId>
+            <version>5.18.1</version>
+        </dependency>
+        <!-- Log4j2 -->
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+            <version>2.25.4</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>2.25.4</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -162,7 +173,7 @@
                                 <argument>${java.home}/jmods${path.separator}${project.build.outputDirectory}${path.separator}${project.build.directory}/libs</argument>
                                 <!-- Add modules (including transitive dependencies) -->
                                 <argument>--add-modules</argument>
-                                <argument>UsbThief,com.formdev.flatlaf</argument>
+                                <argument>UsbThief,com.formdev.flatlaf,com.sun.jna,com.sun.jna.platform,org.apache.logging.log4j,org.apache.logging.log4j.core</argument>
                                 <!-- Output directory -->
                                 <argument>--output</argument>
                                 <argument>${project.build.directory}/${jlink.image.name}</argument>
@@ -192,7 +203,7 @@
                             <workingDirectory>${project.build.directory}/${jlink.image.name}/bin</workingDirectory>
                             <arguments>
                                 <argument>-Command</argument>
-                                <argument>(Get-Content runtime.bat) -replace 'set JLINK_VM_OPTIONS=', 'set JLINK_VM_OPTIONS=--enable-preview' | Set-Content runtime.bat</argument>
+                                <argument>(Get-Content runtime.bat) -replace 'set JLINK_VM_OPTIONS=', 'set JLINK_VM_OPTIONS=--enable-preview --enable-native-access=com.sun.jna' | Set-Content runtime.bat</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -208,7 +219,7 @@
                             <workingDirectory>${project.build.directory}/${jlink.image.name}/bin</workingDirectory>
                             <arguments>
                                 <argument>-Command</argument>
-                                <argument>(Get-Content runtime) -replace 'JLINK_VM_OPTIONS=', 'JLINK_VM_OPTIONS=--enable-preview' | Set-Content runtime</argument>
+                                <argument>(Get-Content runtime) -replace 'JLINK_VM_OPTIONS=', 'JLINK_VM_OPTIONS=--enable-preview --enable-native-access=com.sun.jna' | Set-Content runtime</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -240,6 +251,7 @@
                                 <minVersion>25</minVersion>
                                 <opts>
                                     <opt>--enable-preview</opt>
+                                    <opt>--enable-native-access=com.sun.jna</opt>
                                     <opt>-Dlaunch4j.exefile="%EXEFILE%"</opt>
                                 </opts>
                             </jre>

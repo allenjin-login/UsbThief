@@ -11,7 +11,8 @@ import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Locale;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Basic file filter that applies size, time, hidden, and symlink filters.
@@ -31,7 +32,7 @@ import java.util.logging.Logger;
  */
 public class BasicFileFilter implements FileFilter {
 
-    protected static final Logger logger = Logger.getLogger(BasicFileFilter.class.getName());
+    protected static final Logger logger = LogManager.getLogger(BasicFileFilter.class);
 
     /** Supported time unit constants */
     public static final String UNIT_HOURS = "HOURS";
@@ -69,23 +70,23 @@ public class BasicFileFilter implements FileFilter {
         try {
             // Check symbolic links
             if (shouldSkipSymlinks() && Files.isSymbolicLink(path)) {
-                logger.fine("Skipping symbolic link: " + path);
+                logger.debug("Skipping symbolic link: {}", path);
                 return false;
             }
 
             // Check hidden files
             if (!shouldIncludeHidden() && Files.isHidden(path)) {
-                logger.fine("Skipping hidden file: " + path);
+                logger.debug("Skipping hidden file: {}", path);
                 return false;
             }
 
             // Check if file is readable
             if (!Files.isReadable(path)) {
-                logger.fine("Skipping unreadable file: " + path);
+                logger.debug("Skipping unreadable file: {}", path);
                 return false;
             }
         } catch (IOException e) {
-            logger.fine("IO error checking file attributes: " + path + " - " + e.getMessage());
+            logger.debug("IO error checking file attributes: {} - {}", path, e);
             return false;
         }
 
@@ -93,7 +94,7 @@ public class BasicFileFilter implements FileFilter {
         long maxSize = getMaxFileSize();
         long fileSize = attrs.size();
         if (fileSize > maxSize) {
-            logger.fine("File exceeds max size (" + fileSize + " > " + maxSize + "): " + path);
+            logger.debug("File exceeds max size ({} > {}): {}", fileSize, maxSize, path);
             return false;
         }
 
@@ -103,7 +104,7 @@ public class BasicFileFilter implements FileFilter {
             Instant lastModified = attrs.lastModifiedTime().toInstant();
 
             if (lastModified.isBefore(cutoffTime)) {
-                logger.fine("File is too old (modified " + lastModified + "): " + path);
+                logger.debug("File is too old (modified {}): {}", lastModified, path);
                 return false;
             }
         }

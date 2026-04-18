@@ -7,7 +7,8 @@ import com.superredrock.usbthief.worker.SnifferLifecycleManager;
 import com.superredrock.usbthief.worker.TaskScheduler;
 
 import java.util.concurrent.*;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Queue and thread pool manager
@@ -23,7 +24,7 @@ public class QueueManager {
     private static final ThreadGroup diskScanners = new ThreadGroup("DiskScanner");
     private static final RejectionAwarePolicy rejectionPolicy = new RejectionAwarePolicy();
 
-    protected static final Logger logger = Logger.getLogger(QueueManager.class.getName());
+    protected static final Logger logger = LogManager.getLogger(QueueManager.class);
 
     private QueueManager() {
     }
@@ -77,7 +78,7 @@ public class QueueManager {
             logger.info("Thread pool shutdown completed");
 
         } catch (Exception e) {
-            logger.severe("Error during quit: " + e.getMessage());
+            logger.error("Error during quit: {}", e);
         }
 
         logger.info("Quit completed");

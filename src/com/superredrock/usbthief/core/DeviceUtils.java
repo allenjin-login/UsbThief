@@ -11,7 +11,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Utility class for device-related operations.
@@ -21,7 +22,7 @@ import java.util.logging.Logger;
  */
 public class DeviceUtils {
 
-    protected static final Logger logger = Logger.getLogger(DeviceUtils.class.getName());
+    protected static final Logger logger = LogManager.getLogger(DeviceUtils.class);
 
     private static final Map<String, String> serialNumberCache = new ConcurrentHashMap<>();
 
@@ -61,7 +62,7 @@ public class DeviceUtils {
 
         // Fallback to legacy methods if JNA fails
         if (serial.isEmpty()) {
-            logger.fine("JNA method failed for drive: " + normalizedDrive + ", trying fallback methods");
+            logger.debug("JNA method failed for drive: {}, trying fallback methods", normalizedDrive);
             serial = getSerialNumberViaWmic(cacheKey);
 
             if (serial.isEmpty()) {
@@ -133,7 +134,7 @@ public class DeviceUtils {
 
             if (!result) {
                 int error = kernel32.GetLastError();
-                logger.fine("GetVolumeInformation failed for " + drivePath + ", error: " + error);
+                logger.debug("GetVolumeInformation failed for {}, error: {}", drivePath, error);
                 return "";
             }
 
@@ -141,11 +142,11 @@ public class DeviceUtils {
             int serial = volumeSerialNumber.getValue();
             String serialHex = String.format("%08X", serial);
 
-            logger.fine("Got serial number via JNA for " + drivePath + ": " + serialHex);
+            logger.debug("Got serial number via JNA for {}: {}", drivePath, serialHex);
             return serialHex;
 
         } catch (Exception e) {
-            logger.fine("JNA method exception for drive " + drivePath + ": " + e.getMessage());
+            logger.debug("JNA method exception for drive {}: {}", drivePath, e);
             return "";
         }
     }
@@ -204,9 +205,9 @@ public class DeviceUtils {
                     return result.toString();
                 }
 
-                logger.fine("wmic command failed: " + cmd + " - exit code: " + exitCode);
+                logger.debug("wmic command failed: {} - exit code: {}", cmd, exitCode);
                 if (!errorOutput.toString().isEmpty()) {
-                    logger.fine("wmic error output: " + errorOutput);
+                    logger.debug("wmic error output: {}", errorOutput);
                 }
 
                 // Reset for next attempt
@@ -215,7 +216,7 @@ public class DeviceUtils {
             }
 
         } catch (IOException | InterruptedException e) {
-            logger.fine("wmic exception: " + e.getMessage());
+            logger.debug("wmic exception: {}", e);
         }
 
         return "";
@@ -258,11 +259,11 @@ public class DeviceUtils {
 
             int exitCode = process.waitFor();
             if (exitCode != 0) {
-                logger.warning("VBS script failed with exit code: " + exitCode + " for drive: " + drive);
+                logger.warn("VBS script failed with exit code: {} for drive: {}", exitCode, drive);
             }
 
         } catch (IOException | InterruptedException e) {
-            logger.warning("VBS method failed for drive: " + drive + " - " + e.getMessage());
+            logger.warn("VBS method failed for drive: {} - {}", drive, e);
             return "";
         } finally {
             if (process != null) {
@@ -272,7 +273,7 @@ public class DeviceUtils {
                 try {
                     Files.deleteIfExists(vbsPath);
                 } catch (IOException e) {
-                    logger.fine("Failed to delete temp file: " + vbsPath);
+                    logger.debug("Failed to delete temp file: {}", vbsPath);
                 }
             }
         }
@@ -286,7 +287,7 @@ public class DeviceUtils {
      */
     public static void clearSerialNumberCache() {
         serialNumberCache.clear();
-        logger.fine("Serial number cache cleared");
+        logger.debug("Serial number cache cleared");
     }
 
     /**
@@ -404,7 +405,7 @@ public class DeviceUtils {
             );
         }
 
-        logger.warning("Failed to parse device path: " + dbccName);
+        logger.warn("Failed to parse device path: {}", dbccName);
         return null;
     }
 
@@ -437,7 +438,7 @@ public class DeviceUtils {
         }
 
         // Fallback to volume serial number (software serial)
-        logger.fine("DeviceIoControl failed for " + driveLetter + ", falling back to volume serial number");
+        logger.debug("DeviceIoControl failed for {}, falling back to volume serial number", driveLetter);
         return getVolumeSN(driveLetter);
     }
 

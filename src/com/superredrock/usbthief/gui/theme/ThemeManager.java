@@ -8,7 +8,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import java.util.prefs.Preferences;
 
 /**
@@ -17,7 +18,7 @@ import java.util.prefs.Preferences;
  */
 public class ThemeManager {
 
-    private static final Logger logger = Logger.getLogger(ThemeManager.class.getName());
+    private static final Logger logger = LogManager.getLogger(ThemeManager.class);
     private static volatile ThemeManager INSTANCE;
 
     // Color palette - Modern UI colors
@@ -122,9 +123,9 @@ public class ThemeManager {
             // Notify listeners
             notifyThemeChanged(theme);
 
-            logger.info("Applied theme: " + theme.getDisplayName());
+            logger.info("Applied theme: {}", theme.getDisplayName());
         } catch (Exception e) {
-            logger.severe("Failed to apply theme: " + e.getMessage());
+            logger.error("Failed to apply theme: {}", e);
         }
     }
 
@@ -208,7 +209,7 @@ public class ThemeManager {
             try {
                 listener.onThemeChanged(newTheme);
             } catch (Exception e) {
-                logger.warning("Error notifying theme change listener: " + e.getMessage());
+                logger.warn("Error notifying theme change listener: {}", e);
             }
         }
     }

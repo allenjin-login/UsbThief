@@ -2,10 +2,9 @@ package com.superredrock.usbthief;
 
 
 import com.superredrock.usbthief.core.DeviceManager;
+import com.superredrock.usbthief.core.LoggingConfig;
 import com.superredrock.usbthief.core.QueueManager;
 
-import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.index.Index;
 import com.superredrock.usbthief.worker.SnifferLifecycleManager;
@@ -18,45 +17,20 @@ import com.superredrock.usbthief.gui.MainFrame;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.statistics.Statistics;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import java.util.prefs.Preferences;
 
 public class Main {
-    static final Logger logger = Logger.getLogger(Main.class.getName());
+    static final Logger logger = LogManager.getLogger(Main.class);
     static final Preferences config = Preferences.userNodeForPackage(Main.class);
 
     static boolean hasLaunched = config.getBoolean("hasLaunched", false);
 
-    public static void initializeFirstTime() {
-        logger.info("Initializing");
-        initializeWorkDirectory();
-    }
-
-    /**
-     * Initialize the working directory (creates it if it doesn't exist).
-     * Uses the configured work path from ConfigSchema.WORK_PATH.
-     */
-    private static void initializeWorkDirectory() {
-        try {
-            String workPathStr = ConfigManager.getInstance().get(ConfigSchema.WORK_PATH);
-            if (workPathStr != null && !workPathStr.isEmpty()) {
-                Path workPath = Paths.get(workPathStr);
-                if (!Files.exists(workPath)) {
-                    Files.createDirectories(workPath);
-                    logger.info("Created working directory: " + workPath.toAbsolutePath());
-                } else if (!Files.isDirectory(workPath)) {
-                    logger.warning("Work path exists but is not a directory: " + workPath.toAbsolutePath());
-                }
-            }
-        } catch (Exception e) {
-            logger.warning("Failed to create working directory: " + e.getMessage());
-        }
-    }
-
     static void main() {
+        // Initialize Log4j2
+        LoggingConfig.initialize();
+
         // Initialize FlatLeaf Look and Feel before any Swing components
         ThemeManager.getInstance();
 
@@ -94,24 +68,16 @@ public class Main {
         EventBus eventBus = EventBus.getInstance();
 
         // Register listener for storage low events
-        eventBus.register(StorageLowEvent.class, event -> {
-            logger.warning("Storage low: " + event.freeBytes() + " bytes free, threshold: " + event.thresholdBytes() + " bytes, level: " + event.level());
-        });
+        eventBus.register(StorageLowEvent.class, event -> logger.warn("Storage low: {} bytes free, threshold: {} bytes, level: {}", event.freeBytes(), event.thresholdBytes(), event.level()));
 
         // Register listener for storage recovered events
-        eventBus.register(StorageRecoveredEvent.class, event -> {
-            logger.info("Storage recovered: " + event.freeBytes() + " bytes free");
-        });
+        eventBus.register(StorageRecoveredEvent.class, event -> logger.info("Storage recovered: {} bytes free", event.freeBytes()));
 
         // Register listener for files recycled events
-        eventBus.register(FilesRecycledEvent.class, event -> {
-            logger.info("Files recycled: " + event.fileCount() + " files (strategy: " + event.strategy() + "), " + event.bytesFreed() + " bytes freed");
-        });
+        eventBus.register(FilesRecycledEvent.class, event -> logger.info("Files recycled: {} files (strategy: {}), {} bytes freed", event.fileCount(), event.strategy(), event.bytesFreed()));
 
         // Register listener for empty folders deleted events
-        eventBus.register(EmptyFoldersDeletedEvent.class, event -> {
-            logger.info("Empty folders deleted: " + event.count() + " folders");
-        });
+        eventBus.register(EmptyFoldersDeletedEvent.class, event -> logger.info("Empty folders deleted: {} folders", event.count()));
     }
 
     public static void quit() {

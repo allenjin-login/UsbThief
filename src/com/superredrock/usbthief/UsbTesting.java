@@ -20,16 +20,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Scanner;
-import java.util.logging.ConsoleHandler;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+
+import com.superredrock.usbthief.core.LoggingConfig;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * USB device/volume testing utility.
  */
 public class UsbTesting {
 
-    private static final Logger logger = Logger.getLogger(UsbTesting.class.getName());
+    private static final Logger logger = LogManager.getLogger(UsbTesting.class);
     private static volatile boolean running = true;
     private static JFrame f;
 
@@ -58,7 +59,7 @@ public class UsbTesting {
         }
 
         if (hwndHolder[0] == 0) {
-            logger.severe("Failed to create window. Exiting.");
+            logger.error("Failed to create window. Exiting.");
             System.exit(1);
         }
 
@@ -80,20 +81,7 @@ public class UsbTesting {
     }
 
     private static void setupLogging() {
-        Logger rootLogger = Logger.getLogger("");
-        // Remove default handlers to avoid duplicate output
-        for (var h : rootLogger.getHandlers()) {
-            rootLogger.removeHandler(h);
-        }
-        ConsoleHandler handler = new ConsoleHandler();
-        handler.setLevel(Level.FINE);
-        rootLogger.setLevel(Level.FINE);
-        rootLogger.addHandler(handler);
-
-        // Suppress verbose AWT/Swing/JNA debug output
-        Logger.getLogger("java.awt").setLevel(Level.WARNING);
-        Logger.getLogger("javax.swing").setLevel(Level.WARNING);
-        Logger.getLogger("com.sun.jna").setLevel(Level.WARNING);
+        LoggingConfig.initialize();
     }
 
     private static void initializeWorkDirectory() {
@@ -104,7 +92,7 @@ public class UsbTesting {
                 if (!Files.exists(workPath)) Files.createDirectories(workPath);
             }
         } catch (Exception e) {
-            logger.warning("Failed to create working directory: " + e.getMessage());
+            logger.warn("Failed to create working directory: {}", e);
         }
     }
 
@@ -114,12 +102,12 @@ public class UsbTesting {
         bus.register(DeviceArrivalEvent.class, e -> {
             Device d = e.device();
             logger.info("\n=== DEVICE ARRIVED ===");
-            logger.info("Serial: " + d.getSerialNumber() + ", VID: " + d.getVid() + ", PID: " + d.getPid());
+            logger.info("Serial: {}, VID: {}, PID: {}", d.getSerialNumber(), d.getVid(), d.getPid());
         });
 
         bus.register(DeviceRemovalEvent.class, e -> {
             logger.info("\n=== DEVICE REMOVED ===");
-            logger.info("Serial: " + e.device().getSerialNumber());
+            logger.info("Serial: {}", e.device().getSerialNumber());
         });
 
         bus.register(VolumeInsertedEvent.class, e -> {
@@ -131,12 +119,11 @@ public class UsbTesting {
         bus.register(VolumeRemovedEvent.class, e -> {
             Volume v = e.volume();
             logger.info("\n=== VOLUME REMOVED ===");
-            logger.info("Serial: " + v.getSerialNumber() + ", State: " + v.getState());
+            logger.info("Serial: {}, State: {}", v.getSerialNumber(), v.getState());
         });
 
         bus.register(VolumeStateChangedEvent.class, e -> {
-            logger.info("\n--- STATE CHANGED: " + e.volume().getSerialNumber()
-                + " " + e.oldState() + " -> " + e.newState() + " ---");
+            logger.info("\n--- STATE CHANGED: {} {} -> {} ---", e.volume().getSerialNumber(), e.oldState(), e.newState());
         });
 
         logger.info("Event listeners registered");
@@ -147,25 +134,24 @@ public class UsbTesting {
         var devices = dm.getAllDevices();
         var volumes = dm.getAllVolumes();
 
-        logger.info("\n=== Devices (" + devices.size() + ") ===");
+        logger.info("\n=== Devices ({}) ===", devices.size());
         for (Device d : devices) {
-            logger.info("  Serial: " + d.getSerialNumber() + ", VID: " + d.getVid() + ", PID: " + d.getPid());
+            logger.info("  Serial: {}, VID: {}, PID: {}", d.getSerialNumber(), d.getVid(), d.getPid());
         }
 
-        logger.info("\n=== Volumes (" + volumes.size() + ") ===");
+        logger.info("\n=== Volumes ({}) ===", volumes.size());
         for (Volume v : volumes) {
             printVolume(v);
         }
     }
 
     private static void printVolume(Volume v) {
-        logger.info("  Drive: " + v.getDriveLetter() + ", Serial: " + v.getSerialNumber()
-            + ", State: " + v.getState() + ", Accessible: " + v.isAccessible());
+        logger.info("  Drive: {}, Serial: {}, State: {}, Accessible: {}", v.getDriveLetter(), v.getSerialNumber(), v.getState(), v.isAccessible());
         if (v.getFileStore() != null) {
             try {
                 long total = v.getFileStore().getTotalSpace();
                 long free = v.getFileStore().getUsableSpace();
-                logger.info("  Storage: " + formatSize(total - free) + " / " + formatSize(total));
+                logger.info("  Storage: {} / {}", formatSize(total - free), formatSize(total));
             } catch (Exception _) {}
         }
     }
