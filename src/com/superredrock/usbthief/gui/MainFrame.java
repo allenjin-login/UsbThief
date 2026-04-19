@@ -37,6 +37,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     private final StatisticsPanel statisticsPanel;
     private LogWindow logWindow;
     private DeviceInfoDialog deviceInfoDialog;
+    private SnifferDebugDialog debugDialog;
 
     // Compact stats bar labels
     private JLabel totalLabel;
@@ -250,6 +251,12 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
 
         actionMenu.addSeparator();
 
+        JMenuItem debugMonitorItem = new JMenuItem("Debug Monitor");
+        debugMonitorItem.addActionListener(_ -> showDebugMonitor());
+        actionMenu.add(debugMonitorItem);
+
+        actionMenu.addSeparator();
+
         JMenuItem exitItem = new JMenuItem(i18n.getMessage("menu.action.exit"));
         exitItem.addActionListener(_ -> {
             logger.info("Exit requested from menu");
@@ -385,6 +392,13 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
             logWindow = new LogWindow(this);
         }
         logWindow.setVisible(true);
+    }
+
+    private void showDebugMonitor() {
+        if (debugDialog == null) {
+            debugDialog = new SnifferDebugDialog(this);
+        }
+        debugDialog.setVisible(true);
     }
 
     private void toggleTheme() {
