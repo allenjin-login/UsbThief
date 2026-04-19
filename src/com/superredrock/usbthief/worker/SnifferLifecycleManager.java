@@ -10,7 +10,6 @@ import com.superredrock.usbthief.core.event.device.VolumeInsertedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeStateChangedEvent;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Set;
@@ -95,8 +94,7 @@ public class SnifferLifecycleManager extends Service {
             String serial = event.volume().getSerialNumber();
             logger.info("Volume removed, stopping sniffer: {}", serial);
             stop(serial);
-            cooldowns.remove(serial);
-            pendingRestarts.remove(serial);
+            // Keep cooldowns and pendingRestarts to prevent immediate restart on re-insert after error
         });
 
         bus.register(VolumeStateChangedEvent.class, event -> {
@@ -200,7 +198,7 @@ public class SnifferLifecycleManager extends Service {
         }
 
         try {
-            Sniffer sniffer = new Sniffer(volume, () -> onSnifferFinished(volume, RestartReason.NORMAL_COMPLETION),
+            Sniffer sniffer = new Sniffer(volume, () -> onSnifferFinished(volume),
                                                      () -> onSnifferError(volume));
             sniffers.put(serial, new SnifferEntry(sniffer, serial));
             sniffer.start();
@@ -214,10 +212,10 @@ public class SnifferLifecycleManager extends Service {
     /**
      * Callback when a sniffer finishes normally.
      */
-    private void onSnifferFinished(Volume volume, RestartReason reason) {
+    private void onSnifferFinished(Volume volume) {
         String serial = volume.getSerialNumber();
-        logger.info("Sniffer finished for {} (reason: {})", serial, reason);
-        scheduleRestart(serial, reason);
+        logger.info("Sniffer finished for {} (reason: {})", serial, RestartReason.NORMAL_COMPLETION);
+        scheduleRestart(serial, RestartReason.NORMAL_COMPLETION);
     }
 
     /**

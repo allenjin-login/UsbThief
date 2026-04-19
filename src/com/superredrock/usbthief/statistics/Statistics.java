@@ -37,6 +37,8 @@ public final class Statistics {
 
     private final AtomicLong sessionBytesDiscovered = new AtomicLong(0);
     private final AtomicLong sessionBytesCopied = new AtomicLong(0);
+    private final AtomicLong sessionFilesCopied = new AtomicLong(0);
+    private final AtomicLong sessionFoldersCopied = new AtomicLong(0);
 
     private final ConcurrentHashMap<String, VolumeStats> volumeStatsMap = new ConcurrentHashMap<>();
 
@@ -112,6 +114,7 @@ public final class Statistics {
         if (Files.isDirectory(event.sourcePath())) {
             if (event.isSuccess()) {
                 totalFoldersCopied.incrementAndGet();
+                sessionFoldersCopied.incrementAndGet();
                 if (!serial.isEmpty() && copiedDeviceSerials.add(serial)) {
                     totalDevicesCopied.incrementAndGet();
                 }
@@ -121,6 +124,7 @@ public final class Statistics {
             if (event.isSuccess()) {
                 totalFilesCopied.incrementAndGet();
                 totalBytesCopied.addAndGet(event.bytesCopied());
+                sessionFilesCopied.incrementAndGet();
                 sessionBytesCopied.addAndGet(event.bytesCopied());
 
                 if (!serial.isEmpty() && copiedDeviceSerials.add(serial)) {
@@ -283,6 +287,8 @@ public final class Statistics {
     }
     public long getSessionBytesDiscovered() { return sessionBytesDiscovered.get(); }
     public long getSessionBytesCopied() { return sessionBytesCopied.get(); }
+    public long getSessionFilesCopied() { return sessionFilesCopied.get(); }
+    public long getSessionFoldersCopied() { return sessionFoldersCopied.get(); }
     public int getProgressPercentage() {
         long discovered = sessionBytesDiscovered.get();
         if (discovered == 0) return 0;
@@ -300,6 +306,8 @@ public final class Statistics {
     public void resetSession() {
         sessionBytesDiscovered.set(0);
         sessionBytesCopied.set(0);
+        sessionFilesCopied.set(0);
+        sessionFoldersCopied.set(0);
     }
 
     public void resetAll() {

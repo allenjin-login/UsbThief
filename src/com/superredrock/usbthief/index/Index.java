@@ -67,7 +67,7 @@ public class Index extends Service {
         loadDigest();
         dirty = false;
 
-        logger.info(String.format("Index loaded: %d checksums", digest.size()));
+        logger.info("Index loaded: {} checksums", digest.size());
 
         EventBus.getInstance().dispatch(new IndexLoadedEvent(digest.size()));
     }
@@ -130,7 +130,7 @@ public class Index extends Service {
                 logger.debug("Index not modified, skipping periodic save");
             }
         } catch (Exception e) {
-            logger.error("Index save failed: {}", e);
+            logger.error("Index save failed: ", e);
             state = ServiceState.FAILED;
         }
     }
@@ -202,7 +202,7 @@ public class Index extends Service {
         digest.clear();
         markDirty();
 
-        logger.info(String.format("Index cleared: %d checksums removed", oldDigestSize));
+        logger.info("Index cleared: {} checksums removed", oldDigestSize);
     }
 
     public Set<CheckSum> getDigest() {

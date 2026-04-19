@@ -214,7 +214,7 @@ public class CopyTask implements Callable<CopyResult> {
             }
             
         } catch (IOException e) {
-            logger.warn("Failed to copy file attributes: {}", e);
+            logger.warn("Failed to copy file attributes:", e);
         }
     }
 

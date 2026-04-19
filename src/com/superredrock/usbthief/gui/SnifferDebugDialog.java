@@ -22,7 +22,7 @@ public class SnifferDebugDialog extends JDialog {
         super(owner, "Sniffer Debug Monitor", false);
         setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         setSize(420, 320);
-        setMinimumSize(new Dimension(350, 200));
+        setResizable(false);
         setLocationRelativeTo(owner);
 
         cardsPanel = new JPanel();

@@ -42,6 +42,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     // Compact stats bar labels
     private JLabel totalLabel;
     private JLabel filesLabel;
+    private JLabel foldersLabel;
     private JLabel queueLabel;
 
     // Window visibility state
@@ -54,6 +55,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         setSize(500, 400);
         setMinimumSize(new Dimension(400, 300));
         setLocationRelativeTo(null);
+        setResizable(false);
 
         // Set window icon
         setWindowIcon();
@@ -143,11 +145,12 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     }
 
     private JPanel createCompactStatsBar() {
-        JPanel panel = new JPanel(new GridLayout(1, 3, 4, 0));
+        JPanel panel = new JPanel(new GridLayout(1, 4, 4, 0));
         panel.setOpaque(false);
 
         totalLabel = new JLabel("0 B", SwingConstants.CENTER);
         filesLabel = new JLabel("0", SwingConstants.CENTER);
+        foldersLabel = new JLabel("0", SwingConstants.CENTER);
         queueLabel = new JLabel("0", SwingConstants.CENTER);
 
         Font statFont = new Font(Font.SANS_SERIF, Font.BOLD, 11);
@@ -156,18 +159,10 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         for (var entry : new Object[][]{
                 {i18n.getMessage("chart.stats.total"), totalLabel},
                 {i18n.getMessage("chart.stats.files"), filesLabel},
+                {"Folders", foldersLabel},
                 {i18n.getMessage("chart.stats.queue"), queueLabel}
         }) {
-            JPanel card = new JPanel(new BorderLayout(2, 0));
-            card.setOpaque(false);
-            card.setBorder(BorderFactory.createLineBorder(Color.BLACK, 1, true));
-            JLabel lbl = new JLabel((String) entry[0], SwingConstants.CENTER);
-            lbl.setFont(labelFont);
-            lbl.setForeground(ThemeManager.TEXT_MUTED);
-            JLabel val = (JLabel) entry[1];
-            val.setFont(statFont);
-            card.add(lbl, BorderLayout.NORTH);
-            card.add(val, BorderLayout.CENTER);
+            JPanel card = getCard(entry, labelFont, statFont);
             panel.add(card);
         }
 
@@ -178,10 +173,25 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         return panel;
     }
 
+    private static JPanel getCard(Object[] entry, Font labelFont, Font statFont) {
+        JPanel card = new JPanel(new BorderLayout(2, 0));
+        card.setOpaque(false);
+        card.setBorder(BorderFactory.createLineBorder(Color.BLACK, 1, true));
+        JLabel lbl = new JLabel((String) entry[0], SwingConstants.CENTER);
+        lbl.setFont(labelFont);
+        lbl.setForeground(ThemeManager.TEXT_MUTED);
+        JLabel val = (JLabel) entry[1];
+        val.setFont(statFont);
+        card.add(lbl, BorderLayout.NORTH);
+        card.add(val, BorderLayout.CENTER);
+        return card;
+    }
+
     private void updateCompactStats() {
         Statistics stats = Statistics.getInstance();
-        totalLabel.setText(SizeFormatter.format(stats.getTotalBytesCopied()));
-        filesLabel.setText(String.valueOf(stats.getTotalFilesCopied()));
+        totalLabel.setText(SizeFormatter.format(stats.getSessionBytesCopied()));
+        filesLabel.setText(String.valueOf(stats.getSessionFilesCopied()));
+        foldersLabel.setText(String.valueOf(stats.getSessionFoldersCopied()));
         queueLabel.setText(String.valueOf(TaskScheduler.getInstance().getQueueDepth()));
     }
 
@@ -197,7 +207,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
                 }
             }
         } catch (IOException e) {
-            logger.warn("Failed to load window icon: {}", e);
+            logger.warn("Failed to load window icon:", e);
         }
 
         BufferedImage defaultIcon = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);

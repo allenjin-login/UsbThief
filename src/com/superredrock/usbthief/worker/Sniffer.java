@@ -21,7 +21,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class Sniffer extends Thread implements Closeable {
@@ -61,7 +60,7 @@ public class Sniffer extends Thread implements Closeable {
         try {
             ws = FileSystems.getDefault().newWatchService();
         } catch (IOException e) {
-            logger.warn("Failed to create WatchService: {}", e);
+            logger.warn("Failed to create WatchService: ", e);
             ws = null;
         }
         this.monitor = ws;
@@ -72,6 +71,7 @@ public class Sniffer extends Thread implements Closeable {
         performInitialScan();
         phase = SnifferPhase.MONITORING;
         if (Thread.currentThread().isInterrupted()) {
+            onError.run();
             return;
         }
 
@@ -92,23 +92,30 @@ public class Sniffer extends Thread implements Closeable {
 
     private void performInitialScan() {
         logger.info("Scanning Disk {}", root);
-        BiPredicate<Path, BasicFileAttributes> filter = new BasicFileFilter(ConfigManager.getInstance());
+        BiPredicate<Path, BasicFileAttributes> fileFilter = new BasicFileFilter(ConfigManager.getInstance());
+        BiPredicate<Path, BasicFileAttributes> filter = (path, attrs) ->
+                attrs.isDirectory() || fileFilter.test(path, attrs);
         SuffixFilter suffixFilter = new SuffixFilter(ConfigManager.getInstance());
 
         ForkJoinTask<?> scan = scanPool.submit(
                 () -> {
                     try (Stream<Path> paths = Files.find(root, Integer.MAX_VALUE, filter).parallel()) {
-                        paths.filter(suffixFilter.asPredicate())
+                        paths.peek(path -> {
+                                    if (Files.isDirectory(path)) submitCopyTask(path);
+                                })
+                                .filter(Files::isRegularFile)
+                                .filter(suffixFilter.asPredicate())
                                 .peek(path -> {
-                            long fileSize = 0;
-                            try {fileSize = Files.size(path);} catch (IOException _) {}
-                            EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, fileSize, volume.getSerialNumber()));})
+                                    long fileSize = 0;
+                                    try {fileSize = Files.size(path);} catch (IOException _) {}
+                                    EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, fileSize, volume.getSerialNumber()));}
+                                )
                                 .forEach(path -> {
-                            if (!running || Thread.currentThread().isInterrupted()) {
-                                throw new RuntimeException("Scan stopped");
-                            }
-                            submitCopyTask(path);
-                        });
+                                    if (!running || Thread.currentThread().isInterrupted()) {
+                                        throw new RuntimeException("Scan stopped");
+                                    }
+                                    submitCopyTask(path);
+                                });
                     } catch (IOException e) {
                         logger.warn("Fail",e);
                     }
@@ -146,34 +153,32 @@ public class Sniffer extends Thread implements Closeable {
     private void scanNewDirectory(Path dir) throws IOException {
         registerDirectoryWatch(dir);
 
-        BiPredicate<Path, BasicFileAttributes> filter = new BasicFileFilter(ConfigManager.getInstance());
+        BiPredicate<Path, BasicFileAttributes> fileFilter = new BasicFileFilter(ConfigManager.getInstance());
+        BiPredicate<Path, BasicFileAttributes> filter = (path, attrs) ->
+                attrs.isDirectory() || fileFilter.test(path, attrs);
         SuffixFilter suffixFilter = new SuffixFilter(ConfigManager.getInstance());
 
         try {
             scanPool.submit(() -> {
-                try (Stream<Path> paths = Files.find(dir, Integer.MAX_VALUE, filter).filter(suffixFilter.asPredicate()).parallel()) {
-                    Map<Boolean, java.util.List<Path>> partitioned = paths.collect(
-                        Collectors.partitioningBy(Files::isDirectory)
-                    );
-
-                    partitioned.getOrDefault(true, java.util.List.of())
-                        .forEach(this::processDirectorySafely);
-
-                    partitioned.getOrDefault(false, java.util.List.of())
-                        .parallelStream()
-                        .forEach(path -> {
-                            if (!running) {
-                                throw new RuntimeException("Scan stopped");
-                            }
-                            long fileSize = 0;
-                            try {
-                                fileSize = Files.size(path);
-                            } catch (IOException e) {
-                                logger.debug("Could not get file size for {}: {}", path, e);
-                            }
-                            EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, fileSize, volume.getSerialNumber()));
-                            submitCopyTask(path);
-                        });
+                try (Stream<Path> paths = Files.find(dir, Integer.MAX_VALUE, filter).parallel()) {
+                    paths.peek(path -> {
+                                if (Files.isDirectory(path)) processDirectorySafely(path);
+                            })
+                            .filter(Files::isRegularFile)
+                            .filter(suffixFilter.asPredicate())
+                            .forEach(path -> {
+                                if (!running) {
+                                    throw new RuntimeException("Scan stopped");
+                                }
+                                long fileSize = 0;
+                                try {
+                                    fileSize = Files.size(path);
+                                } catch (IOException e) {
+                                    logger.debug("Could not get file size for {}: {}", path, e);
+                                }
+                                EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, fileSize, volume.getSerialNumber()));
+                                submitCopyTask(path);
+                            });
                 } catch (IOException e) {
                     logger.warn("",e);
                 }
@@ -217,7 +222,7 @@ public class Sniffer extends Thread implements Closeable {
             logger.info("Monitoring interrupted");
             Thread.currentThread().interrupt();
         } catch (Exception e) {
-            logger.error("Error in monitoring loop: {}", e);
+            logger.error("Error in monitoring loop: ", e);
             hadError = true;
         } finally {
             phase = SnifferPhase.FINISHED;
@@ -284,7 +289,7 @@ public class Sniffer extends Thread implements Closeable {
                 submitCopyTask(path);
             }
         } catch (IOException e) {
-            logger.warn("Error handling changed path: {}", e);
+            logger.warn("Error handling changed path: ", e);
         }
     }
 
@@ -343,7 +348,7 @@ public class Sniffer extends Thread implements Closeable {
             try {
                 monitor.close();
             } catch (IOException e) {
-                logger.warn("Error closing WatchService: {}", e);
+                logger.warn("Error closing WatchService: ", e);
             }
         }
     }
@@ -358,7 +363,7 @@ public class Sniffer extends Thread implements Closeable {
             try {
                 monitor.close();
             } catch (IOException e) {
-                logger.warn("Error closing WatchService: {}", e);
+                logger.warn("Error closing WatchService: ", e);
             }
         }
     }
