@@ -19,6 +19,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -32,6 +34,8 @@ public class Sniffer extends Thread implements Closeable {
     private final AtomicInteger changeCount = new AtomicInteger(0);
     private final ConcurrentHashMap<Path, WatchKey> watchKeys = new ConcurrentHashMap<>();
     private volatile boolean running = true;
+    private volatile SnifferPhase phase = SnifferPhase.INITIAL_SCAN;
+    private volatile Instant lastResetTime = Instant.now();
 
     /** Callback invoked when sniffer finishes normally (monitoring ended) */
     private final Runnable onComplete;
@@ -66,6 +70,7 @@ public class Sniffer extends Thread implements Closeable {
     @Override
     public void run() {
         performInitialScan();
+        phase = SnifferPhase.MONITORING;
         if (Thread.currentThread().isInterrupted()) {
             return;
         }
@@ -215,6 +220,7 @@ public class Sniffer extends Thread implements Closeable {
             logger.error("Error in monitoring loop: {}", e);
             hadError = true;
         } finally {
+            phase = SnifferPhase.FINISHED;
             running = false;
             closeWatchService();
             if (hadError) {
@@ -231,6 +237,7 @@ public class Sniffer extends Thread implements Closeable {
                 try {
                     TimeUnit.SECONDS.sleep(ConfigManager.getInstance().get(ConfigSchema.WATCH_RESET_INTERVAL_SECONDS));
                     int count = changeCount.getAndSet(0);
+                    lastResetTime = Instant.now();
                     if (count > 0) {
                         logger.debug("Reset change count: {}", count);
                     }
@@ -291,6 +298,43 @@ public class Sniffer extends Thread implements Closeable {
             StandardWatchEventKinds.ENTRY_DELETE);
         watchKeys.put(dir, key);
         logger.debug("Registered watch for directory: {}", dir);
+    }
+
+    public int getChangeCount() {
+        return changeCount.get();
+    }
+
+    public int getWatchedDirCount() {
+        return watchKeys.size();
+    }
+
+    public SnifferPhase getPhase() {
+        return phase;
+    }
+
+    public Instant getLastResetTime() {
+        return lastResetTime;
+    }
+
+    public SnifferDebugSnapshot getDebugSnapshot() {
+        ConfigManager config = ConfigManager.getInstance();
+        Instant resetTime = this.lastResetTime;
+        int intervalSec = config.get(ConfigSchema.WATCH_RESET_INTERVAL_SECONDS);
+        long elapsedSec = Duration.between(resetTime, Instant.now()).getSeconds();
+        int untilReset = Math.max(0, intervalSec - (int) elapsedSec);
+
+        return new SnifferDebugSnapshot(
+            volume.getDriveLetter(),
+            volume.getSerialNumber(),
+            phase,
+            changeCount.get(),
+            config.get(ConfigSchema.WATCH_THRESHOLD),
+            untilReset,
+            intervalSec,
+            watchKeys.size(),
+            0L,
+            ""
+        );
     }
 
     public void stopMonitoring() {
