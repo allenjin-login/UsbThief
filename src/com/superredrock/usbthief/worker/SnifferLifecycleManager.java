@@ -10,7 +10,10 @@ import com.superredrock.usbthief.core.event.device.VolumeInsertedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeStateChangedEvent;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -333,6 +336,53 @@ public class SnifferLifecycleManager extends Service {
         if (endTime == null) return 0;
         long remaining = endTime - System.currentTimeMillis();
         return Math.max(0, remaining);
+    }
+
+    /**
+     * Returns debug snapshots for all tracked sniffers (active and in-cooldown).
+     */
+    public java.util.List<SnifferDebugSnapshot> getDebugSnapshots() {
+        java.util.List<SnifferDebugSnapshot> snapshots = new java.util.ArrayList<>();
+
+        for (SnifferEntry entry : sniffers.values()) {
+            if (entry.sniffer.isAlive()) {
+                SnifferDebugSnapshot raw = entry.sniffer.getDebugSnapshot();
+                snapshots.add(new SnifferDebugSnapshot(
+                    raw.driveLetter(),
+                    raw.serialNumber(),
+                    raw.phase(),
+                    raw.changeCount(),
+                    raw.threshold(),
+                    raw.secondsUntilReset(),
+                    raw.resetIntervalSec(),
+                    raw.watchedDirCount(),
+                    0L,
+                    ""
+                ));
+            }
+        }
+
+        // Add entries for volumes in cooldown (no active sniffer)
+        for (String serial : pendingRestarts) {
+            boolean hasActive = snapshots.stream().anyMatch(s -> s.serialNumber().equals(serial));
+            if (!hasActive) {
+                long remaining = getRemainingCooldownMs(serial);
+                String reason = remaining > 0 ? "restart" : "";
+                Volume vol = QueueManager.getDeviceManager() != null
+                    ? QueueManager.getDeviceManager().getVolumeBySerial(serial)
+                    : null;
+                snapshots.add(new SnifferDebugSnapshot(
+                    vol != null ? vol.getDriveLetter() : serial,
+                    serial,
+                    SnifferPhase.FINISHED,
+                    0, 0, 0, 0, 0,
+                    remaining,
+                    reason
+                ));
+            }
+        }
+
+        return snapshots;
     }
 
     // ========== Cleanup ==========
