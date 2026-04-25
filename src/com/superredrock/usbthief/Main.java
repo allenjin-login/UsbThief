@@ -7,6 +7,7 @@ import com.superredrock.usbthief.core.QueueManager;
 
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.index.Index;
+import com.superredrock.usbthief.worker.RecyclerService;
 import com.superredrock.usbthief.worker.SnifferLifecycleManager;
 import com.superredrock.usbthief.worker.TaskScheduler;
 import com.superredrock.usbthief.core.event.storage.EmptyFoldersDeletedEvent;
@@ -54,6 +55,7 @@ public class Main {
         TaskScheduler.getInstance().start();
         Index.getInstance().start();
         SnifferLifecycleManager.getInstance().start();
+        RecyclerService.getInstance().start();
 
         // 显示主窗口
         MainFrame.launch();
@@ -88,6 +90,7 @@ public class Main {
         DeviceManager.getInstance().stopService();
         TaskScheduler.getInstance().stopService();
         Index.getInstance().stopService();
+        RecyclerService.getInstance().stopService();
         
         QueueManager.quit();
     }

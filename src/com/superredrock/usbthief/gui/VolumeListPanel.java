@@ -6,8 +6,6 @@ import com.superredrock.usbthief.core.Volume;
 import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.SizeFormatter;
 import com.superredrock.usbthief.core.event.EventBus;
-import com.superredrock.usbthief.core.event.device.DeviceArrivalEvent;
-import com.superredrock.usbthief.core.event.device.DeviceRemovalEvent;
 import com.superredrock.usbthief.core.event.device.VolumeInsertedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeStateChangedEvent;

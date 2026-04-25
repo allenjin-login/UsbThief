@@ -10,9 +10,7 @@ import com.superredrock.usbthief.core.event.device.VolumeInsertedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeStateChangedEvent;
 
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -86,6 +84,7 @@ public class SnifferLifecycleManager extends Service {
 
         bus.register(VolumeInsertedEvent.class, event -> {
             Volume volume = event.volume();
+            pendingRestarts.remove(volume.getSerialNumber());
             logger.info("Volume inserted, scheduling sniffer for: {}", volume.getSerialNumber());
             // Don't create sniffer immediately — tick() will pick it up
         });
@@ -339,8 +338,8 @@ public class SnifferLifecycleManager extends Service {
     /**
      * Returns debug snapshots for all tracked sniffers (active and in-cooldown).
      */
-    public java.util.List<SnifferDebugSnapshot> getDebugSnapshots() {
-        java.util.List<SnifferDebugSnapshot> snapshots = new java.util.ArrayList<>();
+    public List<SnifferDebugSnapshot> getDebugSnapshots() {
+        List<SnifferDebugSnapshot> snapshots = new ArrayList<>();
 
         for (SnifferEntry entry : sniffers.values()) {
             if (entry.sniffer.isAlive()) {

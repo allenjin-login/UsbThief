@@ -22,7 +22,17 @@
       "Bash(java --version)",
       "WebSearch",
       "mcp__exa__web_fetch_exa",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(python *)",
+      "Bash(find src *)",
+      "Bash(mvn dependency:tree -Dincludes=\"net.java.dev.jna\")",
+      "Bash(java -p \"target/classes;target/libs\" -m UsbThief/com.superredrock.usbthief.Main --enable-preview)",
+      "Bash(jar tf *)",
+      "Bash(mvn dependency:copy-dependencies -DoutputDirectory=target/libs -q)",
+      "Bash(grep -E \"^[+].*//.*$\")",
+      "mcp__tavily__tavily_search",
+      "Bash(git commit -m ' *)",
+      "Bash(git commit *)"
     ]
   }
 }

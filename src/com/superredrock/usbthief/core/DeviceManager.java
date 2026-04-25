@@ -59,7 +59,7 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
                 monitor.start();
                 logger.info("UsbHotplugMonitor started successfully");
             } catch (Exception e) {
-                logger.error("Failed to start UsbHotplugMonitor: {}", e);
+                logger.error("Failed to start UsbHotplugMonitor:", e);
             }
         }
     }
@@ -120,23 +120,10 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
     public void remove(Volume volume) {
         if (volume != null) {
             volumesMap.remove(volume.getSerialNumber());
-            logger.info("Volume removed: {}", volume.getSerialNumber());
         }
     }
 
-    public void pauseScanner(Volume volume) {
-        if (volume != null) {
-            volume.disable();
-            logger.debug("Paused volume: {}", volume.getSerialNumber());
-        }
-    }
 
-    public void restartScanner(Volume volume) {
-        if (volume != null) {
-            volume.enable();
-            logger.debug("Resumed volume: {}", volume.getSerialNumber());
-        }
-    }
 
     // ========== Service lifecycle ==========
 
@@ -226,8 +213,8 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
 
         if (volumesMap.putIfAbsent(serial, newVolume) == null) {
             logger.info("New volume registered: {} at {}", serial, rootPath);
-            EventBus.getInstance().dispatch(new VolumeInsertedEvent(newVolume));
         }
+        EventBus.getInstance().dispatch(new VolumeInsertedEvent(newVolume));
 
     }
 

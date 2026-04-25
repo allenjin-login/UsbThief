@@ -9,6 +9,8 @@ import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.LongSummaryStatistics;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -33,6 +35,8 @@ public class StorageController {
     protected static final Logger logger = LogManager.getLogger(StorageController.class);
 
     private static volatile StorageController INSTANCE;
+
+    protected LongSummaryStatistics workSize;
 
     private StorageController() {
         // Private constructor for singleton
@@ -151,9 +155,13 @@ public class StorageController {
      */
     private StorageLevel calculateStorageLevel(long freeBytes) {
         long reservedBytes = ConfigManager.getInstance().get(ConfigSchema.STORAGE_RESERVED_BYTES);
+        long maxBytes = ConfigManager.getInstance().get(ConfigSchema.STORAGE_MAX_BYTES);
 
         // CRITICAL: free space at or below reserved threshold
         if (freeBytes <= reservedBytes) {
+            return StorageLevel.CRITICAL;
+        }
+        if (workSize.getSum() >= maxBytes){
             return StorageLevel.CRITICAL;
         }
 

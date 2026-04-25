@@ -53,7 +53,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
         setTitle(i18n.getMessage("main.title") + " v" + Version.getVersion());
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setSize(500, 400);
-        setMinimumSize(new Dimension(400, 300));
+        setMinimumSize(new Dimension(400, 600));
         setLocationRelativeTo(null);
         setResizable(false);
 

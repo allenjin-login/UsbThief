@@ -8,6 +8,7 @@ import com.superredrock.usbthief.core.event.storage.EmptyFoldersDeletedEvent;
 import com.superredrock.usbthief.core.event.storage.FilesRecycledEvent;
 import com.superredrock.usbthief.core.event.storage.RecycleStrategy;
 import com.superredrock.usbthief.core.event.storage.StorageLevel;
+import com.superredrock.usbthief.core.event.worker.FileDiscoveredEvent;
 
 import java.io.IOException;
 import java.nio.file.FileVisitOption;
@@ -16,11 +17,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Service for periodic storage cleanup and file recycling.
@@ -42,6 +42,8 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class RecyclerService extends Service {
 
+    private static volatile RecyclerService INSTANCE;
+
     // Tick interval: 5 minutes
     private static final long TICK_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -52,9 +54,21 @@ public class RecyclerService extends Service {
     private final ConfigManager configManager;
     private final StorageController storageController;
 
-    public RecyclerService() {
+
+    private RecyclerService() {
         configManager = ConfigManager.getInstance();
         storageController = StorageController.getInstance();
+    }
+
+    public static RecyclerService getInstance() {
+        if (INSTANCE == null) {
+            synchronized (RecyclerService.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = new RecyclerService();
+                }
+            }
+        }
+        return INSTANCE;
     }
 
     @Override
@@ -70,6 +84,7 @@ public class RecyclerService extends Service {
                 case LOW -> recycleFiles(RecycleStrategy.TIME_FIRST);
                 case CRITICAL -> recycleFiles(RecycleStrategy.SIZE_FIRST);
             }
+            scanWorkSize();
 
         } catch (Exception e) {
             logger.error("RecyclerService tick failed", e);
@@ -101,11 +116,6 @@ public class RecyclerService extends Service {
      */
     private void deleteEmptyFolders() {
         Path workPath = Path.of(configManager.get(ConfigSchema.WORK_PATH));
-
-        if (!Files.exists(workPath)) {
-            logger.warn("Work path does not exist: {}", workPath);
-            return;
-        }
 
         try {
             // Collect empty folders (deepest first)
@@ -157,7 +167,7 @@ public class RecyclerService extends Service {
             }
 
         } catch (IOException e) {
-            logger.error("Failed to delete empty folders: {}", e);
+            logger.error("Failed to delete empty folders:", e);
         }
     }
 
@@ -200,7 +210,7 @@ public class RecyclerService extends Service {
             AtomicLong totalSize = new AtomicLong(0);
 
             Files.walkFileTree(workPath, Collections.singleton(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE,
-                    new SimpleFileVisitor<Path>() {
+                    new SimpleFileVisitor<>() {
                         @Override
                         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                             if (!Files.isRegularFile(file)) {
@@ -292,6 +302,23 @@ public class RecyclerService extends Service {
         } catch (IllegalArgumentException e) {
             logger.warn("Invalid recycle strategy in config: {}, using AUTO", strategy);
             return RecycleStrategy.AUTO;
+        }
+    }
+
+    private void scanWorkSize(){
+        Path workPath = Path.of(ConfigManager.getInstance().get(ConfigSchema.WORK_PATH));
+
+        try (Stream<Path> paths = Files.find(workPath,Integer.MAX_VALUE,(path,_)-> Files.isRegularFile(path)).parallel()) {
+            LongSummaryStatistics resultsum = paths.map(path -> {
+                try {
+                    return Files.size(path);
+                } catch (IOException e) {
+                    return 0;
+                }
+            }).collect(Collectors.summarizingLong(Number::longValue));
+            this.storageController.workSize = resultsum;
+        } catch (IOException e) {
+            logger.warn("Fail",e);
         }
     }
 

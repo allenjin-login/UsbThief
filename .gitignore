@@ -39,6 +39,12 @@ Dev/
 # 计划文件目录
 .opencode/
 .sisyphus/
+.superpowers/
+.claude/
+.settings/
+.idea/
+
+
 
 # 配置文件目录（运行时生成的配置示例）
 config/
