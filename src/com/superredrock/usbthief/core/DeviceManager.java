@@ -101,6 +101,11 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
         return volumesMap.get(serial);
     }
 
+    public Volume getVolumeByDriveLetter(String driveLetter) {
+        return volumesMap.search(1, (_, v) ->
+                driveLetter.equals(v.getDriveLetter()) ? v : null);
+    }
+
     // ========== Volume operations ==========
 
     public void enable(Volume volume) {
@@ -229,6 +234,17 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
             logger.info("Volume marked OFFLINE: {} ({})", driveLetter, volume.getSerialNumber());
             EventBus.getInstance().dispatch(new VolumeRemovedEvent(volume));
         }
+    }
+
+    @Override
+    public boolean onVolumeQueryRemove(String driveLetter) {
+        Volume volume = getVolumeByDriveLetter(driveLetter);
+        if (volume != null) {
+            volume.setEjecting();
+            logger.info("Volume eject requested and denied: {} ({})", driveLetter, volume.getSerialNumber());
+            return false; // Deny eject to allow cleanup
+        }
+        return true; // Unknown volume, allow eject
     }
 
     @Override

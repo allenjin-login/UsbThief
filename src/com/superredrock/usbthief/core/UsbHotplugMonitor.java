@@ -34,6 +34,8 @@ public class UsbHotplugMonitor {
     private static final int WM_DEVICECHANGE = 0x0219;
     private static final int DBT_DEVICEARRIVAL = 0x8000;
     private static final int DBT_DEVICEREMOVECOMPLETE = 0x8004;
+    private static final int DBT_DEVICEQUERYREMOVE = 0x8001;
+    private static final int BROADCAST_QUERY_DENY = 0x424D5144;
     private static final int DBT_DEVTYP_VOLUME = 2;
     private static final int DBT_DEVTYP_DEVICEINTERFACE = 5;
 
@@ -56,6 +58,14 @@ public class UsbHotplugMonitor {
     public interface VolumeListener {
         void onVolumeArrival(String driveLetter);
         void onVolumeRemoval(String driveLetter);
+
+        /**
+         * Called synchronously on the Windows message thread when an eject is requested.
+         * @return true to allow eject, false to deny.
+         */
+        default boolean onVolumeQueryRemove(String driveLetter) {
+            return true;
+        }
     }
 
     /**
@@ -140,19 +150,38 @@ public class UsbHotplugMonitor {
         @Override
         public LRESULT callback(HWND hwnd, int msg, WPARAM wParam, LPARAM lParam) {
             if (msg == WM_DEVICECHANGE) {
-                handleDeviceChange(wParam, lParam != null ? new Pointer(lParam.longValue()) : null);
-                return new LRESULT(1);
+                LRESULT result = handleDeviceChange(wParam, lParam != null ? new Pointer(lParam.longValue()) : null);
+                return result != null ? result : new LRESULT(1);
             }
             return user32.DefWindowProc(hwnd, msg, wParam, lParam);
         }
     };
 
-    private void handleDeviceChange(WPARAM wParam, Pointer lParam) {
+    private LRESULT handleDeviceChange(WPARAM wParam, Pointer lParam) {
         int eventType = wParam.intValue();
 
-        if ((eventType != DBT_DEVICEARRIVAL && eventType != DBT_DEVICEREMOVECOMPLETE)
-                || lParam == null) {
-            return;
+        if (lParam == null) {
+            return null;
+        }
+
+        // Handle DBT_DEVICEQUERYREMOVE synchronously (must return value to Windows)
+        if (eventType == DBT_DEVICEQUERYREMOVE) {
+            DEV_BROADCAST_HDR hdr = new DEV_BROADCAST_HDR(lParam);
+            if (hdr.dbch_devicetype == DBT_DEVTYP_VOLUME) {
+                DEV_BROADCAST_VOLUME vol = new DEV_BROADCAST_VOLUME(lParam);
+                String driveLetter = vol.getDriveLetter();
+                if (driveLetter != null && volumeListener != null) {
+                    boolean allow = volumeListener.onVolumeQueryRemove(driveLetter);
+                    logger.info("DBT_DEVICEQUERYREMOVE for {}: {}", driveLetter, allow ? "allowed" : "denied");
+                    return allow ? new LRESULT(1) : new LRESULT(BROADCAST_QUERY_DENY);
+                }
+            }
+            return new LRESULT(1);
+        }
+
+        // Handle arrival/removal events (dispatched to EDT)
+        if ((eventType != DBT_DEVICEARRIVAL && eventType != DBT_DEVICEREMOVECOMPLETE)) {
+            return null;
         }
 
         DEV_BROADCAST_HDR hdr = new DEV_BROADCAST_HDR(lParam);
@@ -192,6 +221,7 @@ public class UsbHotplugMonitor {
                 });
             }
         }
+        return null;
     }
 
     // ========== Public API ==========
