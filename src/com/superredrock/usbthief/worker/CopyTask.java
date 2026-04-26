@@ -1,6 +1,7 @@
 package com.superredrock.usbthief.worker;
 
 import com.superredrock.usbthief.core.Volume;
+import com.superredrock.usbthief.core.Volume.VolumeState;
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
@@ -161,7 +162,7 @@ public class CopyTask implements Callable<CopyResult> {
                 if (Thread.currentThread().isInterrupted()){
                     throw new InterruptedException("Copy cancelled");
                 }
-                if (volume != null && !volume.isAccessible()) {
+                if (volume != null && volume.getState() == VolumeState.EJECTING) {
                     throw new IOException("Volume ejecting, aborting copy: " + source);
                 }
                 buffer.flip();

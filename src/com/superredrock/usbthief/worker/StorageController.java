@@ -161,7 +161,7 @@ public class StorageController {
         if (freeBytes <= reservedBytes) {
             return StorageLevel.CRITICAL;
         }
-        if (workSize != null && workSize.getSum() >= maxBytes){
+        if (workSize.getSum() >= maxBytes){
             return StorageLevel.CRITICAL;
         }
 

@@ -24,6 +24,24 @@ public class LoggingConfig {
         BUFFER_APPENDER = LogBufferAppender.createAppender("LogBuffer");
     }
 
+    private static RollingFileAppender createRollingAppender(
+            String name, String fileName, String filePattern,
+            PatternLayout layout, Configuration config) {
+        RollingFileAppender appender = RollingFileAppender.newBuilder()
+                .setName(name)
+                .setLayout(layout)
+                .withFileName(fileName)
+                .withFilePattern(filePattern)
+                .withPolicy(CompositeTriggeringPolicy.createPolicy(
+                        TimeBasedTriggeringPolicy.createPolicy("1", "true"),
+                        SizeBasedTriggeringPolicy.createPolicy("50MB")))
+                .withStrategy(DefaultRolloverStrategy.createStrategy("7", null, null,
+                        null, null, true, config))
+                .build();
+        appender.start();
+        return appender;
+    }
+
     public static void initialize() {
         new File("logs").mkdirs();
 
@@ -40,42 +58,16 @@ public class LoggingConfig {
             console.start();
             config.addAppender(console);
 
-            // Main log file: INFO+ only
             PatternLayout fileLayout = PatternLayout.newBuilder()
                     .withConfiguration(config)
                     .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%-5level] [%logger{1.}] %msg%n")
                     .build();
-            RollingFileAppender file = RollingFileAppender.newBuilder()
-                    .setName("File")
-                    .setLayout(fileLayout)
-                    .withFileName("logs/usbthief.log")
-                    .withFilePattern("logs/usbthief-%d{yyyy-MM-dd}.log")
-                    .withPolicy(CompositeTriggeringPolicy.createPolicy(
-                            TimeBasedTriggeringPolicy.createPolicy("1", "true"),
-                            SizeBasedTriggeringPolicy.createPolicy("50MB")))
-                    .withStrategy(DefaultRolloverStrategy.createStrategy("7", null, null,
-                            null, null, true, config))
-                    .build();
-            file.start();
+            RollingFileAppender file = createRollingAppender("File", "logs/usbthief.log",
+                    "logs/usbthief-%d{yyyy-MM-dd}.log", fileLayout, config);
             config.addAppender(file);
 
-            // Debug log file: all levels
-            PatternLayout debugLayout = PatternLayout.newBuilder()
-                    .withConfiguration(config)
-                    .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%-5level] [%logger{1.}] %msg%n")
-                    .build();
-            RollingFileAppender debugFile = RollingFileAppender.newBuilder()
-                    .setName("DebugFile")
-                    .setLayout(debugLayout)
-                    .withFileName("logs/debug.log")
-                    .withFilePattern("logs/debug-%d{yyyy-MM-dd}.log")
-                    .withPolicy(CompositeTriggeringPolicy.createPolicy(
-                            TimeBasedTriggeringPolicy.createPolicy("1", "true"),
-                            SizeBasedTriggeringPolicy.createPolicy("50MB")))
-                    .withStrategy(DefaultRolloverStrategy.createStrategy("7", null, null,
-                            null, null, true, config))
-                    .build();
-            debugFile.start();
+            RollingFileAppender debugFile = createRollingAppender("DebugFile", "logs/debug.log",
+                    "logs/debug-%d{yyyy-MM-dd}.log", fileLayout, config);
             config.addAppender(debugFile);
 
             // Root logger: DEBUG level, per-appender level via addAppender(appender, level, filter)

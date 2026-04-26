@@ -97,7 +97,7 @@ public class Volume {
 
     /**
      * Updates the volume state based on filesystem accessibility.
-     * Disabled volumes are not upd/ated.
+     * Disabled volumes are not updated.
      */
     public void updateState() {
         if (state == VolumeState.DISABLED || state == VolumeState.EJECTING) {

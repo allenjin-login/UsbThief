@@ -9,6 +9,7 @@ import com.superredrock.usbthief.index.CheckSum;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.concurrent.Callable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,17 +35,18 @@ public class VerifyTask implements Callable<CopyResult> {
         long size = 0;
         CopyResult result = CopyResult.SUCCESS;
 
-        if (!Files.isRegularFile(processingPath)) {
-            return CopyResult.SKIPPED;
-        }
-
-        Volume volume = QueueManager.getDeviceManager().getVolume(processingPath);
-        if (volume != null && !volume.isAccessible()) {
-            return CopyResult.SKIPPED;
-        }
-
         try {
-            size = Files.size(processingPath);
+            BasicFileAttributes attrs = Files.readAttributes(processingPath, BasicFileAttributes.class);
+            if (!attrs.isRegularFile()) {
+                return CopyResult.SKIPPED;
+            }
+
+            Volume volume = QueueManager.getDeviceManager().getVolume(processingPath);
+            if (volume != null && volume.getState() == Volume.VolumeState.EJECTING) {
+                return CopyResult.SKIPPED;
+            }
+
+            size = attrs.size();
             CheckSum hash = CheckSum.verify(processingPath);
 
             if (QueueManager.getIndex().checkDuplicate(processingPath, hash)) {
