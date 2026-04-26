@@ -18,7 +18,8 @@ public class Volume {
         OFFLINE,       // Volume not present
         UNAVAILABLE,   // Volume exists but inaccessible (AccessDeniedException / IOException)
         IDLE,          // Ready, no active operations
-        DISABLED       // Manually disabled by user (user-controlled, requires manual action)
+        DISABLED,      // Manually disabled by user (user-controlled, requires manual action)
+        EJECTING       // Windows requested eject, stopping tasks
     }
 
     private static final Logger logger = LogManager.getLogger(Volume.class);
@@ -99,7 +100,7 @@ public class Volume {
      * Disabled volumes are not updated.
      */
     public void updateState() {
-        if (state == VolumeState.DISABLED) {
+        if (state == VolumeState.DISABLED || state == VolumeState.EJECTING) {
             return;
         }
 
@@ -171,6 +172,14 @@ public class Volume {
      */
     public void disable() {
         setState(VolumeState.DISABLED);
+    }
+
+    /**
+     * Marks the volume as ejecting. Terminal state — never returns to IDLE.
+     */
+    public void setEjecting() {
+        setState(VolumeState.EJECTING);
+        logger.info("Volume set to EJECTING: {}", driveLetter);
     }
 
     @Override

@@ -330,6 +330,7 @@ public class DeviceInfoDialog extends JDialog implements I18NManager.LocaleChang
             case UNAVAILABLE -> i18n.getMessage("device.state.unavailable");
             case IDLE -> i18n.getMessage("device.state.idle");
             case DISABLED -> i18n.getMessage("device.state.disabled");
+            case EJECTING -> i18n.getMessage("device.state.ejecting");
         };
     }
 
