@@ -115,14 +115,14 @@ public class CopyTask implements Callable<CopyResult> {
                     if (Files.isDirectory(processingPath)){
                         Files.createDirectories(destinationPath);
                     } else if (preVerifiedHash != null) {
-                        doCopy(processingPath, destinationPath, size, preVerifiedHash, buffer);
+                        doCopy(processingPath, destinationPath, size, preVerifiedHash, buffer, volume);
                         bytesCopied = size;
                     } else {
                         CheckSum hash = CheckSum.verify(processingPath);
                         if (QueueManager.getIndex().checkDuplicate(processingPath, hash)){
                             logger.info("Path Ignore: {}", processingPath);
                         } else {
-                            doCopy(processingPath, destinationPath, size, hash, buffer);
+                            doCopy(processingPath, destinationPath, size, hash, buffer, volume);
                         }
                         bytesCopied = size;
                     }
@@ -151,7 +151,7 @@ public class CopyTask implements Callable<CopyResult> {
         return result;
     }
 
-    private void doCopy(Path source, Path dest, long size, CheckSum hash, ByteBuffer buffer) throws IOException, InterruptedException {
+    private void doCopy(Path source, Path dest, long size, CheckSum hash, ByteBuffer buffer, Volume volume) throws IOException, InterruptedException {
         Files.createDirectories(dest.getParent());
         BasicFileAttributes attributes = Files.readAttributes(source, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         try (FileChannel readChannel = FileChannel.open(source, StandardOpenOption.READ);
@@ -160,6 +160,9 @@ public class CopyTask implements Callable<CopyResult> {
             while (readChannel.read(buffer) != -1) {
                 if (Thread.currentThread().isInterrupted()){
                     throw new InterruptedException("Copy cancelled");
+                }
+                if (volume != null && !volume.isAccessible()) {
+                    throw new IOException("Volume ejecting, aborting copy: " + source);
                 }
                 buffer.flip();
                 int bytesWritten = writeChannel.write(buffer);
