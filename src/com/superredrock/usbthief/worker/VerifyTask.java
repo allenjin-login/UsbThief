@@ -1,6 +1,7 @@
 package com.superredrock.usbthief.worker;
 
 import com.superredrock.usbthief.core.QueueManager;
+import com.superredrock.usbthief.core.Volume;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
 import com.superredrock.usbthief.index.CheckSum;
@@ -32,6 +33,15 @@ public class VerifyTask implements Callable<CopyResult> {
     public CopyResult call() {
         long size = 0;
         CopyResult result = CopyResult.SUCCESS;
+
+        if (!Files.isRegularFile(processingPath)) {
+            return CopyResult.SKIPPED;
+        }
+
+        Volume volume = QueueManager.getDeviceManager().getVolume(processingPath);
+        if (volume != null && !volume.isAccessible()) {
+            return CopyResult.SKIPPED;
+        }
 
         try {
             size = Files.size(processingPath);
