@@ -35,6 +35,7 @@ public class Sniffer extends Thread implements Closeable {
     private volatile boolean running = true;
     private volatile SnifferPhase phase = SnifferPhase.INITIAL_SCAN;
     private volatile Instant lastResetTime = Instant.now();
+    private volatile ForkJoinTask<?> currentScanTask;
 
     /** Callback invoked when sniffer finishes normally (monitoring ended) */
     private final Runnable onComplete;
@@ -93,15 +94,16 @@ public class Sniffer extends Thread implements Closeable {
     private void performInitialScan() {
         logger.info("Scanning Disk {}", root);
         BiPredicate<Path, BasicFileAttributes> fileFilter = new BasicFileFilter(ConfigManager.getInstance());
-        BiPredicate<Path, BasicFileAttributes> filter = (path, attrs) ->
-                attrs.isDirectory() || fileFilter.test(path, attrs);
         SuffixFilter suffixFilter = new SuffixFilter(ConfigManager.getInstance());
+        AtomicInteger fileCount = new AtomicInteger(0);
 
         ForkJoinTask<?> scan = scanPool.submit(
                 () -> {
-                    try (Stream<Path> paths = Files.find(root, Integer.MAX_VALUE, filter).parallel()) {
+                    try (Stream<Path> paths = Files.find(root, Integer.MAX_VALUE,fileFilter).parallel()) {
                         paths.peek(path -> {
-                                    if (Files.isDirectory(path)) submitCopyTask(path);
+                                    if (Files.isDirectory(path)) {
+                                        TaskScheduler.getInstance().submit(new CopyTask(path, volume.getSerialNumber()));
+                                    };
                                 })
                                 .filter(Files::isRegularFile)
                                 .filter(suffixFilter.asPredicate())
@@ -114,6 +116,10 @@ public class Sniffer extends Thread implements Closeable {
                                     if (!running || Thread.currentThread().isInterrupted()) {
                                         throw new RuntimeException("Scan stopped");
                                     }
+                                    int count = fileCount.incrementAndGet();
+                                    if (count % 500 == 0) {
+                                        logger.info("Scan progress: {} files found on {}", count, root);
+                                    }
                                     submitCopyTask(path);
                                 });
                     } catch (IOException e) {
@@ -121,14 +127,17 @@ public class Sniffer extends Thread implements Closeable {
                     }
                 }
                 );
+        currentScanTask = scan;
         try {
             scan.get();
         } catch (InterruptedException | ExecutionException e) {
             scan.cancel(true);
             this.interrupt();
+        } finally {
+            currentScanTask = null;
         }
 
-        logger.info("Initial scan completed for {}", root);
+        logger.info("Initial scan completed for {}: {} files found", root, fileCount.get());
     }
 
 
@@ -370,7 +379,25 @@ public class Sniffer extends Thread implements Closeable {
 
     @Override
     public void close() {
-        this.interrupt();
+        running = false;
+
+        ForkJoinTask<?> scan = currentScanTask;
+        if (scan != null && !scan.isDone()) {
+            scan.cancel(true);
+        }
+
         stopMonitoring();
+        this.interrupt();
+
+        if (isAlive()) {
+            try {
+                join(3000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        if (isAlive()) {
+            logger.warn("Sniffer thread did not terminate in time for: {}", root);
+        }
     }
 }

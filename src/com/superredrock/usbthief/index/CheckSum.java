@@ -42,6 +42,9 @@ public record CheckSum(byte[] context) implements Comparable<CheckSum> , Seriali
         ByteBuffer buffer = bufferThreadLocal.get();
         try (FileChannel readChannel = FileChannel.open(path, StandardOpenOption.READ)) {
             while (readChannel.read(buffer) != -1) {
+                if (Thread.interrupted()) {
+                    throw new IOException("Hash computation interrupted");
+                }
                 buffer.flip();
                 digest.update(buffer);
                 buffer.clear();

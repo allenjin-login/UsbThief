@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Tool Preferences
+
+- Prefer LSP over Grep/Glob for code navigation (goToDefinition, findReferences, hover, documentSymbol)
+
 ## Build Commands
 
 ```bash
@@ -39,8 +43,11 @@ UsbThief is a Windows desktop application for USB device monitoring and file cop
 Services run as daemon threads with tick-based execution:
 
 - **DeviceManager** - USB hotplug detection via Windows API, device state tracking
+- **SnifferLifecycleManager** - Per-volume Sniffer creation, restart scheduling, cooldown management
 - **TaskScheduler** - Priority-based task queue with adaptive load control (LOW/MEDIUM/HIGH)
 - **Index** - Periodic checksum index persistence
+- **StorageController** - Monitors work directory disk space (OK/LOW/CRITICAL thresholds)
+- **RecyclerService** - Storage cleanup when space is low
 - **Sniffer** (per-device) - Initial scan + WatchService for real-time file monitoring
 
 ### Core Patterns
@@ -81,11 +88,27 @@ public static Manager getInstance() {
 
 ### Data Flow
 
-1. **USB Detection**: `UsbHotplugMonitor` (JNA) → `DeviceManager.onVolumeArrival()` → `Device` created
-2. **File Discovery**: `Sniffer` scans → `FileDiscoveredEvent` → `CopyTask` submitted to `TaskScheduler`
+1. **USB Detection**: `UsbHotplugMonitor` (JNA) → `DeviceManager.onVolumeArrival()` → `Device` + `Volume` created
+2. **File Discovery**: `SnifferLifecycleManager` creates `Sniffer` → `Sniffer` scans → `FileDiscoveredEvent` → `CopyTask` submitted to `TaskScheduler`
 3. **Deduplication**: `CopyTask` computes `CheckSum` → `Index.checkDuplicate()` → skip if exists
 4. **Copy Execution**: Rate-limited NIO copy with `RateLimiter` → `CopyCompletedEvent`
 5. **UI Updates**: Components listen to events via `EventBus.register()`
+
+### Volume State Machine
+
+```
+OFFLINE → UNAVAILABLE → IDLE ⇄ DISABLED
+                       ↓
+                    EJECTING (terminal)
+```
+
+- **OFFLINE** - Volume not present
+- **UNAVAILABLE** - Exists but inaccessible (IOException)
+- **IDLE** - Ready, no active operations
+- **DISABLED** - Manually disabled by user (requires manual re-enable)
+- **EJECTING** - Windows requested eject (`DBT_DEVICEQUERYREMOVE`); terminal state, aborts active copies
+
+On `DBT_DEVICEQUERYREMOVE`, the app blocks the eject and sets EJECTING. Active NIO copies are interrupted, Sniffer is stopped, and the volume never returns to IDLE until removal.
 
 ### Thread Safety
 
@@ -105,6 +128,7 @@ public static Manager getInstance() {
 This application is Windows-only due to:
 - JNA calls to Windows APIs (device notification, volume serial numbers)
 - `UsbHotplugMonitor` uses `RegisterDeviceNotification` via JNA
+- Handles `DBT_DEVICEARRIVAL`, `DBT_DEVICEREMOVECOMPLETE`, `DBT_DEVICEQUERYREMOVE`
 - Disk serial retrieval via `DeviceIoControl`
 
 ## Release Process

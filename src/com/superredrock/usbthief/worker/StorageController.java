@@ -36,7 +36,7 @@ public class StorageController {
 
     private static volatile StorageController INSTANCE;
 
-    protected LongSummaryStatistics workSize;
+    protected LongSummaryStatistics workSize = new LongSummaryStatistics(0,0,0,0);
 
     private StorageController() {
         // Private constructor for singleton
@@ -161,7 +161,7 @@ public class StorageController {
         if (freeBytes <= reservedBytes) {
             return StorageLevel.CRITICAL;
         }
-        if (workSize.getSum() >= maxBytes){
+        if (workSize != null && workSize.getSum() >= maxBytes){
             return StorageLevel.CRITICAL;
         }
 

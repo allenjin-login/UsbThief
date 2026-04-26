@@ -103,7 +103,7 @@ public class Index extends Service {
         saveDigest();
         dirty = false;
 
-        logger.info(String.format("Index saved: %d checksums", digest.size()));
+        logger.info("Index saved: {} checksums", digest.size());
 
         EventBus.getInstance().dispatch(new IndexSavedEvent(digest.size()));
     }

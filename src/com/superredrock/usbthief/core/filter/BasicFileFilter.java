@@ -63,8 +63,8 @@ public class BasicFileFilter implements FileFilter {
     @Override
     public boolean test(Path path, BasicFileAttributes attrs) {
         // Check if it's a regular file (not a directory)
-        if (!attrs.isRegularFile()) {
-            return false;
+        if (attrs.isDirectory()) {
+            return true;
         }
 
         try {

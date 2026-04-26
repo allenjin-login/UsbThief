@@ -497,7 +497,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
                         JOptionPane.INFORMATION_MESSAGE);
                 logger.info("Index cache cleared from menu");
             } catch (Exception e) {
-                logger.error("Failed to clear index cache: {}", e);
+                logger.error("Failed to clear index cache:", e);
                 JOptionPane.showMessageDialog(
                         this,
                         i18n.getMessage("message.clearIndexFailed", e.getMessage()),
@@ -581,7 +581,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
             logger.info("Unified shutdown completed");
 
         } catch (Exception e) {
-            logger.error("Error during shutdown: {}", e);
+            logger.error("Error during shutdown:", e);
         }
         System.exit(0);
     }
@@ -713,7 +713,7 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
                 trayIcon = null;
             }
         } catch (Exception e) {
-            logger.warn("Failed to initialize system tray: {}", e);
+            logger.warn("Failed to initialize system tray:", e);
             trayIcon = null;
         }
     }

@@ -110,6 +110,10 @@ public class SnifferLifecycleManager extends Service {
                     logger.debug("Volume DISABLED, stopping sniffer: {}", serial);
                     stop(serial);
                 }
+                case EJECTING -> {
+                    logger.debug("Volume EJECTING, stopping sniffer: {}", serial);
+                    stop(serial);
+                }
                 case IDLE -> {
                     if (event.oldState() == Volume.VolumeState.OFFLINE ||
                         event.oldState() == Volume.VolumeState.UNAVAILABLE) {

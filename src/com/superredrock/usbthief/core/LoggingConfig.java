@@ -1,5 +1,6 @@
 package com.superredrock.usbthief.core;
 
+import com.superredrock.usbthief.gui.LogBufferAppender;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -12,8 +13,6 @@ import org.apache.logging.log4j.core.appender.rolling.TimeBasedTriggeringPolicy;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.layout.PatternLayout;
-
-import com.superredrock.usbthief.gui.LogBufferAppender;
 
 import java.io.File;
 
@@ -32,52 +31,66 @@ public class LoggingConfig {
             LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
             Configuration config = ctx.getConfiguration();
 
+            // Console appender: INFO+ only
             PatternLayout consoleLayout = PatternLayout.newBuilder()
-                    .withPattern("%d{HH:mm:ss} [%-5level] [%logger{1.}] %msg%n")
                     .withConfiguration(config)
+                    .withPattern("%d{HH:mm:ss} [%-5level] [%logger{1.}] %msg%n")
                     .build();
-            ConsoleAppender console = ConsoleAppender.newBuilder()
-                    .setName("Console")
-                    .setLayout(consoleLayout)
-                    .build();
+            ConsoleAppender console = ConsoleAppender.createDefaultAppenderForLayout(consoleLayout);
             console.start();
             config.addAppender(console);
 
+            // Main log file: INFO+ only
             PatternLayout fileLayout = PatternLayout.newBuilder()
-                    .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%-5level] [%logger{1.}] %msg%n")
                     .withConfiguration(config)
+                    .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%-5level] [%logger{1.}] %msg%n")
                     .build();
-
-            CompositeTriggeringPolicy policies = CompositeTriggeringPolicy.createPolicy(
-                    TimeBasedTriggeringPolicy.newBuilder().withInterval(1).withModulate(true).build(),
-                    SizeBasedTriggeringPolicy.createPolicy("50MB"));
-
-            DefaultRolloverStrategy strategy = DefaultRolloverStrategy.newBuilder()
-                    .withMax("10")
-                    .withConfig(config)
-                    .build();
-
             RollingFileAppender file = RollingFileAppender.newBuilder()
                     .setName("File")
-                    .withFileName("logs/usbthief.log")
-                    .withFilePattern("logs/usbthief-%d{yyyy-MM-dd_HH-mm-ss}.log")
                     .setLayout(fileLayout)
-                    .withPolicy(policies)
-                    .withStrategy(strategy)
+                    .withFileName("logs/usbthief.log")
+                    .withFilePattern("logs/usbthief-%d{yyyy-MM-dd}.log")
+                    .withPolicy(CompositeTriggeringPolicy.createPolicy(
+                            TimeBasedTriggeringPolicy.createPolicy("1", "true"),
+                            SizeBasedTriggeringPolicy.createPolicy("50MB")))
+                    .withStrategy(DefaultRolloverStrategy.createStrategy("7", null, null,
+                            null, null, true, config))
                     .build();
             file.start();
             config.addAppender(file);
 
-            BUFFER_APPENDER.start();
-            config.addAppender(BUFFER_APPENDER);
+            // Debug log file: all levels
+            PatternLayout debugLayout = PatternLayout.newBuilder()
+                    .withConfiguration(config)
+                    .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%-5level] [%logger{1.}] %msg%n")
+                    .build();
+            RollingFileAppender debugFile = RollingFileAppender.newBuilder()
+                    .setName("DebugFile")
+                    .setLayout(debugLayout)
+                    .withFileName("logs/debug.log")
+                    .withFilePattern("logs/debug-%d{yyyy-MM-dd}.log")
+                    .withPolicy(CompositeTriggeringPolicy.createPolicy(
+                            TimeBasedTriggeringPolicy.createPolicy("1", "true"),
+                            SizeBasedTriggeringPolicy.createPolicy("50MB")))
+                    .withStrategy(DefaultRolloverStrategy.createStrategy("7", null, null,
+                            null, null, true, config))
+                    .build();
+            debugFile.start();
+            config.addAppender(debugFile);
 
+            // Root logger: DEBUG level, per-appender level via addAppender(appender, level, filter)
             LoggerConfig root = config.getRootLogger();
-            root.setLevel(Level.INFO);
-            root.addAppender(console, null, null);
-            root.addAppender(file, null, null);
+            root.setLevel(Level.DEBUG);
+            root.addAppender(console, Level.INFO, null);
+            root.addAppender(file, Level.INFO, null);
+            root.addAppender(debugFile, null, null);
+
+            // Start LogBufferAppender
+            BUFFER_APPENDER.start();
             root.addAppender(BUFFER_APPENDER, null, null);
 
             ctx.updateLoggers();
+
         } catch (Exception e) {
             System.err.println("Failed to configure logging: " + e.getMessage());
         }

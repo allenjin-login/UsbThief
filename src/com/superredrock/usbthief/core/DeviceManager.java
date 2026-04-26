@@ -8,11 +8,14 @@ import com.superredrock.usbthief.core.event.device.NewDeviceJoinedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeInsertedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeStateChangedEvent;
+import com.superredrock.usbthief.worker.SnifferLifecycleManager;
 
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -34,6 +37,8 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
     // Independent maps — no cross-referencing
     private final ConcurrentHashMap<String, Device> devicesMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Volume> volumesMap = new ConcurrentHashMap<>();
+
+    private final ConcurrentHashMap<String, CompletableFuture<Void>> pendingCleanups = new ConcurrentHashMap<>();
 
     private DeviceManager() {
         monitor.setVolumeListener(this);
@@ -221,11 +226,14 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
         }
         EventBus.getInstance().dispatch(new VolumeInsertedEvent(newVolume));
 
+        monitor.registerVolumeHandle(driveLetter);
     }
 
     @Override
     public void onVolumeRemoval(String driveLetter) {
         logger.info("Volume removed: {}", driveLetter);
+
+        monitor.unregisterVolumeHandle(driveLetter);
 
         Volume volume = volumesMap.search(1, (_, v) ->
                 driveLetter.equals(v.getDriveLetter()) ? v : null);
@@ -239,12 +247,38 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
     @Override
     public boolean onVolumeQueryRemove(String driveLetter) {
         Volume volume = getVolumeByDriveLetter(driveLetter);
-        if (volume != null) {
-            volume.setEjecting();
-            logger.info("Volume eject requested and denied: {} ({})", driveLetter, volume.getSerialNumber());
-            return false; // Deny eject to allow cleanup
+        if (volume == null) {
+            return true;
         }
-        return true; // Unknown volume, allow eject
+
+        String serial = volume.getSerialNumber();
+
+        // Wait for any previous pending cleanup to complete
+        CompletableFuture<Void> pending = pendingCleanups.get(serial);
+        if (pending != null && !pending.isDone()) {
+            logger.info("Waiting for previous eject cleanup: {}", serial);
+            try {
+                pending.get(5, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                logger.warn("Previous cleanup did not complete in time for: {}", serial);
+            }
+        }
+
+        volume.setEjecting();
+        logger.info("Volume ejecting: {} ({})", driveLetter, serial);
+
+        // Start async cleanup — stop sniffer (which joins thread with timeout)
+        CompletableFuture<Void> cleanup = CompletableFuture.runAsync(() -> {
+            try {
+                SnifferLifecycleManager.getInstance().stop(serial);
+            } catch (Exception e) {
+                logger.warn("Error during eject cleanup for {}: {}", serial, e.getMessage());
+            }
+        });
+        pendingCleanups.put(serial, cleanup);
+        cleanup.whenComplete((_, _) -> pendingCleanups.remove(serial, cleanup));
+
+        return true;
     }
 
     @Override
