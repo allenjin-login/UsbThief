@@ -3,14 +3,9 @@ package com.superredrock.usbthief.core;
 import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.ptr.IntByReference;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.nio.file.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -24,7 +19,6 @@ public class DeviceUtils {
 
     protected static final Logger logger = LogManager.getLogger(DeviceUtils.class);
 
-    private static final Map<String, String> serialNumberCache = new ConcurrentHashMap<>();
 
     // JNA instances
     private static final Kernel32 kernel32 = Kernel32.INSTANCE;
@@ -46,36 +40,8 @@ public class DeviceUtils {
         if (drive == null || drive.isEmpty()) {
             return "";
         }
-
-        // Normalize drive path to "X:\\" format required by Windows API
         String normalizedDrive = normalizeDrivePath(drive);
-
-        // Check cache first
-        String cacheKey = normalizedDrive.substring(0, 2); // "E:"
-        String cached = serialNumberCache.get(cacheKey);
-        if (cached != null) {
-            return cached;
-        }
-
-        // Try JNA method first (fast, no process spawn)
-        String serial = getSerialNumberViaJna(normalizedDrive);
-
-        // Fallback to legacy methods if JNA fails
-        if (serial.isEmpty()) {
-            logger.debug("JNA method failed for drive: {}, trying fallback methods", normalizedDrive);
-            serial = getSerialNumberViaWmic(cacheKey);
-
-            if (serial.isEmpty()) {
-                serial = getSerialNumberViaVbs(cacheKey);
-            }
-        }
-
-        // Cache result
-        if (!serial.isEmpty()) {
-            serialNumberCache.put(cacheKey, serial);
-        }
-
-        return serial;
+        return getSerialNumberViaJna(normalizedDrive);
     }
 
     /**
@@ -152,145 +118,6 @@ public class DeviceUtils {
     }
 
     /**
-     * Gets serial number using wmic command (fallback method).
-     *
-     * @param drive normalized drive letter (e.g., "E:")
-     * @return serial number or empty string if failed
-     */
-    private static String getSerialNumberViaWmic(String drive) {
-        StringBuilder result = new StringBuilder();
-        StringBuilder errorOutput = new StringBuilder();
-
-        try {
-            // Try different wmic command formats
-            String[] commands = {
-                "wmic logicaldisk where \"DeviceID='" + drive + "'\" get VolumeSerialNumber /value",
-                "wmic logicaldisk where \"DeviceID='" + drive + "'\" get VolumeSerialNumber",
-                "wmic logicaldisk get Name,VolumeSerialNumber"
-            };
-
-            for (String cmd : commands) {
-                Process process = Runtime.getRuntime().exec(new String[]{"cmd", "/c", cmd});
-
-                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-                BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    line = line.trim();
-                    if (line.startsWith("VolumeSerialNumber=")) {
-                        result.append(line.substring("VolumeSerialNumber=".length()).trim());
-                        break;
-                    } else if (!line.isEmpty() && !line.startsWith("VolumeSerialNumber") && !line.startsWith("Node") && !line.startsWith("Name")) {
-                        // Try to parse tab-separated format
-                        String[] parts = line.split("\\s+");
-                        if (parts.length >= 2 && parts[0].equals(drive)) {
-                            result.append(parts[1]);
-                            break;
-                        }
-                    }
-                }
-
-                // Read error output
-                while ((line = errorReader.readLine()) != null) {
-                    errorOutput.append(line).append("\n");
-                }
-
-                reader.close();
-                errorReader.close();
-
-                int exitCode = process.waitFor();
-
-                if (exitCode == 0 && !result.toString().isEmpty()) {
-                    return result.toString();
-                }
-
-                logger.debug("wmic command failed: {} - exit code: {}", cmd, exitCode);
-                if (!errorOutput.toString().isEmpty()) {
-                    logger.debug("wmic error output: {}", errorOutput);
-                }
-
-                // Reset for next attempt
-                result.setLength(0);
-                errorOutput.setLength(0);
-            }
-
-        } catch (IOException | InterruptedException e) {
-            logger.debug("wmic exception: {}", e);
-        }
-
-        return "";
-    }
-
-    /**
-     * Gets serial number using VBS script (fallback method).
-     *
-     * @param drive normalized drive letter (e.g., "E:")
-     * @return serial number or empty string if failed
-     */
-    private static String getSerialNumberViaVbs(String drive) {
-        StringBuilder result = new StringBuilder();
-        Path vbsPath = null;
-        Process process = null;
-
-        try {
-            vbsPath = Files.createTempFile("getsn", ".vbs");
-
-            String vbs = "Set objFSO = CreateObject(\"Scripting.FileSystemObject\")\n"
-                    + "Set colDrives = objFSO.Drives\n"
-                    + "On Error Resume Next\n"
-                    + "Set objDrive = colDrives.item(\"" + drive + "\")\n"
-                    + "If Err.Number <> 0 Then\n"
-                    + "  Wscript.Echo \"\"\n"
-                    + "Else\n"
-                    + "  Wscript.Echo objDrive.SerialNumber\n"
-                    + "End If";
-
-            Files.writeString(vbsPath, vbs);
-
-            process = Runtime.getRuntime().exec("cscript //NoLogo \"" + vbsPath + "\"");
-
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                result.append(line);
-            }
-            reader.close();
-
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                logger.warn("VBS script failed with exit code: {} for drive: {}", exitCode, drive);
-            }
-
-        } catch (IOException | InterruptedException e) {
-            logger.warn("VBS method failed for drive: {} - {}", drive, e);
-            return "";
-        } finally {
-            if (process != null) {
-                process.destroy();
-            }
-            if (vbsPath != null) {
-                try {
-                    Files.deleteIfExists(vbsPath);
-                } catch (IOException e) {
-                    logger.debug("Failed to delete temp file: {}", vbsPath);
-                }
-            }
-        }
-
-        return result.toString().trim();
-    }
-
-    /**
-     * Clears the serial number cache.
-     * Useful for testing or when drives are hot-swapped.
-     */
-    public static void clearSerialNumberCache() {
-        serialNumberCache.clear();
-        logger.debug("Serial number cache cleared");
-    }
-
-    /**
      * Gets the root path from a FileStore.
      *
      * @param store the file store
@@ -321,22 +148,6 @@ public class DeviceUtils {
                 return Path.of("");
             }
         }
-    }
-
-    /**
-     * Gets a list of USB disk file stores.
-     * Identifies USB drives by their filesystem type (exFAT or FAT32).
-     *
-     * @return list of USB disk file stores
-     */
-    public static List<FileStore> getUsbDisk(){
-        ArrayList<FileStore> list = new ArrayList<>();
-        for (FileStore store : FileSystems.getDefault().getFileStores()) {
-            if (store.type().equals("exFAT") || store.type().equals("FAT32")) {
-                list.add(store);
-            }
-        }
-        return list;
     }
 
     /**
@@ -391,7 +202,7 @@ public class DeviceUtils {
         // Pattern 2: USBSTOR device (mass storage)
         // \\?\USBSTOR#Disk&Ven_Kingston&Prod_DataTraveler#ABC123&0#{GUID}
         java.util.regex.Pattern storPattern = java.util.regex.Pattern.compile(
-            "USBSTOR#Disk&Ven_([^&]+)&Prod_([^#]+)#([^&]+)",
+            "USBSTOR#Disk&Ven_([^&]*)&Prod_([^#]+)#([^&]+)",
             java.util.regex.Pattern.CASE_INSENSITIVE
         );
 
@@ -407,39 +218,6 @@ public class DeviceUtils {
 
         logger.warn("Failed to parse device path: {}", dbccName);
         return null;
-    }
-
-    /**
-     * Gets hardware serial number from a volume using DeviceIoControl API.
-     *
-     * <p>This method retrieves the hardware serial number of the physical device
-     * that contains the specified volume. It uses Windows DeviceIoControl API
-     * instead of WMI or spawning external processes.
-     *
-     * <p>Fallback chain:
-     * <ol>
-     *   <li>Try DeviceIoControl with PhysicalDrive handle (requires admin)</li>
-     *   <li>Fallback to DeviceIoControl with volume handle</li>
-     *   <li>Final fallback to volume serial number via GetVolumeInformation</li>
-     * </ol>
-     *
-     * @param driveLetter the drive letter (e.g., "E:" or "E:\\")
-     * @return hardware serial number, or empty string if retrieval fails
-     */
-    public static String getHardwareSerialFromVolume(String driveLetter) {
-        if (driveLetter == null || driveLetter.isEmpty()) {
-            return "";
-        }
-
-        // Try DeviceIoControl first (hardware serial)
-        String serial = DiskQueryUtil.getHardwareSerial(driveLetter);
-        if (!serial.isEmpty()) {
-            return serial;
-        }
-
-        // Fallback to volume serial number (software serial)
-        logger.debug("DeviceIoControl failed for {}, falling back to volume serial number", driveLetter);
-        return getVolumeSN(driveLetter);
     }
 
     /**

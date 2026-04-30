@@ -13,7 +13,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
@@ -37,26 +36,19 @@ public class Sniffer extends Thread implements Closeable {
     private volatile Instant lastResetTime = Instant.now();
     private volatile ForkJoinTask<?> currentScanTask;
 
-    /** Callback invoked when sniffer finishes normally (monitoring ended) */
-    private final Runnable onComplete;
-    /** Callback invoked when sniffer encounters an error */
-    private final Runnable onError;
+    private final CompletableFuture<Void> completionFuture = new CompletableFuture<>();
 
     private static final ForkJoinPool scanPool = ForkJoinPool.commonPool();
 
     /**
-     * Creates a Sniffer with lifecycle callbacks.
+     * Creates a Sniffer for the given volume.
      *
-     * @param volume      the volume to scan/monitor
-     * @param onComplete  called when sniffer finishes normally
-     * @param onError     called when sniffer encounters an error
+     * @param volume the volume to scan/monitor
      */
-    public Sniffer(Volume volume, Runnable onComplete, Runnable onError) {
+    public Sniffer(Volume volume) {
         super(QueueManager.getDiskScanners(), "DiskScanner: " + volume.getDriveLetter());
         this.volume = volume;
         this.root = volume.getRootPath();
-        this.onComplete = onComplete != null ? onComplete : () -> {};
-        this.onError = onError != null ? onError : () -> {};
         WatchService ws;
         try {
             ws = FileSystems.getDefault().newWatchService();
@@ -72,13 +64,13 @@ public class Sniffer extends Thread implements Closeable {
         performInitialScan();
         phase = SnifferPhase.MONITORING;
         if (Thread.currentThread().isInterrupted()) {
-            onError.run();
+            completionFuture.completeExceptionally(new InterruptedException("Sniffer interrupted during initial scan"));
             return;
         }
 
         if (!ConfigManager.getInstance().get(ConfigSchema.WATCH_ENABLED)) {
             logger.info("File monitoring disabled, scanner finished");
-            onComplete.run();
+            completionFuture.complete(null);
             return;
         }
 
@@ -238,9 +230,9 @@ public class Sniffer extends Thread implements Closeable {
             running = false;
             closeWatchService();
             if (hadError) {
-                onError.run();
+                completionFuture.completeExceptionally(new RuntimeException("Sniffer monitoring error"));
             } else {
-                onComplete.run();
+                completionFuture.complete(null);
             }
         }
     }
@@ -320,6 +312,10 @@ public class Sniffer extends Thread implements Closeable {
 
     public int getWatchedDirCount() {
         return watchKeys.size();
+    }
+
+    public CompletableFuture<Void> onFinish() {
+        return completionFuture;
     }
 
     public SnifferPhase getPhase() {

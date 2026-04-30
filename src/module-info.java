@@ -20,4 +20,5 @@ module UsbThief {
     exports com.superredrock.usbthief.gui.components;
     exports com.superredrock.usbthief.worker;
     exports com.superredrock.usbthief.statistics;
+    exports com.superredrock.usbthief.gui.dailog;
 }

@@ -99,10 +99,6 @@ public class ConfigSchema {
             booleanEntry("gui.showInTaskbar", "Show window in taskbar", true, "Window");
 
 
-    // Minimize/Close to tray behavior configuration
-    public static final ConfigEntry<String> MINIMIZE_ACTION =
-            stringEntry("gui.minimizeAction", "Action when minimizing: ASK, MINIMIZE_TO_TRAY, MINIMIZE_NORMAL", "ASK", "Window");
-
     public static final ConfigEntry<String> CLOSE_ACTION =
             stringEntry("gui.closeAction", "Action when closing: ASK, MINIMIZE_TO_TRAY, EXIT", "ASK", "Window");
 
@@ -117,51 +113,6 @@ public class ConfigSchema {
     public static final ConfigEntry<List<String>> DEVICE_BLACKLIST_BY_SERIAL =
             listEntry("deviceBlacklistBySerial", "Device blacklist by serial number", List.of(), "Blacklist");
 
-    // TaskScheduler configuration
-    public static final ConfigEntry<String> PRIORITY_RULES =
-            stringEntry("scheduler.priorityRules", "Priority rules configuration (JSON format) - reserved for future use", "{}", "Task Scheduler");
-
-    public static final ConfigEntry<Long> SCHEDULER_INITIAL_DELAY_MS =
-            longEntry("scheduler.initialDelayMs", "Initial delay before first scheduler tick (ms)", 1000L, "Task Scheduler");
-
-    public static final ConfigEntry<Long> SCHEDULER_TICK_INTERVAL_MS =
-            longEntry("scheduler.tickIntervalMs", "Interval between scheduler ticks (ms)", 500L, "Task Scheduler");
-
-    public static final ConfigEntry<Integer> SCHEDULER_ACCUMULATION_MAX_QUEUE =
-            intEntry("scheduler.accumulationMaxQueue", "Maximum queue size during high-load accumulation", 2000, "Task Scheduler");
-
-    public static final ConfigEntry<Integer> SCHEDULER_LOW_BATCH_SIZE =
-            intEntry("scheduler.lowBatchSize", "Number of tasks to submit per tick at LOW load", 30, "Task Scheduler");
-
-    public static final ConfigEntry<Integer> SCHEDULER_MEDIUM_BATCH_SIZE =
-            intEntry("scheduler.mediumBatchSize", "Number of tasks to submit per tick at MEDIUM load", 50, "Task Scheduler");
-
-    public static final ConfigEntry<Integer> LOAD_QUEUE_WEIGHT_PERCENT =
-            intEntry("scheduler.load.queueWeightPercent", "Queue length weight percentage (0-100)", 35, "Task Scheduler");
-
-    public static final ConfigEntry<Integer> LOAD_SPEED_WEIGHT_PERCENT =
-            intEntry("scheduler.load.speedWeightPercent", "Copy speed weight percentage (0-100)", 35, "Task Scheduler");
-
-    public static final ConfigEntry<Integer> LOAD_THREAD_WEIGHT_PERCENT =
-            intEntry("scheduler.load.threadWeightPercent", "Thread activity weight percentage (0-100)", 15, "Task Scheduler");
-
-    public static final ConfigEntry<Integer> LOAD_REJECTION_WEIGHT_PERCENT =
-            intEntry("scheduler.load.rejectionWeightPercent", "Rejection rate weight percentage (0-100)", 15, "Task Scheduler");
-
-    public static final ConfigEntry<Integer> LOAD_HIGH_THRESHOLD =
-            intEntry("scheduler.load.highThreshold", "High load threshold (0-100)", 70, "Task Scheduler");
-
-    public static final ConfigEntry<Integer> LOAD_LOW_THRESHOLD =
-            intEntry("scheduler.load.lowThreshold", "Low load threshold (0-100)", 40, "Task Scheduler");
-
-    public static final ConfigEntry<Integer> SCHEDULER_MEDIUM_BATCH =
-            intEntry("scheduler.batch.medium", "Medium load batch size", 20, "Task Scheduler");
-
-    public static final ConfigEntry<Integer> SCHEDULER_HIGH_BATCH =
-            intEntry("scheduler.batch.high", "High load batch size", 50, "Task Scheduler");
-
-    public static final ConfigEntry<Integer> SCHEDULER_HIGH_PRIORITY_THRESHOLD =
-            intEntry("scheduler.highPriorityThreshold", "High priority threshold (>= this value triggers immediate dispatch on low load)", 8, "Task Scheduler");
 
     // File filter configuration
     public static final ConfigEntry<Long> FILE_FILTER_MAX_SIZE =
@@ -252,24 +203,8 @@ public class ConfigSchema {
         registerEntry(START_HIDDEN);
         registerEntry(SHOW_IN_TASKBAR);
         registerEntry(AUTO_START_ENABLED);
-        registerEntry(MINIMIZE_ACTION);
         registerEntry(CLOSE_ACTION);
         registerEntry(CLOSE_ACTION_REMEMBER);
-        registerEntry(PRIORITY_RULES);
-        registerEntry(SCHEDULER_INITIAL_DELAY_MS);
-        registerEntry(SCHEDULER_TICK_INTERVAL_MS);
-        registerEntry(SCHEDULER_ACCUMULATION_MAX_QUEUE);
-        registerEntry(SCHEDULER_LOW_BATCH_SIZE);
-        registerEntry(SCHEDULER_MEDIUM_BATCH_SIZE);
-        registerEntry(LOAD_QUEUE_WEIGHT_PERCENT);
-        registerEntry(LOAD_SPEED_WEIGHT_PERCENT);
-        registerEntry(LOAD_THREAD_WEIGHT_PERCENT);
-        registerEntry(LOAD_REJECTION_WEIGHT_PERCENT);
-        registerEntry(LOAD_HIGH_THRESHOLD);
-        registerEntry(LOAD_LOW_THRESHOLD);
-        registerEntry(SCHEDULER_MEDIUM_BATCH);
-        registerEntry(SCHEDULER_HIGH_BATCH);
-        registerEntry(SCHEDULER_HIGH_PRIORITY_THRESHOLD);
         registerEntry(FILE_FILTER_MAX_SIZE);
         registerEntry(FILE_FILTER_TIME_ENABLED);
         registerEntry(FILE_FILTER_TIME_VALUE);

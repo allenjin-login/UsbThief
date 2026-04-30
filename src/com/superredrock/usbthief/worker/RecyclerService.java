@@ -18,6 +18,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -45,7 +46,7 @@ public class RecyclerService extends Service {
     private static volatile RecyclerService INSTANCE;
 
     // Tick interval: 5 minutes
-    private static final long TICK_INTERVAL_MS = 5 * 60 * 1000;
+    private static final long TICK_INTERVAL_MINUTES = 5;
 
     // Batch size for file processing to avoid blocking tick()
     private static final int MAX_FOLDERS_PER_TICK = 100;
@@ -92,8 +93,13 @@ public class RecyclerService extends Service {
     }
 
     @Override
-    protected long getTickIntervalMs() {
-        return TICK_INTERVAL_MS;
+    protected long getTickInterval() {
+        return TICK_INTERVAL_MINUTES;
+    }
+
+    @Override
+    protected TimeUnit getTickUnit() {
+        return TimeUnit.MINUTES;
     }
 
     @Override

@@ -1,4 +1,4 @@
-package com.superredrock.usbthief.gui;
+package com.superredrock.usbthief.gui.dailog;
 
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.worker.SnifferDebugSnapshot;

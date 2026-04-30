@@ -20,6 +20,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -136,8 +137,13 @@ public class Index extends Service {
     }
 
     @Override
-    protected long getTickIntervalMs() {
-        return 60000;
+    protected long getTickInterval() {
+        return ConfigManager.getInstance().get(ConfigSchema.SAVE_DELAY_SECONDS);
+    }
+
+    @Override
+    protected TimeUnit getTickUnit() {
+        return TimeUnit.SECONDS;
     }
 
     @Override

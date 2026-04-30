@@ -14,7 +14,10 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 
-import java.io.File;
+import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class LoggingConfig {
 
@@ -26,24 +29,31 @@ public class LoggingConfig {
 
     private static RollingFileAppender createRollingAppender(
             String name, String fileName, String filePattern,
-            PatternLayout layout, Configuration config) {
+            PatternLayout layout) {
         RollingFileAppender appender = RollingFileAppender.newBuilder()
                 .setName(name)
                 .setLayout(layout)
                 .withFileName(fileName)
                 .withFilePattern(filePattern)
                 .withPolicy(CompositeTriggeringPolicy.createPolicy(
-                        TimeBasedTriggeringPolicy.createPolicy("1", "true"),
+                        TimeBasedTriggeringPolicy.newBuilder().withInterval(1).withModulate(true).build(),
                         SizeBasedTriggeringPolicy.createPolicy("50MB")))
-                .withStrategy(DefaultRolloverStrategy.createStrategy("7", null, null,
-                        null, null, true, config))
+                .withStrategy(DefaultRolloverStrategy.newBuilder().withMax("7").build())
                 .build();
         appender.start();
         return appender;
     }
 
     public static void initialize() {
-        new File("logs").mkdirs();
+        try {
+            Files.createDirectories(Path.of("logs"));
+        } catch (IOException e) {
+            if (!(e instanceof FileAlreadyExistsException)){
+                return;
+            }else {
+                throw new RuntimeException(e);
+            }
+        }
 
         try {
             LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
@@ -62,20 +72,21 @@ public class LoggingConfig {
                     .withConfiguration(config)
                     .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%-5level] [%logger{1.}] %msg%n")
                     .build();
-            RollingFileAppender file = createRollingAppender("File", "logs/usbthief.log",
-                    "logs/usbthief-%d{yyyy-MM-dd}.log", fileLayout, config);
+            RollingFileAppender file = createRollingAppender("File", "logs/lastest.log",
+                    "logs/info-%d{yyyy-MM-dd}.log", fileLayout);
             config.addAppender(file);
 
             RollingFileAppender debugFile = createRollingAppender("DebugFile", "logs/debug.log",
-                    "logs/debug-%d{yyyy-MM-dd}.log", fileLayout, config);
+                    "logs/debug-%d{yyyy-MM-dd}.log", fileLayout);
             config.addAppender(debugFile);
 
             // Root logger: DEBUG level, per-appender level via addAppender(appender, level, filter)
             LoggerConfig root = config.getRootLogger();
+            root.getAppenders().keySet().forEach(root::removeAppender);
             root.setLevel(Level.DEBUG);
             root.addAppender(console, Level.INFO, null);
             root.addAppender(file, Level.INFO, null);
-            root.addAppender(debugFile, null, null);
+            root.addAppender(debugFile, Level.DEBUG, null);
 
             // Start LogBufferAppender
             BUFFER_APPENDER.start();

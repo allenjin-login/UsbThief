@@ -1,7 +1,8 @@
-package com.superredrock.usbthief.gui;
+package com.superredrock.usbthief.gui.dailog;
 
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.gui.I18NManager;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.worker.CopyTask;
 

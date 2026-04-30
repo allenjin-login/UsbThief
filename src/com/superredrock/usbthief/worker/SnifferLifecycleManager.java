@@ -172,8 +172,13 @@ public class SnifferLifecycleManager extends Service {
     }
 
     @Override
-    protected long getTickIntervalMs() {
-        return 3000;
+    protected long getTickInterval() {
+        return 3;
+    }
+
+    @Override
+    protected TimeUnit getTickUnit() {
+        return TimeUnit.SECONDS;
     }
 
     @Override
@@ -201,8 +206,17 @@ public class SnifferLifecycleManager extends Service {
         }
 
         try {
-            Sniffer sniffer = new Sniffer(volume, () -> onSnifferFinished(volume),
-                                                     () -> onSnifferError(volume));
+            Sniffer sniffer = new Sniffer(volume);
+            sniffer.onFinish()
+                    .thenRun(() -> {
+                        logger.info("Sniffer finished for {} (reason: {})", serial, RestartReason.NORMAL_COMPLETION);
+                        scheduleRestart(serial, RestartReason.NORMAL_COMPLETION);
+                    })
+                    .exceptionally(ex -> {
+                        logger.warn("Sniffer error for {}", serial, ex);
+                        scheduleRestart(serial, RestartReason.ERROR);
+                        return null;
+                    });
             sniffers.put(serial, new SnifferEntry(sniffer, serial));
             sniffer.start();
             logger.info("Sniffer started for volume: {} at {}", serial, volume.getRootPath());
@@ -210,24 +224,6 @@ public class SnifferLifecycleManager extends Service {
             logger.warn("Failed to create sniffer for {}", serial, e);
             scheduleRestart(serial, RestartReason.ERROR);
         }
-    }
-
-    /**
-     * Callback when a sniffer finishes normally.
-     */
-    private void onSnifferFinished(Volume volume) {
-        String serial = volume.getSerialNumber();
-        logger.info("Sniffer finished for {} (reason: {})", serial, RestartReason.NORMAL_COMPLETION);
-        scheduleRestart(serial, RestartReason.NORMAL_COMPLETION);
-    }
-
-    /**
-     * Callback when a sniffer encounters an error.
-     */
-    private void onSnifferError(Volume volume) {
-        String serial = volume.getSerialNumber();
-        logger.warn("Sniffer error for {}", serial);
-        scheduleRestart(serial, RestartReason.ERROR);
     }
 
     /**

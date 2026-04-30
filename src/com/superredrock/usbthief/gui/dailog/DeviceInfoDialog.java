@@ -1,4 +1,4 @@
-package com.superredrock.usbthief.gui;
+package com.superredrock.usbthief.gui.dailog;
 
 import com.superredrock.usbthief.core.Device;
 import com.superredrock.usbthief.core.DeviceManager;
@@ -8,6 +8,7 @@ import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.device.VolumeInsertedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeStateChangedEvent;
+import com.superredrock.usbthief.gui.I18NManager;
 import com.superredrock.usbthief.gui.components.EmptyStatePanel;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.statistics.Statistics;

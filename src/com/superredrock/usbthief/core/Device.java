@@ -20,8 +20,8 @@ public class Device {
 
     /**
      * @param serialNumber hardware serial number
-     * @param vid          vendor ID (may be null for USBSTOR devices)
-     * @param pid          product ID or name (may be null for USBSTOR devices)
+     * @param vid          vendor ID (maybe null for USBSTOR devices)
+     * @param pid          product ID or name (maybe null for USBSTOR devices)
      * @param devicePath   raw device instance path (dbccName from WM_DEVICECHANGE)
      */
     public Device(String serialNumber, String vid, String pid, String devicePath) {

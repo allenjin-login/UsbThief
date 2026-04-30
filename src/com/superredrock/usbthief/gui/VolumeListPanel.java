@@ -9,6 +9,7 @@ import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.device.VolumeInsertedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeStateChangedEvent;
+import com.superredrock.usbthief.gui.dailog.BlacklistDialog;
 import com.superredrock.usbthief.gui.components.EmptyStatePanel;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 
@@ -204,7 +205,7 @@ public class VolumeListPanel extends JPanel implements I18NManager.LocaleChangeL
 
             if (emptyStatePanel != null) {
                 emptyStatePanel.setTitle(i18n.getMessage("empty.devices.title"));
-                emptyStatePanel.setDescription(i18n.getMessage("empty.devices.message"));
+                emptyStatePanel.setDescription(i18n.getMessage("empty.devices.description"));
             }
 
             for (VolumeCard card : volumeCards.values()) {

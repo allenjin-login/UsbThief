@@ -83,8 +83,13 @@ public ThreadPoolExecutor getPool() {
     }
 
     @Override
-    protected long getTickIntervalMs() {
+    protected long getTickInterval() {
         return 500;
+    }
+
+    @Override
+    protected TimeUnit getTickUnit() {
+        return TimeUnit.MILLISECONDS;
     }
 
     @Override

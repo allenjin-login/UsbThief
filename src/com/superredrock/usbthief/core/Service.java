@@ -27,13 +27,14 @@ public abstract class Service extends Thread implements Closeable {
         state = ServiceState.RUNNING;
         logger.info("{} service started", getServiceName());
 
+
         while (running && !Thread.currentThread().isInterrupted()) {
             stateLock.lock();
             try {
                 if (!paused) {
                     tick();
                 }
-                TimeUnit.MILLISECONDS.sleep(getTickIntervalMs());
+                getTickUnit().sleep(getTickInterval());
             } catch (InterruptedException e) {
                 if (running) {
                     logger.error("{} interrupted unexpectedly", getServiceName());
@@ -98,8 +99,6 @@ public abstract class Service extends Thread implements Closeable {
             cleanup();
 
             state = ServiceState.STOPPED;
-            logger.info(" service stopped{}", getServiceName());
-
         } catch (Exception e) {
             logger.error("{} stop failed: {}", getServiceName(), e);
             state = ServiceState.FAILED;
@@ -169,7 +168,9 @@ public abstract class Service extends Thread implements Closeable {
 
     protected abstract void tick();
 
-    protected abstract long getTickIntervalMs();
+    protected abstract long getTickInterval();
+
+    protected abstract TimeUnit getTickUnit();
 
     public abstract String getServiceName();
 

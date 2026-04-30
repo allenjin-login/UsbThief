@@ -1,6 +1,7 @@
 package com.superredrock.usbthief.core;
 
 import com.superredrock.usbthief.core.config.ConfigManager;
+import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.device.DeviceArrivalEvent;
 import com.superredrock.usbthief.core.event.device.DeviceRemovalEvent;
@@ -138,8 +139,13 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
     // ========== Service lifecycle ==========
 
     @Override
-    protected long getTickIntervalMs() {
-        return 2000;
+    protected long getTickInterval() {
+        return ConfigManager.getInstance().get(ConfigSchema.DELAY_SECONDS);
+    }
+
+    @Override
+    protected TimeUnit getTickUnit() {
+        return TimeUnit.SECONDS;
     }
 
     @Override
@@ -220,6 +226,7 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
         }
         Volume newVolume = new Volume(rootPath, serial);
         newVolume.updateState();
+        newVolume.isChangeAndReset(); // consume flag to prevent spurious tick()
 
         if (volumesMap.putIfAbsent(serial, newVolume) == null) {
             logger.info("New volume registered: {} at {}", serial, rootPath);
