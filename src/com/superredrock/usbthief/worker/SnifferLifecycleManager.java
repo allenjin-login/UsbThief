@@ -82,15 +82,13 @@ public class SnifferLifecycleManager extends Service {
         EventBus bus = EventBus.getInstance();
 
         bus.register(VolumeInsertedEvent.class, event -> {
-            Volume volume = event.volume();
-            cancelTimer(volume.getSerialNumber());
-            logger.info("Volume inserted, scheduling sniffer for: {}", volume.getSerialNumber());
+            logger.info("Volume inserted: {}", event.volume().getSerialNumber());
         });
 
         bus.register(VolumeRemovedEvent.class, event -> {
             String serial = event.volume().getSerialNumber();
             logger.info("Volume removed, stopping sniffer: {}", serial);
-            stop(serial);
+            stopSnifferOnly(serial);
         });
 
         bus.register(VolumeStateChangedEvent.class, event -> {
@@ -101,7 +99,7 @@ public class SnifferLifecycleManager extends Service {
             switch (newState) {
                 case OFFLINE -> {
                     logger.debug("Volume OFFLINE, stopping sniffer: {}", serial);
-                    stop(serial);
+                    stopSnifferOnly(serial);
                 }
                 case DISABLED -> {
                     logger.debug("Volume DISABLED, stopping sniffer: {}", serial);
@@ -109,7 +107,10 @@ public class SnifferLifecycleManager extends Service {
                 }
                 case EJECTING -> {
                     logger.debug("Volume EJECTING, stopping sniffer: {}", serial);
-                    stop(serial);
+                    stopSnifferOnly(serial);
+                    if (!timers.containsKey(serial)) {
+                        scheduleRestart(serial, RestartReason.NORMAL_COMPLETION);
+                    }
                 }
                 case IDLE -> {
                     if (event.oldState() == Volume.VolumeState.OFFLINE ||
