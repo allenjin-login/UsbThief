@@ -98,8 +98,10 @@ public class CopyTask implements Callable<CopyResult> {
                 result = CopyResult.SKIPPED;
             } else {
                 Volume volume = QueueManager.getDeviceManager().getVolume(processingPath);
-                if (volume != null && !volume.isAccessible()) {
+                if (volume != null && !volume.isAccessible() && !(volume.getState() == VolumeState.IDLE)) {
                     return CopyResult.FAIL;
+                }else if (volume != null && volume.getState() != VolumeState.EJECTING){
+                    return CopyResult.SKIPPED;
                 }
 
                 size = Files.size(processingPath);

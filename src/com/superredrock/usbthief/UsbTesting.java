@@ -3,6 +3,7 @@ package com.superredrock.usbthief;
 import com.superredrock.usbthief.core.Device;
 import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.QueueManager;
+import com.superredrock.usbthief.core.SizeFormatter;
 import com.superredrock.usbthief.core.Volume;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
@@ -92,7 +93,7 @@ public class UsbTesting {
                 if (!Files.exists(workPath)) Files.createDirectories(workPath);
             }
         } catch (Exception e) {
-            logger.warn("Failed to create working directory: {}", e);
+            logger.warn("Failed to create working directory:", e);
         }
     }
 
@@ -151,15 +152,9 @@ public class UsbTesting {
             try {
                 long total = v.getFileStore().getTotalSpace();
                 long free = v.getFileStore().getUsableSpace();
-                logger.info("  Storage: {} / {}", formatSize(total - free), formatSize(total));
+                logger.info("  Storage: {} / {}", SizeFormatter.format(total - free), SizeFormatter.format(total));
             } catch (Exception _) {}
         }
-    }
-
-    private static String formatSize(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        int exp = (int) (Math.log(bytes) / Math.log(1024));
-        return String.format("%.1f %sB", bytes / Math.pow(1024, exp), "KMGTPE".charAt(exp - 1));
     }
 
     private static void shutdown() {

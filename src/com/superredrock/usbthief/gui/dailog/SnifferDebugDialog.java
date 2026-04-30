@@ -8,6 +8,7 @@ import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.EventListener;
 import com.superredrock.usbthief.core.event.device.DeviceEvent;
 import com.superredrock.usbthief.core.event.device.VolumeEvent;
+import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
 import com.superredrock.usbthief.core.event.index.IndexEvent;
 import com.superredrock.usbthief.core.event.index.IndexSavedEvent;
 import com.superredrock.usbthief.core.event.index.IndexLoadedEvent;
@@ -63,9 +64,11 @@ public class SnifferDebugDialog extends JDialog {
     private final LinkedList<CapturedEvent> eventBuffer = new LinkedList<>();
     private final EventListener<Event> eventListener;
     private String activeEventFilter = "All";
-    private JLabel eventRateLabel;
-    private CardLayout cardLayout;
-    private JPanel contentContainer;
+    private final CardLayout cardLayout;
+    private final JPanel contentContainer;
+
+    private final LinkedHashMap<String, SnifferDebugSnapshot> ejectedCache = new LinkedHashMap<>();
+    private final Map<String, Long> ejectedTimestamps = new HashMap<>();
 
     private static final Color TAB_ACTIVE_BG = ThemeManager.ACCENT_PRIMARY;
     private static final Color TAB_INACTIVE_BG = Color.WHITE;
@@ -92,6 +95,9 @@ public class SnifferDebugDialog extends JDialog {
                 while (eventBuffer.size() > EVENT_BUFFER_SIZE) {
                     eventBuffer.removeFirst();
                 }
+            }
+            if (event instanceof VolumeRemovedEvent vre) {
+                cacheEjectedVolume(vre.volume().getSerialNumber());
             }
         };
         EventBus.getInstance().register(Event.class, eventListener);
@@ -180,19 +186,57 @@ public class SnifferDebugDialog extends JDialog {
 
     // ========== Tab 1: Sniffers ==========
 
+    private void cacheEjectedVolume(String serialNumber) {
+        List<SnifferDebugSnapshot> current = SnifferLifecycleManager.getInstance().getDebugSnapshots();
+        for (SnifferDebugSnapshot s : current) {
+            if (s.serialNumber().equals(serialNumber)) {
+                SnifferDebugSnapshot ejected = new SnifferDebugSnapshot(
+                    s.driveLetter(), s.serialNumber(), SnifferPhase.EJECTED,
+                    s.changeCount(), s.threshold(), s.secondsUntilReset(),
+                    s.resetIntervalSec(), s.watchedDirCount(), 0, null
+                );
+                ejectedCache.put(serialNumber, ejected);
+                ejectedTimestamps.put(serialNumber, System.currentTimeMillis());
+                return;
+            }
+        }
+        if (!ejectedCache.containsKey(serialNumber)) {
+            ejectedCache.put(serialNumber, new SnifferDebugSnapshot(
+                "", serialNumber, SnifferPhase.EJECTED,
+                0, 0, 0, 0, 0, 0, null
+            ));
+            ejectedTimestamps.put(serialNumber, System.currentTimeMillis());
+        }
+    }
+
     private void refreshSniffers() {
         List<SnifferDebugSnapshot> snapshots = SnifferLifecycleManager.getInstance().getDebugSnapshots();
+        Set<String> activeSerials = new HashSet<>();
+        for (SnifferDebugSnapshot s : snapshots) {
+            activeSerials.add(s.serialNumber());
+        }
+        ejectedCache.keySet().removeIf(serial -> {
+            if (activeSerials.contains(serial)) {
+                ejectedTimestamps.remove(serial);
+                return true;
+            }
+            return false;
+        });
+
+        List<SnifferDebugSnapshot> merged = new ArrayList<>(snapshots);
+        merged.addAll(ejectedCache.values());
+
         sniffersPanel.removeAll();
         sniffersPanel.setLayout(new BoxLayout(sniffersPanel, BoxLayout.Y_AXIS));
         sniffersPanel.setBorder(new EmptyBorder(12, 12, 12, 12));
 
-        if (snapshots.isEmpty()) {
+        if (merged.isEmpty()) {
             JLabel empty = new JLabel("No active sniffers", SwingConstants.CENTER);
             empty.setForeground(ThemeManager.TEXT_MUTED);
             empty.setAlignmentX(Component.CENTER_ALIGNMENT);
             sniffersPanel.add(empty);
         } else {
-            for (SnifferDebugSnapshot s : snapshots) {
+            for (SnifferDebugSnapshot s : merged) {
                 JPanel card = buildSnifferCard(s);
                 card.setAlignmentX(Component.LEFT_ALIGNMENT);
                 card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 160));
@@ -227,17 +271,7 @@ public class SnifferDebugDialog extends JDialog {
         driveIcon.setPreferredSize(new Dimension(32, 32));
         driveIcon.setBorder(new LineBorder(blendColor(ThemeManager.ACCENT_PRIMARY, 0.15f), 1, true));
 
-        JPanel namePanel = new JPanel();
-        namePanel.setLayout(new BoxLayout(namePanel, BoxLayout.Y_AXIS));
-        namePanel.setOpaque(false);
-        JLabel nameLabel = new JLabel(s.driveLetter() != null && !s.driveLetter().isEmpty() ? "Volume " + s.driveLetter() : s.serialNumber());
-        nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD, 12f));
-        nameLabel.setForeground(ThemeManager.TEXT_PRIMARY);
-        JLabel serialLabel = new JLabel("Serial: " + s.serialNumber());
-        serialLabel.setFont(serialLabel.getFont().deriveFont(Font.PLAIN, 10f));
-        serialLabel.setForeground(ThemeManager.TEXT_MUTED);
-        namePanel.add(nameLabel);
-        namePanel.add(serialLabel);
+        JPanel namePanel = getDebugPanel(s);
 
         leftHeader.add(driveIcon);
         leftHeader.add(namePanel);
@@ -270,10 +304,35 @@ public class SnifferDebugDialog extends JDialog {
             }
         } else if (s.phase() == SnifferPhase.INITIAL_SCAN) {
             stats.add(buildStatItem("Watched Dirs", String.valueOf(s.watchedDirCount())));
+        } else if (s.phase() == SnifferPhase.EJECTED) {
+            Long ts = ejectedTimestamps.get(s.serialNumber());
+            if (ts != null) {
+                long elapsedSec = (System.currentTimeMillis() - ts) / 1000;
+                JLabel elapsedLabel = new JLabel(formatDuration(elapsedSec));
+                elapsedLabel.setFont(elapsedLabel.getFont().deriveFont(Font.BOLD, 12f));
+                elapsedLabel.setForeground(ThemeManager.TEXT_MUTED);
+                stats.add(buildStatItem("Elapsed", ""));
+                stats.add(elapsedLabel);
+            }
         }
 
         card.add(stats, BorderLayout.CENTER);
         return card;
+    }
+
+    private static JPanel getDebugPanel(SnifferDebugSnapshot s) {
+        JPanel namePanel = new JPanel();
+        namePanel.setLayout(new BoxLayout(namePanel, BoxLayout.Y_AXIS));
+        namePanel.setOpaque(false);
+        JLabel nameLabel = new JLabel(s.driveLetter() != null && !s.driveLetter().isEmpty() ? "Volume " + s.driveLetter() : s.serialNumber());
+        nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD, 12f));
+        nameLabel.setForeground(ThemeManager.TEXT_PRIMARY);
+        JLabel serialLabel = new JLabel("Serial: " + s.serialNumber());
+        serialLabel.setFont(serialLabel.getFont().deriveFont(Font.PLAIN, 10f));
+        serialLabel.setForeground(ThemeManager.TEXT_MUTED);
+        namePanel.add(nameLabel);
+        namePanel.add(serialLabel);
+        return namePanel;
     }
 
     private JLabel buildPhaseBadge(SnifferDebugSnapshot s) {
@@ -284,6 +343,11 @@ public class SnifferDebugDialog extends JDialog {
             case INITIAL_SCAN:
                 text = "Scanning";
                 bg = ThemeManager.ACCENT_INFO;
+                break;
+            case EJECTED:
+                text = "Ejected";
+                bg = ThemeManager.TEXT_MUTED;
+                fg = ThemeManager.TEXT_PRIMARY;
                 break;
             case MONITORING:
                 text = "Monitoring";
@@ -373,6 +437,13 @@ public class SnifferDebugDialog extends JDialog {
             new EmptyBorder(12, 12, 12, 12)
         ));
 
+        JPanel top = getTop(svc, isFailed, dotColor);
+
+        card.add(top, BorderLayout.CENTER);
+        return card;
+    }
+
+    private static JPanel getTop(Service svc, boolean isFailed, Color dotColor) {
         JPanel top = new JPanel(new BorderLayout());
         top.setOpaque(false);
         JLabel nameLabel = new JLabel(svc.getServiceName());
@@ -380,13 +451,11 @@ public class SnifferDebugDialog extends JDialog {
         nameLabel.setForeground(isFailed ? ThemeManager.ACCENT_ERROR : ThemeManager.TEXT_PRIMARY);
         top.add(nameLabel, BorderLayout.WEST);
 
-        JLabel dot = new JLabel("\u25CF");
+        JLabel dot = new JLabel("●");
         dot.setForeground(dotColor);
         dot.setFont(dot.getFont().deriveFont(Font.PLAIN, 10f));
         top.add(dot, BorderLayout.EAST);
-
-        card.add(top, BorderLayout.CENTER);
-        return card;
+        return top;
     }
 
     // ========== Tab 3: Events ==========
@@ -429,7 +498,7 @@ public class SnifferDebugDialog extends JDialog {
         }
         filterBar.add(filters, BorderLayout.WEST);
 
-        eventRateLabel = new JLabel(events.size() + " events");
+        JLabel eventRateLabel = new JLabel(events.size() + " events");
         eventRateLabel.setFont(eventRateLabel.getFont().deriveFont(Font.PLAIN, 10f));
         eventRateLabel.setForeground(ThemeManager.TEXT_MUTED);
         filterBar.add(eventRateLabel, BorderLayout.EAST);

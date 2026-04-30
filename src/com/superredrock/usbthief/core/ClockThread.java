@@ -29,7 +29,7 @@ public class ClockThread extends Thread {
         this(TimeUnit.MILLISECONDS, delayMillis);
     }
 
-    public CompletableFuture<Void> future() {
+    public CompletableFuture<Void> onCountdown() {
         return future;
     }
 
@@ -44,7 +44,7 @@ public class ClockThread extends Thread {
             synchronized (this) {
                 while (paused && !cancelled) {
                     try {
-                        wait();
+                        wait(100);
                     } catch (InterruptedException e) {
                         if (!cancelled && !future.isDone()) {
                             future.completeExceptionally(e);
@@ -65,8 +65,9 @@ public class ClockThread extends Thread {
                 Thread.currentThread().interrupt();
                 return;
             }
-
-            remaining--;
+            synchronized (this){
+                remaining--;
+            }
         }
 
         if (remaining <= 0 && !cancelled && !future.isDone()) {
@@ -83,27 +84,21 @@ public class ClockThread extends Thread {
         interrupt();
     }
 
-    public void pause() {
-        synchronized (this) {
-            if (!future.isDone() && !cancelled) {
-                paused = true;
-            }
+    public synchronized void pause() {
+        if (!future.isDone() && !cancelled) {
+            paused = true;
         }
     }
 
-    public void resume() {
-        synchronized (this) {
-            paused = false;
-            notifyAll();
-        }
+    public synchronized void resume() {
+        paused = false;
+        notifyAll();
     }
 
-    public void restart() {
-        synchronized (this) {
-            remaining = initialDelay;
-            paused = false;
-            notifyAll();
-        }
+    public synchronized void restart() {
+        remaining = initialDelay;
+        paused = false;
+        notifyAll();
     }
 
     public long getRemaining(TimeUnit targetUnit) {

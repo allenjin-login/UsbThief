@@ -29,6 +29,7 @@ public class Volume {
     private String volumeName;
     private String driveLetter;
     private final String serialNumber;
+    private volatile Device device;
     private volatile VolumeState state;
     private volatile boolean stateChange;
 
@@ -92,7 +93,10 @@ public class Volume {
      * Checks if the volume is currently accessible and in IDLE state.
      */
     public boolean isAccessible() {
-        return fileStore != null && Files.exists(rootPath) && state == VolumeState.IDLE;
+        if (fileStore == null){
+            try {fileStore = Files.getFileStore(this.rootPath);} catch (IOException _) {return false;}
+        }
+        return fileStore != null && Files.exists(rootPath);
     }
 
     /**
@@ -133,6 +137,14 @@ public class Volume {
 
     public String getSerialNumber() {
         return serialNumber;
+    }
+
+    public Device getDevice() {
+        return device;
+    }
+
+    public void setDevice(Device device) {
+        this.device = device;
     }
 
     public VolumeState getState() {

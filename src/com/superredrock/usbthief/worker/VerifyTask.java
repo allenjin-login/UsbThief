@@ -45,6 +45,9 @@ public class VerifyTask implements Callable<CopyResult> {
             if (volume != null && volume.getState() == Volume.VolumeState.EJECTING) {
                 return CopyResult.SKIPPED;
             }
+            if (volume != null && !volume.isAccessible() && volume.getState() == Volume.VolumeState.IDLE) {
+                return CopyResult.FAIL;
+            }
 
             size = attrs.size();
             CheckSum hash = CheckSum.verify(processingPath);

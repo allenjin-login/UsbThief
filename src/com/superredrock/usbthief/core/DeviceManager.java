@@ -14,9 +14,9 @@ import com.superredrock.usbthief.worker.SnifferLifecycleManager;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -39,7 +39,7 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
     private final ConcurrentHashMap<String, Device> devicesMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Volume> volumesMap = new ConcurrentHashMap<>();
 
-    private final ConcurrentHashMap<String, CompletableFuture<Void>> pendingCleanups = new ConcurrentHashMap<>();
+    private Device lastAddDevice = null;
 
     private DeviceManager() {
         monitor.setVolumeListener(this);
@@ -140,7 +140,7 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
 
     @Override
     protected long getTickInterval() {
-        return ConfigManager.getInstance().get(ConfigSchema.DELAY_SECONDS);
+        return 1;
     }
 
     @Override
@@ -187,6 +187,7 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
             EventBus.getInstance().dispatch(new NewDeviceJoinedEvent(d));
             return d;
         });
+        lastAddDevice = device;
         EventBus.getInstance().dispatch(new DeviceArrivalEvent(device));
     }
 
@@ -224,14 +225,28 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
             logger.debug("Ignoring blacklisted volume: {}", serial);
             return;
         }
+
+
         Volume newVolume = new Volume(rootPath, serial);
         newVolume.updateState();
         newVolume.isChangeAndReset(); // consume flag to prevent spurious tick()
 
-        if (volumesMap.putIfAbsent(serial, newVolume) == null) {
+        Volume existing = volumesMap.putIfAbsent(serial, newVolume);
+        Volume volume = existing != null ? existing : newVolume;
+
+        if (existing == null) {
             logger.info("New volume registered: {} at {}", serial, rootPath);
         }
-        EventBus.getInstance().dispatch(new VolumeInsertedEvent(newVolume));
+
+        volume.setState(Volume.VolumeState.IDLE);
+
+        // Bidirectional link
+        if (lastAddDevice != null) {
+            volume.setDevice(lastAddDevice);
+            lastAddDevice.addVolume(volume);
+        }
+
+        EventBus.getInstance().dispatch(new VolumeInsertedEvent(volume));
 
         monitor.registerVolumeHandle(driveLetter);
     }
@@ -259,32 +274,15 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
         }
 
         String serial = volume.getSerialNumber();
-
-        // Wait for any previous pending cleanup to complete
-        CompletableFuture<Void> pending = pendingCleanups.get(serial);
-        if (pending != null && !pending.isDone()) {
-            logger.info("Waiting for previous eject cleanup: {}", serial);
-            try {
-                pending.get(5, TimeUnit.SECONDS);
-            } catch (Exception e) {
-                logger.warn("Previous cleanup did not complete in time for: {}", serial);
-            }
-        }
-
         volume.setEjecting();
         logger.info("Volume ejecting: {} ({})", driveLetter, serial);
 
-        // Start async cleanup — stop sniffer (which joins thread with timeout)
-        CompletableFuture<Void> cleanup = CompletableFuture.runAsync(() -> {
-            try {
-                SnifferLifecycleManager.getInstance().stop(serial);
-            } catch (Exception e) {
-                logger.warn("Error during eject cleanup for {}: {}", serial, e.getMessage());
-            }
-        });
-        pendingCleanups.put(serial, cleanup);
-        cleanup.whenComplete((_, _) -> pendingCleanups.remove(serial, cleanup));
-
+        try {
+            SnifferLifecycleManager.getInstance().stop(serial);
+        } catch (Exception e) {
+            logger.warn("Error during eject cleanup for {}: {}", serial, e.getMessage());
+        }
+        lastAddDevice = null;
         return true;
     }
 

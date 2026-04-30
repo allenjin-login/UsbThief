@@ -2,8 +2,10 @@ package com.superredrock.usbthief.gui;
 
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.device.VolumeInsertedEvent;
+import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
 import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
 import com.superredrock.usbthief.worker.CopyTask;
+import com.superredrock.usbthief.worker.SnifferLifecycleManager;
 import com.superredrock.usbthief.worker.TaskScheduler;
 
 import java.awt.*;
@@ -65,7 +67,7 @@ public class TrayIconManager {
     private TrayState determineState() {
         int probeCount = CopyTask.getSpeedProbeGroup().getProbeCount();
         if (probeCount > 0) return TrayState.COPYING;
-        if (scanCount > 0) return TrayState.SCANNING;
+        if (scanCount > 0 || SnifferLifecycleManager.getInstance().isAlive()) return TrayState.SCANNING;
         return TrayState.IDLE;
     }
 
@@ -182,7 +184,12 @@ public class TrayIconManager {
         EventBus eventBus = EventBus.getInstance();
 
         eventBus.register(VolumeInsertedEvent.class, _ -> {
-            scanCount++;
+            onScanStarted();
+            javax.swing.SwingUtilities.invokeLater(this::updateState);
+        });
+
+        eventBus.register(VolumeRemovedEvent.class, _ -> {
+            onScanEnded();
             javax.swing.SwingUtilities.invokeLater(this::updateState);
         });
 

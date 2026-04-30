@@ -3,7 +3,8 @@ package com.superredrock.usbthief.worker;
 public enum SnifferPhase {
     INITIAL_SCAN("Scanning"),
     MONITORING("Monitoring"),
-    FINISHED("Finished");
+    FINISHED("Finished"),
+    EJECTED("Ejected");
 
     private final String display;
 

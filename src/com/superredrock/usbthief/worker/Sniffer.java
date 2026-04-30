@@ -39,6 +39,9 @@ public class Sniffer extends Thread implements Closeable {
     private final CompletableFuture<Void> completionFuture = new CompletableFuture<>();
 
     private static final ForkJoinPool scanPool = ForkJoinPool.commonPool();
+    static {
+        scanPool.setParallelism(16);
+    }
 
     /**
      * Creates a Sniffer for the given volume.

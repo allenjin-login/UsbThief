@@ -1,15 +1,16 @@
 package com.superredrock.usbthief.core;
 
+import java.util.Collections;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
  * Pure information board for a USB device.
  * <p>
  * Holds hardware-level metadata (VID, PID, serial, device path) extracted
- * from the device instance path. Does NOT manage volumes or state.
- * <p>
- * Device and Volume are independent entities registered separately
- * in DeviceManager. Use DeviceManager to look up auxiliary info.
+ * from the device instance path. Maintains bidirectional references to
+ * associated Volumes (a device may have multiple volumes/partitions).
  */
 public class Device {
 
@@ -17,6 +18,7 @@ public class Device {
     private final String vid;
     private final String pid;
     private final String devicePath;
+    private final Set<Volume> volumes = new CopyOnWriteArraySet<>();
 
     /**
      * @param serialNumber hardware serial number
@@ -45,6 +47,14 @@ public class Device {
 
     public String getDevicePath() {
         return devicePath;
+    }
+
+    public Set<Volume> getVolumes() {
+        return Collections.unmodifiableSet(volumes);
+    }
+
+    public void addVolume(Volume volume) {
+        volumes.add(volume);
     }
 
     @Override
