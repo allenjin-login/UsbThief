@@ -73,11 +73,11 @@ public class ClockThread extends Thread {
 
     public void cancel() {
         cancelled = true;
+        interrupt();
         future.cancel(true);
         synchronized (this) {
             notifyAll();
         }
-        interrupt();
     }
 
     public void pause() {
