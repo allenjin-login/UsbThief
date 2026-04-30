@@ -22,8 +22,8 @@ import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.index.Index;
 import com.superredrock.usbthief.worker.*;
 
-import javax.swing.Timer;
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import javax.swing.border.MatteBorder;
@@ -64,6 +64,8 @@ public class SnifferDebugDialog extends JDialog {
     private final EventListener<Event> eventListener;
     private String activeEventFilter = "All";
     private JLabel eventRateLabel;
+    private CardLayout cardLayout;
+    private JPanel contentContainer;
 
     private static final Color TAB_ACTIVE_BG = ThemeManager.ACCENT_PRIMARY;
     private static final Color TAB_INACTIVE_BG = Color.WHITE;
@@ -80,7 +82,9 @@ public class SnifferDebugDialog extends JDialog {
         setLayout(new BorderLayout());
 
         add(buildTabBar(), BorderLayout.NORTH);
-        add(buildContentArea(), BorderLayout.CENTER);
+        contentContainer = buildContentArea();
+        cardLayout = (CardLayout) contentContainer.getLayout();
+        add(contentContainer, BorderLayout.CENTER);
 
         eventListener = event -> {
             synchronized (eventBuffer) {
@@ -160,9 +164,7 @@ public class SnifferDebugDialog extends JDialog {
     }
 
     private void showActivePanel() {
-        JPanel container = (JPanel) getContentPane().getComponent(1);
-        CardLayout cl = (CardLayout) container.getLayout();
-        cl.show(container, TAB_KEYS[activeTab]);
+        cardLayout.show(contentContainer, TAB_KEYS[activeTab]);
     }
 
     // ========== Refresh ==========
@@ -180,28 +182,26 @@ public class SnifferDebugDialog extends JDialog {
 
     private void refreshSniffers() {
         List<SnifferDebugSnapshot> snapshots = SnifferLifecycleManager.getInstance().getDebugSnapshots();
-        SwingUtilities.invokeLater(() -> {
-            sniffersPanel.removeAll();
-            sniffersPanel.setLayout(new BoxLayout(sniffersPanel, BoxLayout.Y_AXIS));
-            sniffersPanel.setBorder(new EmptyBorder(12, 12, 12, 12));
+        sniffersPanel.removeAll();
+        sniffersPanel.setLayout(new BoxLayout(sniffersPanel, BoxLayout.Y_AXIS));
+        sniffersPanel.setBorder(new EmptyBorder(12, 12, 12, 12));
 
-            if (snapshots.isEmpty()) {
-                JLabel empty = new JLabel("No active sniffers", SwingConstants.CENTER);
-                empty.setForeground(ThemeManager.TEXT_MUTED);
-                empty.setAlignmentX(Component.CENTER_ALIGNMENT);
-                sniffersPanel.add(empty);
-            } else {
-                for (SnifferDebugSnapshot s : snapshots) {
-                    JPanel card = buildSnifferCard(s);
-                    card.setAlignmentX(Component.LEFT_ALIGNMENT);
-                    card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 160));
-                    sniffersPanel.add(card);
-                    sniffersPanel.add(Box.createVerticalStrut(10));
-                }
+        if (snapshots.isEmpty()) {
+            JLabel empty = new JLabel("No active sniffers", SwingConstants.CENTER);
+            empty.setForeground(ThemeManager.TEXT_MUTED);
+            empty.setAlignmentX(Component.CENTER_ALIGNMENT);
+            sniffersPanel.add(empty);
+        } else {
+            for (SnifferDebugSnapshot s : snapshots) {
+                JPanel card = buildSnifferCard(s);
+                card.setAlignmentX(Component.LEFT_ALIGNMENT);
+                card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 160));
+                sniffersPanel.add(card);
+                sniffersPanel.add(Box.createVerticalStrut(10));
             }
-            sniffersPanel.revalidate();
-            sniffersPanel.repaint();
-        });
+        }
+        sniffersPanel.revalidate();
+        sniffersPanel.repaint();
     }
 
     private JPanel buildSnifferCard(SnifferDebugSnapshot s) {
@@ -314,36 +314,34 @@ public class SnifferDebugDialog extends JDialog {
 
     private void refreshServices() {
         Service[] services = getServices();
-        long running = Arrays.stream(services).filter(s -> s.getServiceState() == ServiceState.RUNNING).count();
-        long paused = Arrays.stream(services).filter(s -> s.getServiceState() == ServiceState.PAUSED).count();
-        long failed = Arrays.stream(services).filter(s -> s.getServiceState() == ServiceState.FAILED).count();
+        long running = Arrays.stream(services).filter(s -> s != null && s.getServiceState() == ServiceState.RUNNING).count();
+        long paused = Arrays.stream(services).filter(s -> s != null && s.getServiceState() == ServiceState.PAUSED).count();
+        long failed = Arrays.stream(services).filter(s -> s != null && s.getServiceState() == ServiceState.FAILED).count();
 
-        SwingUtilities.invokeLater(() -> {
-            servicesPanel.removeAll();
-            servicesPanel.setLayout(new BorderLayout());
-            servicesPanel.setBorder(new EmptyBorder(12, 12, 12, 12));
+        servicesPanel.removeAll();
+        servicesPanel.setLayout(new BorderLayout());
+        servicesPanel.setBorder(new EmptyBorder(12, 12, 12, 12));
 
-            JPanel summary = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-            summary.setOpaque(false);
-            summary.add(buildCountBadge(running + " Running", ThemeManager.ACCENT_SUCCESS));
-            summary.add(buildCountBadge(paused + " Paused", ThemeManager.ACCENT_WARNING));
-            summary.add(buildCountBadge(failed + " Failed", ThemeManager.ACCENT_ERROR));
+        JPanel summary = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        summary.setOpaque(false);
+        summary.add(buildCountBadge(running + " Running", ThemeManager.ACCENT_SUCCESS));
+        summary.add(buildCountBadge(paused + " Paused", ThemeManager.ACCENT_WARNING));
+        summary.add(buildCountBadge(failed + " Failed", ThemeManager.ACCENT_ERROR));
 
-            JPanel grid = new JPanel(new GridLayout(0, 2, 8, 8));
-            grid.setOpaque(false);
-            for (Service svc : services) {
-                grid.add(buildServiceCard(svc));
-            }
+        JPanel grid = new JPanel(new GridLayout(0, 2, 8, 8));
+        grid.setOpaque(false);
+        for (Service svc : services) {
+            grid.add(buildServiceCard(svc));
+        }
 
-            JPanel top = new JPanel(new BorderLayout());
-            top.setOpaque(false);
-            top.add(summary, BorderLayout.WEST);
+        JPanel top = new JPanel(new BorderLayout());
+        top.setOpaque(false);
+        top.add(summary, BorderLayout.WEST);
 
-            servicesPanel.add(top, BorderLayout.NORTH);
-            servicesPanel.add(grid, BorderLayout.CENTER);
-            servicesPanel.revalidate();
-            servicesPanel.repaint();
-        });
+        servicesPanel.add(top, BorderLayout.NORTH);
+        servicesPanel.add(grid, BorderLayout.CENTER);
+        servicesPanel.revalidate();
+        servicesPanel.repaint();
     }
 
     private Service[] getServices() {
@@ -399,70 +397,68 @@ public class SnifferDebugDialog extends JDialog {
             events = new ArrayList<>(eventBuffer);
         }
 
-        SwingUtilities.invokeLater(() -> {
-            eventsPanel.removeAll();
-            eventsPanel.setLayout(new BorderLayout());
-            eventsPanel.setBorder(new EmptyBorder(12, 12, 12, 12));
+        eventsPanel.removeAll();
+        eventsPanel.setLayout(new BorderLayout());
+        eventsPanel.setBorder(new EmptyBorder(12, 12, 12, 12));
 
-            JPanel filterBar = new JPanel(new BorderLayout());
-            filterBar.setOpaque(false);
+        JPanel filterBar = new JPanel(new BorderLayout());
+        filterBar.setOpaque(false);
 
-            JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-            filters.setOpaque(false);
-            String[] categories = {"All", "Device", "Copy", "Index", "Storage"};
-            for (String cat : categories) {
-                JButton btn = new JButton(cat);
-                btn.setFont(btn.getFont().deriveFont(Font.PLAIN, 10f));
-                btn.setFocusPainted(false);
-                btn.setBorderPainted(true);
-                btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-                if (cat.equals(activeEventFilter)) {
-                    btn.setBackground(ThemeManager.ACCENT_PRIMARY);
-                    btn.setForeground(Color.WHITE);
-                    btn.setBorder(new LineBorder(ThemeManager.ACCENT_PRIMARY, 1, true));
-                } else {
-                    btn.setBackground(Color.WHITE);
-                    btn.setForeground(ThemeManager.TEXT_MUTED);
-                    btn.setBorder(new LineBorder(ThemeManager.BORDER_COLOR, 1, true));
-                }
-                btn.addActionListener(_ -> {
-                    activeEventFilter = cat;
-                });
-                filters.add(btn);
+        JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        filters.setOpaque(false);
+        String[] categories = {"All", "Device", "Copy", "Index", "Storage"};
+        for (String cat : categories) {
+            JButton btn = new JButton(cat);
+            btn.setFont(btn.getFont().deriveFont(Font.PLAIN, 10f));
+            btn.setFocusPainted(false);
+            btn.setBorderPainted(true);
+            btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            if (cat.equals(activeEventFilter)) {
+                btn.setBackground(ThemeManager.ACCENT_PRIMARY);
+                btn.setForeground(Color.WHITE);
+                btn.setBorder(new LineBorder(ThemeManager.ACCENT_PRIMARY, 1, true));
+            } else {
+                btn.setBackground(Color.WHITE);
+                btn.setForeground(ThemeManager.TEXT_MUTED);
+                btn.setBorder(new LineBorder(ThemeManager.BORDER_COLOR, 1, true));
             }
-            filterBar.add(filters, BorderLayout.WEST);
+            btn.addActionListener(_ -> {
+                activeEventFilter = cat;
+            });
+            filters.add(btn);
+        }
+        filterBar.add(filters, BorderLayout.WEST);
 
-            eventRateLabel = new JLabel(events.size() + " events");
-            eventRateLabel.setFont(eventRateLabel.getFont().deriveFont(Font.PLAIN, 10f));
-            eventRateLabel.setForeground(ThemeManager.TEXT_MUTED);
-            filterBar.add(eventRateLabel, BorderLayout.EAST);
+        eventRateLabel = new JLabel(events.size() + " events");
+        eventRateLabel.setFont(eventRateLabel.getFont().deriveFont(Font.PLAIN, 10f));
+        eventRateLabel.setForeground(ThemeManager.TEXT_MUTED);
+        filterBar.add(eventRateLabel, BorderLayout.EAST);
 
-            JPanel listPanel = new JPanel();
-            listPanel.setLayout(new BoxLayout(listPanel, BoxLayout.Y_AXIS));
-            listPanel.setBackground(ThemeManager.CARD_BACKGROUND);
-            listPanel.setBorder(new LineBorder(ThemeManager.BORDER_COLOR, 1, true));
+        JPanel listPanel = new JPanel();
+        listPanel.setLayout(new BoxLayout(listPanel, BoxLayout.Y_AXIS));
+        listPanel.setBackground(ThemeManager.CARD_BACKGROUND);
+        listPanel.setBorder(new LineBorder(ThemeManager.BORDER_COLOR, 1, true));
 
-            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
 
-            for (CapturedEvent ce : events) {
-                if (!matchesFilter(ce.event, activeEventFilter)) continue;
-                JPanel row = buildEventRow(ce, fmt);
-                row.setAlignmentX(Component.LEFT_ALIGNMENT);
-                row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-                listPanel.add(row);
-            }
+        for (CapturedEvent ce : events) {
+            if (!matchesFilter(ce.event, activeEventFilter)) continue;
+            JPanel row = buildEventRow(ce, fmt);
+            row.setAlignmentX(Component.LEFT_ALIGNMENT);
+            row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+            listPanel.add(row);
+        }
 
-            JScrollPane scroll = new JScrollPane(listPanel);
-            scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-            scroll.getVerticalScrollBar().setUnitIncrement(16);
+        JScrollPane scroll = new JScrollPane(listPanel);
+        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
 
-            eventsPanel.add(filterBar, BorderLayout.NORTH);
-            eventsPanel.add(scroll, BorderLayout.CENTER);
-            eventsPanel.revalidate();
-            eventsPanel.repaint();
+        eventsPanel.add(filterBar, BorderLayout.NORTH);
+        eventsPanel.add(scroll, BorderLayout.CENTER);
+        eventsPanel.revalidate();
+        eventsPanel.repaint();
 
-            SwingUtilities.invokeLater(() -> scroll.getVerticalScrollBar().setValue(scroll.getVerticalScrollBar().getMaximum()));
-        });
+        scroll.getVerticalScrollBar().setValue(scroll.getVerticalScrollBar().getMaximum());
     }
 
     private boolean matchesFilter(Event event, String filter) {
@@ -525,53 +521,51 @@ public class SnifferDebugDialog extends JDialog {
     // ========== Tab 4: Threads ==========
 
     private void refreshThreads() {
-        SwingUtilities.invokeLater(() -> {
-            threadsPanel.removeAll();
-            threadsPanel.setLayout(new BorderLayout());
-            threadsPanel.setBorder(new EmptyBorder(12, 12, 12, 12));
+        threadsPanel.removeAll();
+        threadsPanel.setLayout(new BorderLayout());
+        threadsPanel.setBorder(new EmptyBorder(12, 12, 12, 12));
 
-            Set<Thread> allThreads = Thread.getAllStackTraces().keySet();
-            List<Thread> filtered = allThreads.stream()
-                .filter(t -> !isSystemThread(t.getName()))
-                .sorted(Comparator.comparing(Thread::getName))
-                .toList();
+        Set<Thread> allThreads = Thread.getAllStackTraces().keySet();
+        List<Thread> filtered = allThreads.stream()
+            .filter(t -> !isSystemThread(t.getName()))
+            .sorted(Comparator.comparing(Thread::getName))
+            .toList();
 
-            long daemonCount = filtered.stream().filter(Thread::isDaemon).count();
+        long daemonCount = filtered.stream().filter(Thread::isDaemon).count();
 
-            JPanel summary = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-            summary.setOpaque(false);
-            JLabel summaryLabel = new JLabel("Total: " + filtered.size() + " threads | " + daemonCount + " daemon");
-            summaryLabel.setFont(summaryLabel.getFont().deriveFont(Font.PLAIN, 10f));
-            summaryLabel.setForeground(ThemeManager.TEXT_MUTED);
-            summary.add(summaryLabel);
+        JPanel summary = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        summary.setOpaque(false);
+        JLabel summaryLabel = new JLabel("Total: " + filtered.size() + " threads | " + daemonCount + " daemon");
+        summaryLabel.setFont(summaryLabel.getFont().deriveFont(Font.PLAIN, 10f));
+        summaryLabel.setForeground(ThemeManager.TEXT_MUTED);
+        summary.add(summaryLabel);
 
-            String[] columns = {"#", "Name", "State", "Daemon", "Priority"};
-            Object[][] data = new Object[filtered.size()][5];
-            for (int i = 0; i < filtered.size(); i++) {
-                Thread t = filtered.get(i);
-                data[i][0] = i + 1;
-                data[i][1] = t.getName();
-                data[i][2] = t.getState().toString();
-                data[i][3] = t.isDaemon() ? "Yes" : "No";
-                data[i][4] = t.getPriority();
-            }
+        String[] columns = {"#", "Name", "State", "Daemon", "Priority"};
+        Object[][] data = new Object[filtered.size()][5];
+        for (int i = 0; i < filtered.size(); i++) {
+            Thread t = filtered.get(i);
+            data[i][0] = i + 1;
+            data[i][1] = t.getName();
+            data[i][2] = t.getState().toString();
+            data[i][3] = t.isDaemon() ? "Yes" : "No";
+            data[i][4] = t.getPriority();
+        }
 
-            JTable table = new JTable(data, columns);
-            table.setRowHeight(24);
-            table.setFont(table.getFont().deriveFont(Font.PLAIN, 11f));
-            table.getTableHeader().setFont(table.getFont().deriveFont(Font.BOLD, 10f));
-            table.setGridColor(ThemeManager.BORDER_COLOR);
-            table.setShowGrid(true);
-            table.setBackground(ThemeManager.CARD_BACKGROUND);
+        JTable table = new JTable(data, columns);
+        table.setRowHeight(24);
+        table.setFont(table.getFont().deriveFont(Font.PLAIN, 11f));
+        table.getTableHeader().setFont(table.getFont().deriveFont(Font.BOLD, 10f));
+        table.setGridColor(ThemeManager.BORDER_COLOR);
+        table.setShowGrid(true);
+        table.setBackground(ThemeManager.CARD_BACKGROUND);
 
-            JScrollPane scroll = new JScrollPane(table);
-            scroll.setBorder(new LineBorder(ThemeManager.BORDER_COLOR, 1, true));
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.setBorder(new LineBorder(ThemeManager.BORDER_COLOR, 1, true));
 
-            threadsPanel.add(summary, BorderLayout.NORTH);
-            threadsPanel.add(scroll, BorderLayout.CENTER);
-            threadsPanel.revalidate();
-            threadsPanel.repaint();
-        });
+        threadsPanel.add(summary, BorderLayout.NORTH);
+        threadsPanel.add(scroll, BorderLayout.CENTER);
+        threadsPanel.revalidate();
+        threadsPanel.repaint();
     }
 
     private static boolean isSystemThread(String name) {
