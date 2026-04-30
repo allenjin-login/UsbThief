@@ -153,12 +153,12 @@ public class SnifferLifecycleManager extends Service {
 
     @Override
     protected long getTickInterval() {
-        return 3;
+        return 200;
     }
 
     @Override
     protected TimeUnit getTickUnit() {
-        return TimeUnit.SECONDS;
+        return TimeUnit.MILLISECONDS;
     }
 
     @Override
@@ -262,6 +262,17 @@ public class SnifferLifecycleManager extends Service {
                 TimeUnit.MINUTES.toMillis(config.get(ConfigSchema.SNIFFER_WAIT_ERROR_MINUTES));
             case STORAGE_PAUSE -> 0;
         };
+    }
+
+    /**
+     * Stops the sniffer for a volume without cancelling any active cooldown timer.
+     */
+    private void stopSnifferOnly(String serial) {
+        SnifferEntry entry = sniffers.remove(serial);
+        if (entry != null) {
+            entry.sniffer.close();
+            logger.debug("Stopped sniffer for: {}", serial);
+        }
     }
 
     // ========== Public API ==========
