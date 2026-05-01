@@ -91,11 +91,13 @@ public class BasicFileFilter implements FileFilter {
         }
 
         // Check file size
-        long maxSize = getMaxFileSize();
-        long fileSize = attrs.size();
-        if (fileSize > maxSize) {
-            logger.debug("File exceeds max size ({} > {}): {}", fileSize, maxSize, path);
-            return false;
+        if (isMaxSizeFilterEnabled()) {
+            long maxSize = getMaxFileSize();
+            long fileSize = attrs.size();
+            if (fileSize > maxSize) {
+                logger.debug("File exceeds max size ({} > {}): {}", fileSize, maxSize, path);
+                return false;
+            }
         }
 
         // Check time filter
@@ -140,6 +142,15 @@ public class BasicFileFilter implements FileFilter {
      */
     protected long getMaxFileSize() {
         return configManager.get(ConfigSchema.FILE_FILTER_MAX_SIZE);
+    }
+
+    /**
+     * Check if max size filtering is enabled.
+     *
+     * @return true if max size filter should be applied
+     */
+    protected boolean isMaxSizeFilterEnabled() {
+        return configManager.get(ConfigSchema.FILE_FILTER_MAX_SIZE_ENABLED);
     }
 
     /**

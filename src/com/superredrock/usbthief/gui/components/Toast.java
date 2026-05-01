@@ -127,7 +127,7 @@ public class Toast extends JPanel {
     /**
      * Show the toast with slide-in animation.
      */
-    public void show() {
+    public void display() {
         window.setVisible(true);
 
         // Slide-in animation

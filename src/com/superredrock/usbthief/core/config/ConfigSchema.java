@@ -121,6 +121,9 @@ public class ConfigSchema {
     public static final ConfigEntry<Long> FILE_FILTER_MAX_SIZE =
             longEntry("fileFilter.maxSize", "Maximum file size to copy (bytes)", 100L * 1024 * 1024, "File Filter");
 
+    public static final ConfigEntry<Boolean> FILE_FILTER_MAX_SIZE_ENABLED =
+            booleanEntry("fileFilter.maxSizeEnabled", "Enable maximum file size filter", true, "File Filter");
+
     public static final ConfigEntry<Boolean> FILE_FILTER_TIME_ENABLED =
             booleanEntry("fileFilter.timeEnabled", "Enable time-based file filtering", false, "File Filter");
 
@@ -174,6 +177,9 @@ public class ConfigSchema {
     public static final ConfigEntry<Boolean> STORAGE_WARNING_ENABLED =
             booleanEntry("storage.warningEnabled", "Log warning when storage space is critical", true, "Storage Management");
 
+    public static final ConfigEntry<Boolean> STORAGE_ENABLED =
+            booleanEntry("storage.enabled", "Enable storage management (monitoring, recycling, space checks)", true, "Storage Management");
+
     // All entries registry
     private static final Map<String, ConfigEntry<?>> ALL_ENTRIES = new ConcurrentHashMap<>();
 
@@ -210,6 +216,7 @@ public class ConfigSchema {
         registerEntry(CLOSE_ACTION);
         registerEntry(CLOSE_ACTION_REMEMBER);
         registerEntry(FILE_FILTER_MAX_SIZE);
+        registerEntry(FILE_FILTER_MAX_SIZE_ENABLED);
         registerEntry(FILE_FILTER_TIME_ENABLED);
         registerEntry(FILE_FILTER_TIME_VALUE);
         registerEntry(FILE_FILTER_TIME_UNIT);
@@ -227,6 +234,7 @@ public class ConfigSchema {
         registerEntry(RECYCLER_STRATEGY);
         registerEntry(RECYCLER_PROTECTED_AGE_HOURS);
         registerEntry(STORAGE_WARNING_ENABLED);
+        registerEntry(STORAGE_ENABLED);
     }
 
     private ConfigSchema() {

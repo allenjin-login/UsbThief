@@ -54,9 +54,9 @@ public class I18NManager {
     private Locale parseLocale(String localeStr) {
         String[] parts = localeStr.split("_");
         return switch (parts.length) {
-            case 1 -> new Locale(parts[0]);
-            case 2 -> new Locale(parts[0], parts[1]);
-            case 3 -> new Locale(parts[0], parts[1], parts[2]);
+            case 1 -> Locale.of(parts[0]);
+            case 2 -> Locale.of(parts[0], parts[1]);
+            case 3 -> Locale.of(parts[0], parts[1], parts[2]);
             default -> null;
         };
     }

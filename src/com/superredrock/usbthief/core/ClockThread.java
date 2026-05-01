@@ -10,7 +10,7 @@ public class ClockThread extends Thread {
 
     private final TimeUnit unit;
     private final long initialDelay;
-    private volatile long remaining;
+    private volatile long deadlineMs;
     private volatile boolean paused = false;
     private volatile boolean cancelled = false;
     private final CompletableFuture<Void> future = new CompletableFuture<>();
@@ -20,7 +20,7 @@ public class ClockThread extends Thread {
         if (delay < 0) throw new IllegalArgumentException("Delay must be non-negative: " + delay);
         this.unit = unit;
         this.initialDelay = delay;
-        this.remaining = delay;
+        this.deadlineMs = System.currentTimeMillis() + unit.toMillis(delay);
         setDaemon(true);
         setName("ClockThread-" + counter.incrementAndGet());
     }
@@ -40,39 +40,40 @@ public class ClockThread extends Thread {
 
     @Override
     public void run() {
-        while (remaining > 0 && !cancelled) {
+        while (!cancelled) {
             synchronized (this) {
                 while (paused && !cancelled) {
                     try {
-                        wait(100);
+                        wait(1000);
                     } catch (InterruptedException e) {
-                        if (!cancelled && !future.isDone()) {
-                            future.completeExceptionally(e);
-                        }
-                        Thread.currentThread().interrupt();
+                        completeExceptionally(e);
                         return;
                     }
                 }
                 if (cancelled) return;
             }
 
+            if (System.currentTimeMillis() >= deadlineMs) break;
+
             try {
-                unit.sleep(1);
+                long sleepMs = Math.min(1000, deadlineMs - System.currentTimeMillis());
+                if (sleepMs > 0) TimeUnit.MILLISECONDS.sleep(sleepMs);
             } catch (InterruptedException e) {
-                if (!cancelled && !future.isDone()) {
-                    future.completeExceptionally(e);
-                }
-                Thread.currentThread().interrupt();
+                completeExceptionally(e);
                 return;
-            }
-            synchronized (this){
-                remaining--;
             }
         }
 
-        if (remaining <= 0 && !cancelled && !future.isDone()) {
+        if (!cancelled && !future.isDone()) {
             future.complete(null);
         }
+    }
+
+    private void completeExceptionally(InterruptedException e) {
+        if (!cancelled && !future.isDone()) {
+            future.completeExceptionally(e);
+        }
+        Thread.currentThread().interrupt();
     }
 
     public void cancel() {
@@ -96,13 +97,14 @@ public class ClockThread extends Thread {
     }
 
     public synchronized void restart() {
-        remaining = initialDelay;
+        deadlineMs = System.currentTimeMillis() + unit.toMillis(initialDelay);
         paused = false;
         notifyAll();
     }
 
     public long getRemaining(TimeUnit targetUnit) {
-        return targetUnit.convert(remaining, unit);
+        long ms = Math.max(0, deadlineMs - System.currentTimeMillis());
+        return targetUnit.convert(ms, TimeUnit.MILLISECONDS);
     }
 
     public boolean isDone() {

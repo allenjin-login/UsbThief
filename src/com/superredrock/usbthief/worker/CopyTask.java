@@ -98,9 +98,9 @@ public class CopyTask implements Callable<CopyResult> {
                 result = CopyResult.SKIPPED;
             } else {
                 Volume volume = QueueManager.getDeviceManager().getVolume(processingPath);
-                if (volume != null && !volume.isAccessible() && !(volume.getState() == VolumeState.IDLE)) {
+                if (volume != null && !volume.isConnected() && !(volume.getState() == VolumeState.IDLE)) {
                     return CopyResult.FAIL;
-                }else if (volume != null && volume.getState() != VolumeState.EJECTING){
+                }else if (volume != null && volume.getState() == VolumeState.EJECTING){
                     return CopyResult.SKIPPED;
                 }
 
@@ -121,7 +121,7 @@ public class CopyTask implements Callable<CopyResult> {
                         doCopy(processingPath, destinationPath, size, preVerifiedHash, buffer, volume);
                         bytesCopied = size;
                     } else {
-                        CheckSum hash = CheckSum.verify(processingPath);
+                        CheckSum hash = VerifyTask.verify(processingPath);
                         if (QueueManager.getIndex().checkDuplicate(processingPath, hash)){
                             logger.info("Path Ignore: {}", processingPath);
                         } else {

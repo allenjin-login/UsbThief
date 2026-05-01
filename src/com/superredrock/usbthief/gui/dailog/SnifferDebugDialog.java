@@ -38,7 +38,7 @@ import java.util.concurrent.TimeUnit;
 
 public class SnifferDebugDialog extends JDialog {
 
-    private static final int POLL_MS = 500;
+    private static final int POLL_MS = 250;
     private static final int EVENT_BUFFER_SIZE = 200;
     private static final String[] SYSTEM_THREAD_PREFIXES = {
         "Reference Handler", "Finalizer", "Signal Dispatcher", "Attach Listener", "Common-Cleaner"

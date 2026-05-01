@@ -75,6 +75,12 @@ public class RecyclerService extends Service {
     @Override
     protected void tick() {
         try {
+            // Skip recycling if storage management is disabled
+            if (!configManager.get(ConfigSchema.STORAGE_ENABLED)) {
+                scanWorkSize();
+                return;
+            }
+
             // Get current storage status
             StorageController.StorageStatus status = storageController.getStorageStatus();
             StorageLevel level = status.level();

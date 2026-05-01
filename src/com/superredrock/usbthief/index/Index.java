@@ -43,7 +43,7 @@ public class Index extends Service {
         this.cache = Caffeine.newBuilder()
                 .maximumSize(maxSize)
                 .removalListener((Path key, CheckSum value, RemovalCause cause) -> {
-                    if (cause.wasEvicted() && value != null) {
+                    if (cause.wasEvicted()) {
                         diskStore.append(key, value);
                         logger.debug("Evicted entry to disk: {}", key);
                     }

@@ -23,6 +23,7 @@ public class FilterConfigDialog extends JDialog implements I18NManager.LocaleCha
     private final ConfigManager configManager;
 
     // Basic filter controls - Size
+    private JCheckBox maxSizeEnabledCheckBox;
     private JSlider maxSizeSlider;
     private JSpinner maxSizeSpinner;
     private JComboBox<String> sizeUnitComboBox;
@@ -118,6 +119,13 @@ public class FilterConfigDialog extends JDialog implements I18NManager.LocaleCha
         int row = 0;
 
         // === Max file size section ===
+        maxSizeEnabledCheckBox = new JCheckBox(i18n.getMessage("filter.basic.maxSizeEnabled"));
+        maxSizeEnabledCheckBox.addActionListener(e -> updateSizeControlsState());
+        gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 4;
+        gbc.weightx = 0;
+        panel.add(maxSizeEnabledCheckBox, gbc);
+
+        row++;
         maxSizeLabel = new JLabel(i18n.getMessage("filter.basic.maxSize"));
         gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 1;
         gbc.weightx = 0;
@@ -432,10 +440,21 @@ public class FilterConfigDialog extends JDialog implements I18NManager.LocaleCha
     private void updateControlsState() {
         int modeIndex = modeComboBox.getSelectedIndex();
         boolean isNone = (modeIndex == 0);
-        
+
         extensionList.setEnabled(!isNone);
         extensionField.setEnabled(!isNone);
         presetComboBox.setEnabled(!isNone);
+    }
+
+    /**
+     * Updates the enabled state of size filter controls.
+     */
+    private void updateSizeControlsState() {
+        boolean enabled = maxSizeEnabledCheckBox.isSelected();
+        maxSizeSlider.setEnabled(enabled);
+        maxSizeSpinner.setEnabled(enabled);
+        sizeUnitComboBox.setEnabled(enabled);
+        maxSizeLabel.setEnabled(enabled);
     }
 
     /**
@@ -497,6 +516,10 @@ public class FilterConfigDialog extends JDialog implements I18NManager.LocaleCha
      */
     private void loadSettings() {
         // Basic filter settings - Size
+        boolean maxSizeEnabled = configManager.get(ConfigSchema.FILE_FILTER_MAX_SIZE_ENABLED);
+        maxSizeEnabledCheckBox.setSelected(maxSizeEnabled);
+        updateSizeControlsState();
+
         long maxSizeBytes = configManager.get(ConfigSchema.FILE_FILTER_MAX_SIZE);
 
         // Determine if MB or GB
@@ -583,6 +606,8 @@ public class FilterConfigDialog extends JDialog implements I18NManager.LocaleCha
      */
     private void saveSettings() {
         // Basic filter settings - Size
+        configManager.set(ConfigSchema.FILE_FILTER_MAX_SIZE_ENABLED, maxSizeEnabledCheckBox.isSelected());
+
         int sizeValue = (Integer) maxSizeSpinner.getValue();
         int sizeUnitIndex = sizeUnitComboBox.getSelectedIndex();
         long maxSizeBytes = sizeValue * SIZE_MULTIPLIERS[sizeUnitIndex];
@@ -672,6 +697,8 @@ public class FilterConfigDialog extends JDialog implements I18NManager.LocaleCha
 
         if (confirm == JOptionPane.YES_OPTION) {
             // Reset to default values
+            maxSizeEnabledCheckBox.setSelected(true);
+            updateSizeControlsState();
             sizeUnitComboBox.setSelectedIndex(0); // MB
             maxSizeSlider.setValue(100);
             maxSizeSpinner.setValue(100);

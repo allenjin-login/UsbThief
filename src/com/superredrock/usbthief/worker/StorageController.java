@@ -154,6 +154,10 @@ public class StorageController {
      * @return the storage level
      */
     private StorageLevel calculateStorageLevel(long freeBytes) {
+        if (!ConfigManager.getInstance().get(ConfigSchema.STORAGE_ENABLED)) {
+            return StorageLevel.OK;
+        }
+
         long reservedBytes = ConfigManager.getInstance().get(ConfigSchema.STORAGE_RESERVED_BYTES);
         long maxBytes = ConfigManager.getInstance().get(ConfigSchema.STORAGE_MAX_BYTES);
 

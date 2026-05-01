@@ -30,6 +30,14 @@ public class LanguageDiscovery {
     private static final Pattern BUNDLE_PATTERN = Pattern.compile("^messages_([a-z]{2})(?:_([A-Z]{2}))?\\.properties$");
     private static final Pattern JAR_ENTRY_PATTERN = Pattern.compile("^com/superredrock/usbthief/gui/messages_([a-z]{2})(?:_([A-Z]{2}))?\\.properties$");
 
+    private static void addLocaleFromMatcher(List<LanguageInfo> languages, Matcher matcher, String source) {
+        String language = matcher.group(1);
+        String country = matcher.group(2);
+        Locale locale = country != null ? Locale.of(language, country) : Locale.of(language);
+        languages.add(new LanguageInfo(locale));
+        logger.debug("Discovered language from {}: {}", source, locale);
+    }
+
     /**
      * Discover all available languages from the classpath resource directory.
      * Works in both development mode and packaged JAR mode.
@@ -71,16 +79,7 @@ public class LanguageDiscovery {
                         Matcher matcher = BUNDLE_PATTERN.matcher(fileName);
 
                         if (matcher.matches()) {
-                            String language = matcher.group(1);
-                            String country = matcher.group(2);
-
-                            Locale locale = country != null
-                                    ? new Locale(language, country)
-                                    : new Locale(language);
-
-                            LanguageInfo info = new LanguageInfo(locale);
-                            languages.add(info);
-                            logger.debug("Discovered language from file system: {}", locale);
+                            addLocaleFromMatcher(languages, matcher, "file system");
                         }
 
                         return FileVisitResult.CONTINUE;
@@ -123,16 +122,7 @@ public class LanguageDiscovery {
                         Matcher matcher = JAR_ENTRY_PATTERN.matcher(name);
 
                         if (matcher.matches()) {
-                            String language = matcher.group(1);
-                            String country = matcher.group(2);
-
-                            Locale locale = country != null
-                                    ? new Locale(language, country)
-                                    : new Locale(language);
-
-                            LanguageInfo info = new LanguageInfo(locale);
-                            languages.add(info);
-                            logger.debug("Discovered language from JAR: {}", locale);
+                            addLocaleFromMatcher(languages, matcher, "JAR");
                         }
                     }
                 }
@@ -147,16 +137,7 @@ public class LanguageDiscovery {
                                     Matcher matcher = BUNDLE_PATTERN.matcher(fileName);
 
                                     if (matcher.matches()) {
-                                        String language = matcher.group(1);
-                                        String country = matcher.group(2);
-
-                                        Locale locale = country != null
-                                                ? new Locale(language, country)
-                                                : new Locale(language);
-
-                                        LanguageInfo info = new LanguageInfo(locale);
-                                        languages.add(info);
-                                        logger.debug("Discovered language from classes directory: {}", locale);
+                                        addLocaleFromMatcher(languages, matcher, "classes directory");
                                     }
                                 });
                     }

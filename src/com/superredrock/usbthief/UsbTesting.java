@@ -147,7 +147,7 @@ public class UsbTesting {
     }
 
     private static void printVolume(Volume v) {
-        logger.info("  Drive: {}, Serial: {}, State: {}, Accessible: {}", v.getDriveLetter(), v.getSerialNumber(), v.getState(), v.isAccessible());
+        logger.info("  Drive: {}, Serial: {}, State: {}, Accessible: {}", v.getDriveLetter(), v.getSerialNumber(), v.getState(), v.isConnected());
         if (v.getFileStore() != null) {
             try {
                 long total = v.getFileStore().getTotalSpace();

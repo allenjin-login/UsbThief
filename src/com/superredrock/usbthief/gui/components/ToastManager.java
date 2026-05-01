@@ -122,7 +122,7 @@ public class ToastManager {
             activeToasts.addLast(toast);
 
             // Show with animation
-            toast.show();
+            toast.display();
 
             logger.debug("Showing toast: {} - {}", type, message);
         });

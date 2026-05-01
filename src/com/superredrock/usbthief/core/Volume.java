@@ -92,7 +92,7 @@ public class Volume {
     /**
      * Checks if the volume is currently accessible and in IDLE state.
      */
-    public boolean isAccessible() {
+    public boolean isConnected() {
         if (fileStore == null){
             try {fileStore = Files.getFileStore(this.rootPath);} catch (IOException _) {return false;}
         }

@@ -3,6 +3,7 @@ package com.superredrock.usbthief.core;
 import com.superredrock.usbthief.gui.LogBufferAppender;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.Filter;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.RollingFileAppender;
@@ -12,6 +13,7 @@ import org.apache.logging.log4j.core.appender.rolling.SizeBasedTriggeringPolicy;
 import org.apache.logging.log4j.core.appender.rolling.TimeBasedTriggeringPolicy;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.apache.logging.log4j.core.filter.LevelRangeFilter;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 
 import java.io.IOException;
@@ -85,8 +87,10 @@ public class LoggingConfig {
             root.getAppenders().keySet().forEach(root::removeAppender);
             root.setLevel(Level.DEBUG);
             root.addAppender(console, Level.INFO, null);
-            root.addAppender(file, Level.INFO, null);
-            root.addAppender(debugFile, Level.DEBUG, null);
+            LevelRangeFilter infoFilter = LevelRangeFilter.createFilter(Level.INFO, Level.FATAL, Filter.Result.ACCEPT, Filter.Result.DENY);
+            LevelRangeFilter debugFilter = LevelRangeFilter.createFilter(Level.DEBUG, Level.FATAL, Filter.Result.ACCEPT, Filter.Result.DENY);
+            root.addAppender(file, null, infoFilter);
+            root.addAppender(debugFile, Level.DEBUG, debugFilter);
 
             // Start LogBufferAppender
             BUFFER_APPENDER.start();

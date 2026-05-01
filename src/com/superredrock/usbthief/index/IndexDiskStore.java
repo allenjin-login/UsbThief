@@ -15,7 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-class IndexDiskStore {
+public class IndexDiskStore {
 
     private static final Logger logger = LogManager.getLogger(IndexDiskStore.class);
     private static final int MAGIC = 0x49445846; // "IDXF"
@@ -28,7 +28,7 @@ class IndexDiskStore {
         this.filePath = filePath;
     }
 
-    Map<Path, CheckSum> load() {
+    public Map<Path, CheckSum> load() {
         if (!Files.exists(filePath)) {
             return new HashMap<>();
         }
@@ -57,9 +57,7 @@ class IndexDiskStore {
                 try {
                     Path path = readPath(in);
                     CheckSum checksum = readCheckSum(in);
-                    if (path != null && checksum != null) {
-                        entries.put(path, checksum);
-                    }
+                    entries.put(path, checksum);
                     i++;
                 } catch (IOException e) {
                     if (i < count) {
@@ -76,11 +74,11 @@ class IndexDiskStore {
         }
     }
 
-    CheckSum lookup(Path path) {
+    public CheckSum lookup(Path path) {
         return memoryIndex.get(path);
     }
 
-    synchronized void append(Path path, CheckSum checksum) {
+    protected synchronized void append(Path path, CheckSum checksum) {
         boolean fileExists = Files.exists(filePath);
         try (DataOutputStream out = new DataOutputStream(
                 Files.newOutputStream(filePath,
@@ -97,7 +95,7 @@ class IndexDiskStore {
         }
     }
 
-    synchronized void compact(Map<Path, CheckSum> entries) {
+    protected synchronized void compact(Map<Path, CheckSum> entries) {
         try {
             Path tempFile = filePath.resolveSibling(filePath.getFileName() + ".tmp");
 
@@ -121,7 +119,7 @@ class IndexDiskStore {
         }
     }
 
-    synchronized void clear() {
+    protected synchronized void clear() {
         memoryIndex.clear();
         try {
             Files.deleteIfExists(filePath);

@@ -76,7 +76,7 @@ public ThreadPoolExecutor getPool() {
         }
 
         if (priorityQueue.size() > 1000) {
-            dispatchBatch(500);
+            dispatchBatch((int) (priorityQueue.size() * 0.5));
         } else {
             dispatchAll();
         }
@@ -177,7 +177,6 @@ public ThreadPoolExecutor getPool() {
                 synchronized (priorityQueue) {
                     priorityQueue.offer(task);
                 }
-                break;
             } catch (Exception e) {
                 logger.error("Failed to submit task, dropping", e);
             }

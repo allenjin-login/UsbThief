@@ -97,20 +97,16 @@ public class SnifferLifecycleManager extends Service {
             Volume.VolumeState newState = event.newState();
 
             switch (newState) {
-                case OFFLINE -> {
-                    logger.debug("Volume OFFLINE, stopping sniffer: {}", serial);
-                    stopSnifferOnly(serial);
-                }
-                case DISABLED -> {
-                    logger.debug("Volume DISABLED, stopping sniffer: {}", serial);
-                    stop(serial);
-                }
-                case EJECTING -> {
-                    logger.debug("Volume EJECTING, stopping sniffer: {}", serial);
+                case OFFLINE, EJECTING -> {
+                    logger.debug("Volume {} , stopping sniffer: {}", newState, serial);
                     stopSnifferOnly(serial);
                     if (!timers.containsKey(serial)) {
                         scheduleRestart(serial, RestartReason.NORMAL_COMPLETION);
                     }
+                }
+                case DISABLED -> {
+                    logger.debug("Volume DISABLED, stopping sniffer: {}", serial);
+                    stop(serial);
                 }
                 case IDLE -> {
                     if (event.oldState() == Volume.VolumeState.OFFLINE ||
@@ -188,14 +184,19 @@ public class SnifferLifecycleManager extends Service {
 
         try {
             Sniffer sniffer = new Sniffer(volume);
+            boolean accessible = volume.isConnected();
             sniffer.onFinish()
                     .thenRun(() -> {
-                        logger.info("Sniffer finished for {} (reason: {})", serial, RestartReason.NORMAL_COMPLETION);
-                        scheduleRestart(serial, RestartReason.NORMAL_COMPLETION);
+                        if (accessible){
+                            logger.info("Sniffer finished for {} (reason: {})", serial, RestartReason.NORMAL_COMPLETION);
+                            scheduleRestart(serial, RestartReason.NORMAL_COMPLETION);
+                        }
                     })
                     .exceptionally(ex -> {
-                        logger.warn("Sniffer error for {}", serial, ex);
-                        scheduleRestart(serial, RestartReason.ERROR);
+                        if (accessible){
+                            logger.warn("Sniffer error for {}", serial, ex);
+                            scheduleRestart(serial, RestartReason.ERROR);
+                        }
                         return null;
                     });
             sniffers.put(serial, new SnifferEntry(sniffer, serial));

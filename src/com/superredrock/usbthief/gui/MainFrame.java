@@ -411,6 +411,12 @@ public class MainFrame extends JFrame implements I18NManager.LocaleChangeListene
     private void showDebugMonitor() {
         if (debugDialog == null) {
             debugDialog = new SnifferDebugDialog(this);
+            debugDialog.addWindowListener(new java.awt.event.WindowAdapter() {
+                @Override
+                public void windowClosed(java.awt.event.WindowEvent e) {
+                    debugDialog = null;
+                }
+            });
         }
         debugDialog.setVisible(true);
     }

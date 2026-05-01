@@ -41,6 +41,7 @@ public class StorageManagementPanel extends JPanel implements I18NManager.Locale
     private JComboBox<String> strategyComboBox;
     private JSpinner protectedAgeSpinner;
     private JCheckBox warningEnabledCheckBox;
+    private JCheckBox storageEnabledCheckBox;
 
     // UI Components - Buttons
     private JButton saveButton;
@@ -163,6 +164,19 @@ public class StorageManagementPanel extends JPanel implements I18NManager.Locale
         gbc.fill = GridBagConstraints.HORIZONTAL;
         add(configTitleLabel, gbc);
         row++;
+
+        // Enable/Disable storage management checkbox
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.gridwidth = 2;
+        gbc.weightx = 1.0;
+        storageEnabledCheckBox = new JCheckBox(i18n.getMessage("storage.enabled"));
+        storageEnabledCheckBox.setToolTipText(i18n.getMessage("storage.enabled.tooltip"));
+        storageEnabledCheckBox.addActionListener(e -> updateConfigControlsState());
+        add(storageEnabledCheckBox, gbc);
+        row++;
+
+        gbc.gridwidth = 1;
 
         // Reserved Space (GB) with slider
         gbc.gridx = 0;
@@ -419,6 +433,24 @@ public class StorageManagementPanel extends JPanel implements I18NManager.Locale
 
         // Warning Enabled
         warningEnabledCheckBox.setSelected(config.get(ConfigSchema.STORAGE_WARNING_ENABLED));
+
+        // Storage Enabled
+        storageEnabledCheckBox.setSelected(config.get(ConfigSchema.STORAGE_ENABLED));
+        updateConfigControlsState();
+    }
+
+    /**
+     * Enable or disable config controls based on storage enabled state.
+     */
+    private void updateConfigControlsState() {
+        boolean enabled = storageEnabledCheckBox.isSelected();
+        reservedSpaceSlider.setEnabled(enabled);
+        maxSpaceSlider.setEnabled(enabled);
+        normalWaitSpinner.setEnabled(enabled);
+        errorWaitSpinner.setEnabled(enabled);
+        strategyComboBox.setEnabled(enabled);
+        protectedAgeSpinner.setEnabled(enabled);
+        warningEnabledCheckBox.setEnabled(enabled);
     }
 
     /**
@@ -569,6 +601,9 @@ public class StorageManagementPanel extends JPanel implements I18NManager.Locale
         // Warning Enabled
         config.set(ConfigSchema.STORAGE_WARNING_ENABLED, warningEnabledCheckBox.isSelected());
 
+        // Storage Enabled
+        config.set(ConfigSchema.STORAGE_ENABLED, storageEnabledCheckBox.isSelected());
+
         JOptionPane.showMessageDialog(this,
                 i18n.getMessage("config.success"),
                 i18n.getMessage("common.success"),
@@ -598,6 +633,7 @@ public class StorageManagementPanel extends JPanel implements I18NManager.Locale
             config.clear(ConfigSchema.RECYCLER_STRATEGY);
             config.clear(ConfigSchema.RECYCLER_PROTECTED_AGE_HOURS);
             config.clear(ConfigSchema.STORAGE_WARNING_ENABLED);
+            config.clear(ConfigSchema.STORAGE_ENABLED);
 
             loadCurrentConfig();
             updateStorageStatus();
@@ -644,6 +680,8 @@ public class StorageManagementPanel extends JPanel implements I18NManager.Locale
             }));
 
             // Update checkbox text
+            storageEnabledCheckBox.setText(i18n.getMessage("storage.enabled"));
+            storageEnabledCheckBox.setToolTipText(i18n.getMessage("storage.enabled.tooltip"));
             warningEnabledCheckBox.setText(i18n.getMessage("storage.warningEnabled"));
 
             // Update button text
