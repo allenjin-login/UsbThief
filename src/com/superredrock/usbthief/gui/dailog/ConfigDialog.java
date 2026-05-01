@@ -4,7 +4,7 @@ import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.config.ConfigEntry;
 import com.superredrock.usbthief.core.config.ConfigType;
-import com.superredrock.usbthief.gui.I18NManager;
+import com.superredrock.usbthief.gui.I18nManager;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -22,7 +22,7 @@ import java.util.Map;
  */
 public class ConfigDialog extends JDialog {
 
-    private static final I18NManager i18n = I18NManager.getInstance();
+    private static final I18nManager i18n = I18nManager.getInstance();
     private final Map<String, JComponent> valueComponents = new HashMap<>();
     private final JTabbedPane tabbedPane;
     private final ConfigManager configManager;

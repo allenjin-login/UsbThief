@@ -27,7 +27,7 @@ import org.apache.logging.log4j.Logger;
 public class EventPanel extends JPanel {
 
     private static final Logger logger = LogManager.getLogger(EventPanel.class);
-    private final I18NManager i18n = I18NManager.getInstance();
+    private final I18nManager i18n = I18nManager.getInstance();
     private final JTable eventTable;
     private final EventTableModel tableModel;
     private final TableRowSorter<EventTableModel> sorter;
@@ -285,9 +285,9 @@ public class EventPanel extends JPanel {
         @Override
         public String getColumnName(int column) {
             return switch (column) {
-                case 0 -> I18NManager.getInstance().getMessage("event.table.type");
-                case 1 -> I18NManager.getInstance().getMessage("event.table.time");
-                case 2 -> I18NManager.getInstance().getMessage("event.table.description");
+                case 0 -> I18nManager.getInstance().getMessage("event.table.type");
+                case 1 -> I18nManager.getInstance().getMessage("event.table.time");
+                case 2 -> I18nManager.getInstance().getMessage("event.table.description");
                 default -> "";
             };
         }

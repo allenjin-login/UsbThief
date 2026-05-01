@@ -1,6 +1,6 @@
 package com.superredrock.usbthief.gui.dailog;
 
-import com.superredrock.usbthief.gui.I18NManager;
+import com.superredrock.usbthief.gui.I18nManager;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -12,11 +12,11 @@ import java.awt.*;
 public class WelcomeDialog extends JDialog {
 
     private static final String FIRST_RUN_KEY = "firstRunCompleted";
-    private final I18NManager i18n;
+    private final I18nManager i18n;
 
     public WelcomeDialog(Frame parent) {
         super(parent, "UsbThief", true);
-        this.i18n = I18NManager.getInstance();
+        this.i18n = I18nManager.getInstance();
         setTitle(i18n.getMessage("welcome.title"));
         setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         setSize(480, 400);

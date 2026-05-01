@@ -3,7 +3,7 @@ package com.superredrock.usbthief.gui.dailog;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.filter.FilterPreset;
-import com.superredrock.usbthief.gui.I18NManager;
+import com.superredrock.usbthief.gui.I18nManager;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -18,9 +18,9 @@ import java.util.Locale;
  * Dialog for configuring file filter settings.
  * Contains two tabs: Basic Filter and Suffix Filter.
  */
-public class FilterConfigDialog extends JDialog implements I18NManager.LocaleChangeListener {
+public class FilterConfigDialog extends JDialog implements I18nManager.LocaleChangeListener {
 
-    private static final I18NManager i18n = I18NManager.getInstance();
+    private static final I18nManager i18n = I18nManager.getInstance();
     private final ConfigManager configManager;
 
     // Basic filter controls - Size

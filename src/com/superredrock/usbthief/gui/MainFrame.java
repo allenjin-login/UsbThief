@@ -25,10 +25,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import javax.imageio.ImageIO;
 
-public class MainFrame extends JFrame implements I18NManager.LocaleChangeListener, I18NManager.LanguageListChangeListener {
+public class MainFrame extends JFrame implements I18nManager.LocaleChangeListener, I18nManager.LanguageListChangeListener {
 
     private static final Logger logger = LogManager.getLogger(MainFrame.class);
-    private final I18NManager i18n = I18NManager.getInstance();
+    private final I18nManager i18n = I18nManager.getInstance();
 
     private final JMenuBar menuBar;
     private final JLabel statusBar;

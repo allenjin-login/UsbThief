@@ -2,7 +2,7 @@ package com.superredrock.usbthief.gui.dailog;
 
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
-import com.superredrock.usbthief.gui.I18NManager;
+import com.superredrock.usbthief.gui.I18nManager;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -16,7 +16,7 @@ import java.util.List;
  */
 public class BlacklistDialog extends JDialog {
 
-    private static final I18NManager i18n = I18NManager.getInstance();
+    private static final I18nManager i18n = I18nManager.getInstance();
     private final JList<String> blacklistList;
     private final DefaultListModel<String> listModel;
 

@@ -26,17 +26,17 @@ public class SystemDirectoryFilter implements FileFilter {
 
     @Override
     public boolean test(Path path, BasicFileAttributes attrs) {
-        if (!attrs.isDirectory()) {
-            return true;
+        // Files.find() does not prune subtrees when filter rejects a directory,
+        // so we must check ALL path components, not just the immediate name.
+        for (Path p = path; p != null; p = p.getParent()) {
+            Path fileName = p.getFileName();
+            if (fileName == null) continue;
+            String name = fileName.toString().toUpperCase(Locale.ROOT);
+            if (BLOCKED_NAMES.contains(name) || isChkdskRecoveryDir(name)) {
+                return false;
+            }
         }
-
-        Path fileName = path.getFileName();
-        if (fileName == null) {
-            return true;
-        }
-
-        String name = fileName.toString().toUpperCase(Locale.ROOT);
-        return !BLOCKED_NAMES.contains(name) && !isChkdskRecoveryDir(name);
+        return true;
     }
 
     public static boolean isSystemDirName(Path path) {

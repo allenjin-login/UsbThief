@@ -23,7 +23,7 @@ import java.util.List;
 
 public class LogPanel extends JPanel {
 
-    private final I18NManager i18n = I18NManager.getInstance();
+    private final I18nManager i18n = I18nManager.getInstance();
     private final JTable logTable;
     private final LogTableModel tableModel;
     private final TableRowSorter<LogTableModel> sorter;
@@ -289,9 +289,9 @@ public class LogPanel extends JPanel {
         private final List<LogEntry> logEntries = new ArrayList<>();
 
         private final String[] columnNames = {
-            I18NManager.getInstance().getMessage("log.table.time"),
-            I18NManager.getInstance().getMessage("log.table.level"),
-            I18NManager.getInstance().getMessage("log.table.message")
+            I18nManager.getInstance().getMessage("log.table.time"),
+            I18nManager.getInstance().getMessage("log.table.level"),
+            I18nManager.getInstance().getMessage("log.table.message")
         };
         private final Class<?>[] columnTypes = {String.class, LogLevel.class, String.class};
 

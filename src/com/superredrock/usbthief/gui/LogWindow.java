@@ -13,7 +13,7 @@ import java.util.function.Consumer;
 
 public class LogWindow extends JDialog {
 
-    private static final I18NManager i18n = I18NManager.getInstance();
+    private static final I18nManager i18n = I18nManager.getInstance();
 
     private final JTextPane logTextPane;
     private final StyledDocument doc;

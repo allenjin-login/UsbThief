@@ -10,12 +10,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class I18NManager {
+public class I18nManager {
 
-    private static final Logger logger = LogManager.getLogger(I18NManager.class);
+    private static final Logger logger = LogManager.getLogger(I18nManager.class);
     private static final String BUNDLE_NAME = "com.superredrock.usbthief.gui.messages";
 
-    private static volatile I18NManager INSTANCE;
+    private static volatile I18nManager INSTANCE;
     private Locale currentLocale;
     private ResourceBundle resourceBundle;
     private final CopyOnWriteArrayList<LocaleChangeListener> listeners = new CopyOnWriteArrayList<>();
@@ -25,7 +25,7 @@ public class I18NManager {
         void onLocaleChanged(Locale newLocale);
     }
 
-    private I18NManager() {
+    private I18nManager() {
         this.availableLanguages = LanguageDiscovery.discoverLanguages();
         this.currentLocale = loadSavedLocale();
         loadResourceBundle();
@@ -97,11 +97,11 @@ public class I18NManager {
         }
     }
 
-    public static I18NManager getInstance() {
+    public static I18nManager getInstance() {
         if (INSTANCE == null) {
-            synchronized (I18NManager.class) {
+            synchronized (I18nManager.class) {
                 if (INSTANCE == null) {
-                    INSTANCE = new I18NManager();
+                    INSTANCE = new I18nManager();
                 }
             }
         }

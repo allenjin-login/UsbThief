@@ -1,7 +1,10 @@
 package com.superredrock.usbthief.statistics;
 
+import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.SizeFormatter;
 import com.superredrock.usbthief.core.event.EventBus;
+import com.superredrock.usbthief.core.event.device.DeviceArrivalEvent;
+import com.superredrock.usbthief.core.event.device.DeviceRemovalEvent;
 import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
 import com.superredrock.usbthief.core.event.worker.FileDiscoveredEvent;
 
@@ -79,6 +82,75 @@ public final class Statistics {
         ConcurrentHashMap<String, AtomicLong> extensionCountsMap() { return extensionCounts; }
     }
 
+    public static final class DeviceHistoryEntry {
+        private final String serialNumber;
+        private final String vid;
+        private final String pid;
+        private final AtomicLong insertionCount = new AtomicLong(0);
+        private volatile long firstSeenTime;
+        private volatile long lastSeenTime;
+        private final ConcurrentHashMap<Long, String> timelineLog = new ConcurrentHashMap<>();
+
+        public DeviceHistoryEntry(String serialNumber, String vid, String pid, long firstSeenTime) {
+            this.serialNumber = serialNumber;
+            this.vid = vid;
+            this.pid = pid;
+            this.firstSeenTime = firstSeenTime;
+            this.lastSeenTime = firstSeenTime;
+        }
+
+        public DeviceHistoryEntry(String serialNumber, String vid, String pid,
+                                  long insertionCount, long firstSeenTime, long lastSeenTime) {
+            this.serialNumber = serialNumber;
+            this.vid = vid;
+            this.pid = pid;
+            this.insertionCount.set(insertionCount);
+            this.firstSeenTime = firstSeenTime;
+            this.lastSeenTime = lastSeenTime;
+        }
+
+        public String getSerialNumber() { return serialNumber; }
+        public String getVid() { return vid; }
+        public String getPid() { return pid; }
+        public long getInsertionCount() { return insertionCount.get(); }
+        public long getFirstSeenTime() { return firstSeenTime; }
+        public long getLastSeenTime() { return lastSeenTime; }
+        public Map<Long, String> getTimelineLog() {
+            return timelineLog.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
+        }
+
+        void recordConnection(long timestamp) {
+            insertionCount.incrementAndGet();
+            lastSeenTime = timestamp;
+            timelineLog.put(timestamp, "CONNECTED");
+            evictOldest();
+        }
+
+        void recordDisconnection(long timestamp) {
+            lastSeenTime = timestamp;
+            timelineLog.put(timestamp, "DISCONNECTED");
+            evictOldest();
+        }
+
+        private void evictOldest() {
+            while (timelineLog.size() > 100) {
+                timelineLog.entrySet().stream()
+                    .min(Map.Entry.comparingByKey())
+                    .ifPresent(e -> timelineLog.remove(e.getKey()));
+            }
+        }
+
+        void addTimelineEntry(long timestamp, String eventType) {
+            timelineLog.put(timestamp, eventType);
+        }
+    }
+
+    private final ConcurrentHashMap<String, DeviceHistoryEntry> deviceHistoryMap = new ConcurrentHashMap<>();
+    private static final String KEY_DEVICE_HISTORY_COUNT = "deviceHistory.count";
+    private static final String PREFIX_DEVICE_HISTORY = "dh.";
+
     private final Preferences prefs;
     private volatile boolean dirty;
 
@@ -102,10 +174,29 @@ public final class Statistics {
     private void registerEventListeners() {
         EventBus.getInstance().register(CopyCompletedEvent.class, this::onCopyCompleted);
         EventBus.getInstance().register(FileDiscoveredEvent.class, this::onFileDiscovered);
+        EventBus.getInstance().register(DeviceArrivalEvent.class, this::onDeviceArrival);
+        EventBus.getInstance().register(DeviceRemovalEvent.class, this::onDeviceRemoval);
     }
 
     private void onFileDiscovered(FileDiscoveredEvent event) {
         sessionBytesDiscovered.addAndGet(event.fileSize());
+    }
+
+    private void onDeviceArrival(DeviceArrivalEvent event) {
+        String serial = event.device().getSerialNumber();
+        DeviceHistoryEntry entry = deviceHistoryMap.computeIfAbsent(serial, _ ->
+            new DeviceHistoryEntry(serial, event.device().getVid(), event.device().getPid(), event.timestamp()));
+        entry.recordConnection(event.timestamp());
+        markDirty();
+    }
+
+    private void onDeviceRemoval(DeviceRemovalEvent event) {
+        String serial = event.device().getSerialNumber();
+        DeviceHistoryEntry entry = deviceHistoryMap.get(serial);
+        if (entry != null) {
+            entry.recordDisconnection(event.timestamp());
+            markDirty();
+        }
     }
 
     private void onCopyCompleted(CopyCompletedEvent event) {
@@ -236,6 +327,37 @@ public final class Statistics {
             logger.warn("Failed to load volume stats: {}", e);
         }
 
+        // Load device history
+        try {
+            int count = prefs.getInt(KEY_DEVICE_HISTORY_COUNT, 0);
+            for (int i = 0; i < count; i++) {
+                String prefix = PREFIX_DEVICE_HISTORY + i + ".";
+                String serial = prefs.get(prefix + "serial", null);
+                if (serial == null || serial.isEmpty()) continue;
+
+                String vid = prefs.get(prefix + "vid", "");
+                String pid = prefs.get(prefix + "pid", "");
+                long insertCount = prefs.getLong(prefix + "insertionCount", 0);
+                long firstSeen = prefs.getLong(prefix + "firstSeenTime", 0);
+                long lastSeen = prefs.getLong(prefix + "lastSeenTime", 0);
+
+                DeviceHistoryEntry entry = new DeviceHistoryEntry(serial, vid, pid, insertCount, firstSeen, lastSeen);
+
+                int timelineCount = prefs.getInt(prefix + "timelineCount", 0);
+                for (int j = 0; j < timelineCount && j < 100; j++) {
+                    long ts = prefs.getLong(prefix + "timeline." + j + ".ts", 0);
+                    String evt = prefs.get(prefix + "timeline." + j + ".event", "");
+                    if (ts > 0 && !evt.isEmpty()) {
+                        entry.addTimelineEntry(ts, evt);
+                    }
+                }
+
+                deviceHistoryMap.put(serial, entry);
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to load device history: {}", e);
+        }
+
         logger.info("Statistics loaded: {} files, {}", totalFilesCopied.get(), SizeFormatter.format(totalBytesCopied.get()));
     }
 
@@ -254,6 +376,18 @@ public final class Statistics {
         });
 
         // Save per-volume stats
+        try {
+            int oldCount = prefs.getInt("volumeStats.count", 0);
+            for (int i = 0; i < oldCount; i++) {
+                String prefix = "vs." + i + ".";
+                for (String key : prefs.keys()) {
+                    if (key.startsWith(prefix)) prefs.remove(key);
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to clear old volume stats keys: {}", e);
+        }
+
         int idx = 0;
         for (var entry : volumeStatsMap.entrySet()) {
             String prefix = "vs." + idx + ".";
@@ -269,6 +403,42 @@ public final class Statistics {
             idx++;
         }
         prefs.putInt("volumeStats.count", idx);
+
+        // Save device history
+        try {
+            int oldDhCount = prefs.getInt(KEY_DEVICE_HISTORY_COUNT, 0);
+            for (int i = 0; i < oldDhCount; i++) {
+                String prefix = PREFIX_DEVICE_HISTORY + i + ".";
+                for (String key : prefs.keys()) {
+                    if (key.startsWith(prefix)) prefs.remove(key);
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to clear old device history keys: {}", e);
+        }
+
+        int dhIdx = 0;
+        for (var entry : deviceHistoryMap.entrySet()) {
+            String prefix = PREFIX_DEVICE_HISTORY + dhIdx + ".";
+            prefs.put(prefix + "serial", entry.getKey());
+            DeviceHistoryEntry dhe = entry.getValue();
+            prefs.put(prefix + "vid", dhe.getVid() != null ? dhe.getVid() : "");
+            prefs.put(prefix + "pid", dhe.getPid() != null ? dhe.getPid() : "");
+            prefs.putLong(prefix + "insertionCount", dhe.getInsertionCount());
+            prefs.putLong(prefix + "firstSeenTime", dhe.getFirstSeenTime());
+            prefs.putLong(prefix + "lastSeenTime", dhe.getLastSeenTime());
+
+            int tIdx = 0;
+            for (var te : dhe.getTimelineLog().entrySet()) {
+                if (tIdx >= 100) break;
+                prefs.putLong(prefix + "timeline." + tIdx + ".ts", te.getKey());
+                prefs.put(prefix + "timeline." + tIdx + ".event", te.getValue());
+                tIdx++;
+            }
+            prefs.putInt(prefix + "timelineCount", tIdx);
+            dhIdx++;
+        }
+        prefs.putInt(KEY_DEVICE_HISTORY_COUNT, dhIdx);
 
         dirty = false;
         logger.info("Statistics saved");
@@ -303,6 +473,18 @@ public final class Statistics {
         return new LinkedHashMap<>(volumeStatsMap);
     }
 
+    public DeviceHistoryEntry getDeviceHistory(String serial) {
+        return deviceHistoryMap.get(serial);
+    }
+
+    public Map<String, DeviceHistoryEntry> getAllDeviceHistory() {
+        return new LinkedHashMap<>(deviceHistoryMap);
+    }
+
+    public boolean isDeviceLive(String serial) {
+        return DeviceManager.getInstance().getVolumeBySerial(serial) != null;
+    }
+
     public void resetSession() {
         sessionBytesDiscovered.set(0);
         sessionBytesCopied.set(0);
@@ -319,6 +501,7 @@ public final class Statistics {
         extensionCounts.clear();
         copiedDeviceSerials.clear();
         volumeStatsMap.clear();
+        deviceHistoryMap.clear();
 
         prefs.putLong(KEY_TOTAL_FILES, 0);
         prefs.putLong(KEY_TOTAL_BYTES, 0);
@@ -329,7 +512,8 @@ public final class Statistics {
 
         try {
             for (String key : prefs.keys()) {
-                if (key.startsWith(KEY_EXT_COUNT) || key.startsWith("vs.") || key.equals("volumeStats.count")) {
+                if (key.startsWith(KEY_EXT_COUNT) || key.startsWith("vs.") || key.equals("volumeStats.count")
+                        || key.startsWith(PREFIX_DEVICE_HISTORY) || key.equals(KEY_DEVICE_HISTORY_COUNT)) {
                     prefs.remove(key);
                 }
             }

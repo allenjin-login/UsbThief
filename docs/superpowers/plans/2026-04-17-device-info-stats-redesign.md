@@ -213,15 +213,13 @@ import com.superredrock.usbthief.statistics.Statistics;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 import java.io.IOException;
 import java.util.*;
-import java.util.List;
 
-public class DeviceInfoDialog extends JDialog implements I18NManager.LocaleChangeListener {
+public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChangeListener {
 
-    private final I18NManager i18n = I18NManager.getInstance();
+    private final I18nManager i18n = I18nManager.getInstance();
     private final DeviceManager deviceManager = DeviceManager.getInstance();
     private final Statistics stats = Statistics.getInstance();
 
@@ -274,18 +272,18 @@ public class DeviceInfoDialog extends JDialog implements I18NManager.LocaleChang
     private JPanel createGlobalBar() {
         JPanel bar = new JPanel(new GridLayout(1, 4, 2, 0));
         bar.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(0, 0, 1, 0, ThemeManager.BORDER_COLOR),
-            new EmptyBorder(6, 8, 6, 8)
+                BorderFactory.createMatteBorder(0, 0, 1, 0, ThemeManager.BORDER_COLOR),
+                new EmptyBorder(6, 8, 6, 8)
         ));
 
         Font valFont = new Font(Font.SANS_SERIF, Font.BOLD, 13);
         Font lblFont = new Font(Font.SANS_SERIF, Font.PLAIN, 9);
 
         for (var entry : new Object[][]{
-            {i18n.getMessage("deviceinfo.global.files"), globalFilesLabel},
-            {i18n.getMessage("deviceinfo.global.size"), globalSizeLabel},
-            {i18n.getMessage("deviceinfo.global.errors"), globalErrorsLabel},
-            {i18n.getMessage("deviceinfo.global.devices"), globalDevicesLabel}
+                {i18n.getMessage("deviceinfo.global.files"), globalFilesLabel},
+                {i18n.getMessage("deviceinfo.global.size"), globalSizeLabel},
+                {i18n.getMessage("deviceinfo.global.errors"), globalErrorsLabel},
+                {i18n.getMessage("deviceinfo.global.devices"), globalDevicesLabel}
         }) {
             JPanel cell = new JPanel(new BorderLayout(2, 0));
             cell.setOpaque(false);
@@ -315,9 +313,9 @@ public class DeviceInfoDialog extends JDialog implements I18NManager.LocaleChang
 
         if (volumes.isEmpty()) {
             emptyStatePanel = new EmptyStatePanel(
-                "\uD83D\uDD0C",
-                i18n.getMessage("deviceinfo.empty.title"),
-                i18n.getMessage("deviceinfo.empty.description")
+                    "\uD83D\uDD0C",
+                    i18n.getMessage("deviceinfo.empty.title"),
+                    i18n.getMessage("deviceinfo.empty.description")
             );
             volumeCardsPanel.add(emptyStatePanel);
         } else {
@@ -345,8 +343,8 @@ public class DeviceInfoDialog extends JDialog implements I18NManager.LocaleChang
         JPanel card = new JPanel();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         card.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(ThemeManager.BORDER_COLOR, 1, true),
-            new EmptyBorder(10, 14, 10, 14)
+                BorderFactory.createLineBorder(ThemeManager.BORDER_COLOR, 1, true),
+                new EmptyBorder(10, 14, 10, 14)
         ));
         card.setBackground(ThemeManager.CARD_BACKGROUND);
         card.setOpaque(true);
@@ -356,8 +354,8 @@ public class DeviceInfoDialog extends JDialog implements I18NManager.LocaleChang
         headerRow.setOpaque(false);
 
         String driveLabel = volume.getDriveLetter().isEmpty()
-            ? volume.getRootPath().toString()
-            : volume.getDriveLetter();
+                ? volume.getRootPath().toString()
+                : volume.getDriveLetter();
         String totalStr = formatTotalSpace(volume);
         JLabel driveLabelComp = new JLabel(driveLabel + "  " + totalStr);
         driveLabelComp.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
@@ -415,8 +413,8 @@ public class DeviceInfoDialog extends JDialog implements I18NManager.LocaleChang
             JPanel statsRow = new JPanel(new GridLayout(1, 4, 8, 0));
             statsRow.setOpaque(false);
             statsRow.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 0, 0, 0, ThemeManager.BORDER_COLOR),
-                new EmptyBorder(6, 0, 0, 0)
+                    BorderFactory.createMatteBorder(1, 0, 0, 0, ThemeManager.BORDER_COLOR),
+                    new EmptyBorder(6, 0, 0, 0)
             ));
 
             addStatCell(statsRow, i18n.getMessage("deviceinfo.stats.files"), String.valueOf(vs.getFilesCopied()));
@@ -427,10 +425,10 @@ public class DeviceInfoDialog extends JDialog implements I18NManager.LocaleChang
             Map<String, Long> exts = vs.getExtensionCounts();
             if (!exts.isEmpty()) {
                 String topExts = exts.entrySet().stream()
-                    .limit(3)
-                    .map(e -> e.getKey() + "(" + e.getValue() + ")")
-                    .reduce((a, b) -> a + " " + b)
-                    .orElse("");
+                        .limit(3)
+                        .map(e -> e.getKey() + "(" + e.getValue() + ")")
+                        .reduce((a, b) -> a + " " + b)
+                        .orElse("");
                 addStatCell(statsRow, i18n.getMessage("deviceinfo.stats.types"), topExts);
             } else {
                 addStatCell(statsRow, "", "");

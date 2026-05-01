@@ -1,6 +1,6 @@
 package com.superredrock.usbthief.gui.components;
 
-import com.superredrock.usbthief.gui.I18NManager;
+import com.superredrock.usbthief.gui.I18nManager;
 
 import javax.swing.*;
 import java.awt.*;
@@ -86,7 +86,7 @@ public class ToastManager {
      * @param args    optional arguments for message formatting
      */
     public static void showI18n(Window parent, Toast.Type type, String i18nKey, Object... args) {
-        String message = I18NManager.getInstance().getMessage(i18nKey, args);
+        String message = I18nManager.getInstance().getMessage(i18nKey, args);
         getInstance().showToast(parent, type, message);
     }
 

@@ -20,9 +20,9 @@ import java.util.Locale;
  * <p>
  * Implements LocaleChangeListener for hot language switching support.
  */
-public class StorageManagementPanel extends JPanel implements I18NManager.LocaleChangeListener {
+public class StorageManagementPanel extends JPanel implements I18nManager.LocaleChangeListener {
 
-    private static final I18NManager i18n = I18NManager.getInstance();
+    private static final I18nManager i18n = I18nManager.getInstance();
 
     // UI Components - Status Section
     private JProgressBar storageProgressBar;

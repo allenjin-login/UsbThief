@@ -126,6 +126,29 @@
             </resource>
         </resources>
         <plugins>
+            <!-- Clean jlink output before regeneration -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-clean-plugin</artifactId>
+                <version>3.4.0</version>
+                <executions>
+                    <execution>
+                        <id>clean-runtime</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                        <configuration>
+                            <excludeDefaultDirectories>true</excludeDefaultDirectories>
+                            <filesets>
+                                <fileset>
+                                    <directory>${project.build.directory}/${jlink.image.name}</directory>
+                                </fileset>
+                            </filesets>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <!-- Copy dependencies for jlink module path -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -188,7 +211,7 @@
                                 <argument>${jlink.image.name}=UsbThief/${jlink.main.class}</argument>
                                 <!-- Compress (ZIP level) -->
                                 <argument>--compress</argument>
-                                <argument>2</argument>
+                                <argument>zip-9</argument>
                                 <!-- Strip debug for smaller image -->
                                 <argument>--strip-debug</argument>
                                 <!-- No header files and man pages -->

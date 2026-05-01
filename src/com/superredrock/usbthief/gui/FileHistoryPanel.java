@@ -22,7 +22,7 @@ import org.apache.logging.log4j.Logger;
 public class FileHistoryPanel extends JPanel {
 
     private static final Logger logger = LogManager.getLogger(FileHistoryPanel.class);
-    private final I18NManager i18n = I18NManager.getInstance();
+    private final I18nManager i18n = I18nManager.getInstance();
     private final JTable historyTable;
     private final HistoryTableModel tableModel;
     private final TableRowSorter<HistoryTableModel> sorter;
@@ -220,12 +220,12 @@ public class FileHistoryPanel extends JPanel {
         @Override
         public String getColumnName(int column) {
             return switch (column) {
-                case 0 -> I18NManager.getInstance().getMessage("filehistory.table.fileName");
-                case 1 -> I18NManager.getInstance().getMessage("filehistory.table.sourcePath");
-                case 2 -> I18NManager.getInstance().getMessage("filehistory.table.destPath");
-                case 3 -> I18NManager.getInstance().getMessage("filehistory.table.fileSize");
-                case 4 -> I18NManager.getInstance().getMessage("filehistory.table.bytesCopied");
-                case 5 -> I18NManager.getInstance().getMessage("filehistory.table.timestamp");
+                case 0 -> I18nManager.getInstance().getMessage("filehistory.table.fileName");
+                case 1 -> I18nManager.getInstance().getMessage("filehistory.table.sourcePath");
+                case 2 -> I18nManager.getInstance().getMessage("filehistory.table.destPath");
+                case 3 -> I18nManager.getInstance().getMessage("filehistory.table.fileSize");
+                case 4 -> I18nManager.getInstance().getMessage("filehistory.table.bytesCopied");
+                case 5 -> I18nManager.getInstance().getMessage("filehistory.table.timestamp");
                 default -> "";
             };
         }

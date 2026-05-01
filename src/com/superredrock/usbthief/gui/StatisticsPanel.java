@@ -14,8 +14,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public class StatisticsPanel extends JPanel implements I18NManager.LocaleChangeListener {
-    private final I18NManager i18n = I18NManager.getInstance();
+public class StatisticsPanel extends JPanel implements I18nManager.LocaleChangeListener {
+    private final I18nManager i18n = I18nManager.getInstance();
     private final Statistics stats = Statistics.getInstance();
 
     private JLabel totalFilesLabel;
