@@ -229,6 +229,10 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
                 emptyStatePanel.setDescription(i18n.getMessage("empty.devices.description"));
             }
 
+            for (DeviceGroupPanel group : deviceGroups.values()) {
+                group.refreshLanguage();
+            }
+
             for (VolumeCard card : volumeCards.values()) {
                 card.refreshLanguage();
             }
@@ -290,6 +294,11 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
             if (oldKey != null) {
                 VolumeCard card = volumeCards.get(oldKey);
                 card.updateVolume(vol);
+            }
+            // Refresh group header (total capacity may change)
+            Device device = vol.getDevice();
+            if (device != null && deviceGroups.containsKey(device)) {
+                deviceGroups.get(device).refreshHeader();
             }
         });
     }
