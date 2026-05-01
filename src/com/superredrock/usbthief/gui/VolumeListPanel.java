@@ -123,8 +123,27 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
 
     private void initializeExistingVolumes() {
         SwingUtilities.invokeLater(() -> {
+            // Group volumes by device for correct initial rendering
+            Map<Device, java.util.List<Volume>> byDevice = new java.util.LinkedHashMap<>();
+            java.util.List<Volume> noDevice = new java.util.ArrayList<>();
+
             for (Volume volume : deviceManager.getAllVolumes()) {
-                addVolume(volume);
+                Device dev = volume.getDevice();
+                if (dev == null) {
+                    noDevice.add(volume);
+                } else {
+                    byDevice.computeIfAbsent(dev, _ -> new java.util.ArrayList<>()).add(volume);
+                }
+            }
+
+            // Add volumes respecting device grouping
+            for (java.util.List<Volume> volumes : byDevice.values()) {
+                for (Volume v : volumes) {
+                    addVolume(v);
+                }
+            }
+            for (Volume v : noDevice) {
+                addVolume(v);
             }
         });
     }
@@ -335,15 +354,47 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
         }
     }
 
+    private VolumeCard createVolumeCard(Volume volume) {
+        VolumeCard card = new VolumeCard(volume, parentFrame, deviceManager);
+        card.getCheckBox().addItemListener(_ -> updateBatchButtons());
+        return card;
+    }
+
     private void addVolume(Volume volume) {
         if (volumeCards.containsKey(volume)) {
             return;
         }
 
-        VolumeCard card = new VolumeCard(volume, parentFrame, deviceManager);
+        Device device = volume.getDevice();
+        VolumeCard card = createVolumeCard(volume);
         volumeCards.put(volume, card);
-        devicesPanel.add(card);
-        card.getCheckBox().addItemListener(_ -> updateBatchButtons());
+
+        if (device == null || device.getVolumes().size() <= 1) {
+            // Single volume or no device — flat layout
+            devicesPanel.add(card);
+        } else {
+            DeviceGroupPanel group = deviceGroups.get(device);
+            if (group == null) {
+                // Device went from 1 to 2 volumes — migrate existing flat card into new group
+                group = new DeviceGroupPanel(device);
+                deviceGroups.put(device, group);
+
+                // Find and move the existing flat VolumeCard for the other volume
+                for (Volume otherVol : device.getVolumes()) {
+                    if (otherVol != volume && volumeCards.containsKey(otherVol)) {
+                        VolumeCard existingCard = volumeCards.get(otherVol);
+                        devicesPanel.remove(existingCard);
+                        group.addVolumeCard(existingCard);
+                    }
+                }
+
+                // Insert group at the end
+                devicesPanel.add(group);
+            } else {
+                group.addVolumeCard(card);
+            }
+        }
+
         devicesPanel.revalidate();
         devicesPanel.repaint();
         updateEmptyState();
