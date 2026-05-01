@@ -130,8 +130,7 @@ public class Index extends Service {
             return isDuplicate;
         }
 
-        Map<Path, CheckSum> diskEntries = diskStore.load();
-        CheckSum fromDisk = diskEntries.get(filePath);
+        CheckSum fromDisk = diskStore.lookup(filePath);
         if (fromDisk != null) {
             cache.put(filePath, fromDisk);
             boolean isDuplicate = fromDisk.equals(checksum);
@@ -169,7 +168,8 @@ public class Index extends Service {
     public void clear() {
         int oldSize = totalEntries.getAndSet(0);
         cache.invalidateAll();
-        markDirty();
+        diskStore.clear();
+        dirty = false;
         logger.info("Index cleared: {} entries removed", oldSize);
     }
 

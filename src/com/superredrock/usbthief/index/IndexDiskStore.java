@@ -13,6 +13,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 class IndexDiskStore {
 
@@ -21,6 +22,7 @@ class IndexDiskStore {
     private static final int VERSION = 1;
 
     private final Path filePath;
+    private final ConcurrentHashMap<Path, CheckSum> memoryIndex = new ConcurrentHashMap<>();
 
     IndexDiskStore(Path filePath) {
         this.filePath = filePath;
@@ -60,18 +62,22 @@ class IndexDiskStore {
                     }
                     i++;
                 } catch (IOException e) {
-                    // EOF or corrupt entry — stop reading
                     if (i < count) {
                         logger.warn("Error reading entry {} in index file (expected {})", i, count, e);
                     }
                     break;
                 }
             }
+            memoryIndex.putAll(entries);
             return entries;
         } catch (IOException e) {
             logger.warn("Failed to load index file", e);
             return new HashMap<>();
         }
+    }
+
+    CheckSum lookup(Path path) {
+        return memoryIndex.get(path);
     }
 
     synchronized void append(Path path, CheckSum checksum) {
@@ -85,6 +91,7 @@ class IndexDiskStore {
             }
 
             writeEntry(out, path, checksum);
+            memoryIndex.put(path, checksum);
         } catch (IOException e) {
             logger.warn("Failed to append to index file", e);
         }
@@ -106,9 +113,20 @@ class IndexDiskStore {
                     StandardCopyOption.REPLACE_EXISTING,
                     StandardCopyOption.ATOMIC_MOVE);
 
+            memoryIndex.clear();
+            memoryIndex.putAll(entries);
             logger.info("Index compacted: {} entries", entries.size());
         } catch (IOException e) {
             logger.warn("Failed to compact index file", e);
+        }
+    }
+
+    synchronized void clear() {
+        memoryIndex.clear();
+        try {
+            Files.deleteIfExists(filePath);
+        } catch (IOException e) {
+            logger.warn("Failed to delete index file", e);
         }
     }
 
