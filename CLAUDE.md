@@ -32,10 +32,12 @@ UsbThief is a Windows desktop application for USB device monitoring and file cop
 
 | Package | Responsibility |
 |---------|---------------|
-| `core` | Device management, event bus, configuration, file filters |
-| `worker` | File scanning, copy tasks, rate limiting, task scheduling |
-| `index` | MD5 checksum deduplication with persistent storage |
+| `core` | Device management, event bus, configuration, file filters, ClockThread |
+| `worker` | File scanning, copy tasks, rate limiting, task scheduling, storage management |
+| `index` | MD5 checksum deduplication with Caffeine LRU cache + binary disk store |
 | `gui` | Swing UI components, theming, i18n |
+| `gui.dailog` | Dialog windows (config, debug, device info, welcome, filters, rate limit) |
+| `gui.components` | Reusable UI components (Toast, EmptyStatePanel) |
 | `statistics` | Copy speed and operation metrics |
 
 ### Key Services (all extend `Service` abstract class)
@@ -43,12 +45,12 @@ UsbThief is a Windows desktop application for USB device monitoring and file cop
 Services run as daemon threads with tick-based execution:
 
 - **DeviceManager** - USB hotplug detection via Windows API, device state tracking
-- **SnifferLifecycleManager** - Per-volume Sniffer creation, restart scheduling, cooldown management
-- **TaskScheduler** - Priority-based task queue with adaptive load control (LOW/MEDIUM/HIGH)
-- **Index** - Periodic checksum index persistence
-- **StorageController** - Monitors work directory disk space (OK/LOW/CRITICAL thresholds)
+- **SnifferLifecycleManager** - Per-volume Sniffer creation, restart scheduling, ClockThread-based cooldown timers
+- **TaskScheduler** - Priority-based task queue
+- **Index** - Caffeine LRU cache with binary disk persistence (`IndexDiskStore`)
+- **StorageController** - Monitors work directory disk space (OK/LOW/CRITICAL thresholds, toggleable)
 - **RecyclerService** - Storage cleanup when space is low
-- **Sniffer** (per-device) - Initial scan + WatchService for real-time file monitoring
+- **Sniffer** (per-device) - Initial scan + WatchService for real-time file monitoring, CompletableFuture lifecycle
 
 ### Core Patterns
 
@@ -57,6 +59,12 @@ Services run as daemon threads with tick-based execution:
 - Synchronous listeners via `register()`, async via `registerAsync()`
 - Dispatch uses `parallelStream()` for concurrent listener notification
 - All events are immutable records
+
+**ClockThread** (`core.ClockThread`)
+- Timer thread using CompletableFuture for async chaining
+- `thenRun(action)` chains actions after countdown completes
+- `onCountdown()` returns the CompletableFuture for custom chaining
+- `cancel()` interrupts thread and cancels future
 
 **Service Lifecycle**
 ```java
@@ -90,8 +98,10 @@ public static Manager getInstance() {
 
 1. **USB Detection**: `UsbHotplugMonitor` (JNA) → `DeviceManager.onVolumeArrival()` → `Device` + `Volume` created
 2. **File Discovery**: `SnifferLifecycleManager` creates `Sniffer` → `Sniffer` scans → `FileDiscoveredEvent` → `CopyTask` submitted to `TaskScheduler`
-3. **Deduplication**: `CopyTask` computes `CheckSum` → `Index.checkDuplicate()` → skip if exists
+3. **Deduplication**: `CopyTask` computes `CheckSum` → `Index.checkDuplicate()` → skip if exists (Caffeine LRU cache + `IndexDiskStore`)
 4. **Copy Execution**: Rate-limited NIO copy with `RateLimiter` → `CopyCompletedEvent`
+5. **Storage Control**: `StorageController` checks disk space → `RecyclerService` cleanup if LOW/CRITICAL
+6. **UI Updates**: Components listen to events via `EventBus.register()`
 5. **UI Updates**: Components listen to events via `EventBus.register()`
 
 ### Volume State Machine
@@ -116,11 +126,12 @@ On `DBT_DEVICEQUERYREMOVE`, the app blocks the eject and sets EJECTING. Active N
 - `CopyOnWriteArrayList` for event listeners
 - `ReentrantLock` in Service for state transitions
 - Thread-local buffers in `CopyTask` for NIO operations
+- Caffeine cache in `Index` for thread-safe LRU eviction
 
 ### Internationalization
 
 - `I18NManager` manages locale and resource bundles
-- Bundle files: `gui/messages_{locale}.properties`
+- Bundle files: `gui/messages_{locale}.properties` (en, zh, ja, de)
 - Runtime language switching supported via `setLocale()`
 
 ## Windows-Specific

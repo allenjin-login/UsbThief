@@ -54,19 +54,22 @@ UsbThief is a Windows desktop application that automatically detects USB drives,
 |---------|-------------|
 | **USB Detection** | Real-time monitoring with automatic drive detection |
 | **Two-Phase Scanning** | Initial scan, then WatchService for incremental changes |
-| **Checksum Deduplication** | MD5-based duplicate detection with O(1) lookup |
+| **Checksum Deduplication** | MD5-based duplicate detection with Caffeine LRU cache + binary disk store |
 | **Priority Scheduling** | Extension-based priorities (PDF=10, DOCX=8, TXT=5, TMP=1) |
-| **Adaptive Load Control** | Queue depth + copy speed + thread activity + rejection rate |
-| **Load-Aware Rate Limiting** | Auto-adjusts: LOW=100%, MEDIUM=70%, HIGH=40% |
+| **Volume Eject Handling** | Blocks Windows eject, interrupts active copies, preserves cooldown timers |
+| **Storage Management** | Configurable storage limits with OK/LOW/CRITICAL thresholds and auto-cleanup |
+| **File Size Filter** | Skip files below configurable minimum size |
+| **System Directory Filter** | Automatically skips Windows system and chkdsk recovery folders |
 | **Ghost Device Persistence** | Remembers offline devices, restores on reconnect |
+| **Debug Dashboard** | Global debug panel with sniffer, volume, task, and storage tabs |
 | **System Tray Integration** | Minimize to tray for background operation |
 
 ### User Interface
 
 - Modern Swing UI with FlatLaf 3.5.4 (light/dark themes)
-- Tabbed interface with device list, file history, statistics, and logs
-- Device cards with real-time status and controls
-- Configurable filters and rate limiting
+- Tabbed interface with device list, statistics, and logs
+- Compact device cards with real-time status and controls
+- Configurable filters, storage management, and rate limiting
 - First-run welcome dialog
 
 ### Internationalization
@@ -75,6 +78,7 @@ UsbThief is a Windows desktop application that automatically detects USB drives,
 |----------|--------|
 | English (en) | Complete |
 | Chinese Simplified (zh_CN) | Complete |
+| Japanese (ja) | Complete |
 | German (de) | Complete |
 
 Languages can be switched at runtime without restarting the application.
@@ -113,7 +117,7 @@ The distribution includes a custom JRE built with jlink, so no Java installation
 
 #### Prerequisites
 
-- Java 24 JDK (or later)
+- Java 25 JDK (or later)
 - Maven 3.9+
 
 #### Steps
@@ -241,6 +245,8 @@ default.language=en
 
 - **Event-driven**: EventBus with parallel listener dispatch
 - **Thread-based services**: Each service runs in its own Thread with tick-based execution
+- **CompletableFuture chains**: ClockThread and Sniffer use async chaining for lifecycle control
+- **LRU cache + binary persistence**: Index uses Caffeine in-memory cache backed by custom binary disk format
 - **Singleton pattern**: Central managers (ConfigManager, EventBus, I18NManager)
 - **Immutable events**: All events are immutable after creation
 - **Thread-safe collections**: CopyOnWriteArrayList, ConcurrentHashMap throughout
@@ -263,6 +269,45 @@ Contributions are welcome. Here's how to help:
 - Write tests for new functionality
 - Update documentation for user-facing changes
 - Ensure `mvn test` passes before submitting PRs
+
+---
+
+## Changelog
+
+### v1.2.0 (2026-05-01)
+
+**Index System Rewrite**
+- Rewritten Index with Caffeine LRU cache for O(1) in-memory lookups
+- Custom binary disk store (`IndexDiskStore`) replacing Java serialization
+- Configurable cache size via `INDEX_CACHE_SIZE`
+- In-memory disk index cache for fast startup
+
+**ClockThread Rewrite**
+- Rewritten with CompletableFuture, lifecycle control, and chain API
+- Replaced SLM cooldown polling with ClockThread-based timers
+- Thread safety fixes for cancel/interrupt lifecycle
+
+**Volume Eject State**
+- Handle `DBT_DEVICEQUERYREMOVE` to block Windows eject
+- Interrupt active NIO copies when volume enters EJECTING state
+- Preserve cooldown timers across device eject/remove cycles
+
+**Storage Management**
+- Configurable storage limits with OK/LOW/CRITICAL thresholds
+- Toggle storage management on/off via settings
+- `RecyclerService` auto-cleanup when space is low
+- File size filter to skip files below minimum size
+
+**Debug Dashboard**
+- Global debug panel replacing per-sniffer debug views
+- 4 tabs: Sniffer lifecycle, Volume states, Task queue, Storage status
+- Live-updating with polling-based snapshots
+
+**Other Improvements**
+- Move dialogs to `gui.dailog` package for better organization
+- `SystemDirectoryFilter` now exposes `isSystemDirName()` as public API
+- Japanese language support added
+- Compact UI redesign with speed chart and dynamic tray icons
 
 ---
 
