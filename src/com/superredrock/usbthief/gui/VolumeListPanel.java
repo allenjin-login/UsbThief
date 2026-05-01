@@ -242,19 +242,37 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
     private void onVolumeRemoved(VolumeRemovedEvent event) {
         SwingUtilities.invokeLater(() -> {
             Volume vol = event.volume();
-            Volume oldKey = null;
-            for (Volume v : volumeCards.keySet()) {
-                if (v.getSerialNumber().equals(vol.getSerialNumber())) {
-                    oldKey = v;
-                    break;
+            Volume oldKey = volumeCards.keySet().stream()
+                .filter(v -> v.getSerialNumber().equals(vol.getSerialNumber()))
+                .findFirst().orElse(null);
+            if (oldKey == null) return;
+
+            VolumeCard card = volumeCards.remove(oldKey);
+            Device device = oldKey.getDevice();
+
+            if (device != null && deviceGroups.containsKey(device)) {
+                DeviceGroupPanel group = deviceGroups.get(device);
+                group.removeVolumeCard(card);
+
+                long remaining = device.getVolumes().stream()
+                    .filter(v -> volumeCards.containsKey(v))
+                    .count();
+
+                if (remaining <= 1) {
+                    // Dissolve group — move remaining card(s) back to flat layout
+                    java.util.List<VolumeCard> remainingCards = new java.util.ArrayList<>(group.getVolumeCards());
+                    devicesPanel.remove(group);
+                    deviceGroups.remove(device);
+                    for (VolumeCard rc : remainingCards) {
+                        devicesPanel.add(rc);
+                    }
                 }
-            }
-            if (oldKey != null) {
-                VolumeCard card = volumeCards.remove(oldKey);
+            } else {
                 devicesPanel.remove(card);
-                devicesPanel.revalidate();
-                devicesPanel.repaint();
             }
+
+            devicesPanel.revalidate();
+            devicesPanel.repaint();
             updateEmptyState();
         });
     }
