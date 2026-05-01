@@ -34,7 +34,7 @@ public class ClockThread extends Thread {
     }
 
     public ClockThread thenRun(Runnable action) {
-        future.thenRun(action);
+        this.onCountdown().thenRun(action);
         return this;
     }
 

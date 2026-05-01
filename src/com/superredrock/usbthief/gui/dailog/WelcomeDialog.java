@@ -1,4 +1,6 @@
-package com.superredrock.usbthief.gui;
+package com.superredrock.usbthief.gui.dailog;
+
+import com.superredrock.usbthief.gui.I18NManager;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;

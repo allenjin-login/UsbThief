@@ -313,12 +313,7 @@ public class Sniffer extends Thread implements Closeable {
     private boolean isInsideSystemDirectory(Path path) {
         for (Path p = path; p != null; p = p.getParent()) {
             if (p.equals(root)) break;
-            Path name = p.getFileName();
-            if (name == null) continue;
-            try {
-                BasicFileAttributes attrs = Files.readAttributes(p, BasicFileAttributes.class);
-                if (!systemDirFilter.test(p, attrs)) return true;
-            } catch (IOException _) {}
+            if (SystemDirectoryFilter.isSystemDirName(p)) return true;
         }
         return false;
     }

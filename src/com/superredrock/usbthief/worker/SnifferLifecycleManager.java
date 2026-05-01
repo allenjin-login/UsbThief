@@ -184,16 +184,15 @@ public class SnifferLifecycleManager extends Service {
 
         try {
             Sniffer sniffer = new Sniffer(volume);
-            boolean accessible = volume.isConnected();
             sniffer.onFinish()
                     .thenRun(() -> {
-                        if (accessible){
+                        if (volume.isConnected()){
                             logger.info("Sniffer finished for {} (reason: {})", serial, RestartReason.NORMAL_COMPLETION);
                             scheduleRestart(serial, RestartReason.NORMAL_COMPLETION);
                         }
                     })
                     .exceptionally(ex -> {
-                        if (accessible){
+                        if (volume.isConnected()){
                             logger.warn("Sniffer error for {}", serial, ex);
                             scheduleRestart(serial, RestartReason.ERROR);
                         }

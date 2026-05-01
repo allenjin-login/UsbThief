@@ -1,8 +1,9 @@
-package com.superredrock.usbthief.gui;
+package com.superredrock.usbthief.gui.dailog;
 
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.filter.FilterPreset;
+import com.superredrock.usbthief.gui.I18NManager;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;

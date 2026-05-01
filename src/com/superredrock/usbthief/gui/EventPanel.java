@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
  * Event panel that displays all events from the EventBus.
  * Shows event type, timestamp, and description with filtering capabilities.
  */
+@Deprecated
 public class EventPanel extends JPanel {
 
     private static final Logger logger = LogManager.getLogger(EventPanel.class);

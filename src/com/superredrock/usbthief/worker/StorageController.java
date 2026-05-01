@@ -154,12 +154,13 @@ public class StorageController {
      * @return the storage level
      */
     private StorageLevel calculateStorageLevel(long freeBytes) {
-        if (!ConfigManager.getInstance().get(ConfigSchema.STORAGE_ENABLED)) {
+        ConfigManager config = ConfigManager.getInstance();
+        if (!config.get(ConfigSchema.STORAGE_ENABLED)) {
             return StorageLevel.OK;
         }
 
-        long reservedBytes = ConfigManager.getInstance().get(ConfigSchema.STORAGE_RESERVED_BYTES);
-        long maxBytes = ConfigManager.getInstance().get(ConfigSchema.STORAGE_MAX_BYTES);
+        long reservedBytes = config.get(ConfigSchema.STORAGE_RESERVED_BYTES);
+        long maxBytes = config.get(ConfigSchema.STORAGE_MAX_BYTES);
 
         // CRITICAL: free space at or below reserved threshold
         if (freeBytes <= reservedBytes) {

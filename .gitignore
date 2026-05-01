@@ -58,6 +58,6 @@ devices/
 *.dll
 *.so
 *.dylib
-
+index.dat
 # 错误文件
 nul

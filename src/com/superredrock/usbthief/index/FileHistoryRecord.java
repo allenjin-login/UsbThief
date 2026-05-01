@@ -8,6 +8,7 @@ import java.time.format.DateTimeFormatter;
  * Record representing a failed file copy entry.
  * Stores information about failed file copies including path, size, bytes copied, and timestamp.
  */
+@Deprecated
 public record FileHistoryRecord(String fileName, String sourcePath, String destPath, long fileSize,
                                 long bytesCopied, String timestamp) implements Serializable {
 

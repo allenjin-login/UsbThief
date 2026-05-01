@@ -36,10 +36,17 @@ public class SystemDirectoryFilter implements FileFilter {
         }
 
         String name = fileName.toString().toUpperCase(Locale.ROOT);
-        return !BLOCKED_NAMES.contains(name) && !ishkdfRecoveryDir(name);
+        return !BLOCKED_NAMES.contains(name) && !isChkdskRecoveryDir(name);
     }
 
-    private static boolean ishkdfRecoveryDir(String name) {
+    public static boolean isSystemDirName(Path path) {
+        Path fileName = path.getFileName();
+        if (fileName == null) return false;
+        String name = fileName.toString().toUpperCase(Locale.ROOT);
+        return BLOCKED_NAMES.contains(name) || isChkdskRecoveryDir(name);
+    }
+
+    private static boolean isChkdskRecoveryDir(String name) {
         return name.startsWith("FOUND.") && name.length() == 9
                 && Character.isDigit(name.charAt(6))
                 && Character.isDigit(name.charAt(7))
