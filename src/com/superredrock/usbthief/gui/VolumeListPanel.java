@@ -17,17 +17,19 @@ import java.util.Locale;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class VolumeListPanel extends JPanel implements I18NManager.LocaleChangeListener {
+public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeListener {
 
-    private final I18NManager i18n = I18NManager.getInstance();
+    private final I18nManager i18n = I18nManager.getInstance();
     private final JPanel devicesPanel;
     private final Map<Volume, VolumeCard> volumeCards = new HashMap<>();
+    private final Map<Device, DeviceGroupPanel> deviceGroups = new HashMap<>();
     private final DeviceManager deviceManager;
     private EmptyStatePanel emptyStatePanel;
 
@@ -353,11 +355,179 @@ public class VolumeListPanel extends JPanel implements I18NManager.LocaleChangeL
         }
     }
 
+    // ========== DeviceGroupPanel — multi-volume collapsible group ==========
+
+    private class DeviceGroupPanel extends JPanel {
+
+        private final Device device;
+        private final JPanel volumesContainer;
+        private final JButton toggleButton;
+        private final JLabel infoLabel;
+        private final JButton moreButton;
+        private final JPopupMenu groupMenu;
+        private final JMenuItem batchEnableItem;
+        private final JMenuItem batchDisableItem;
+        private final JMenuItem batchBlacklistItem;
+        private boolean expanded = true;
+
+        public DeviceGroupPanel(Device device) {
+            this.device = device;
+            setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+            setOpaque(false);
+
+            // --- Header panel ---
+            JPanel header = new JPanel(new BorderLayout(6, 0));
+            header.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(UIManager.getColor("Component.borderColor"), 1, true),
+                new EmptyBorder(3, 6, 3, 6)
+            ));
+            header.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+            header.setOpaque(true);
+
+            // Toggle arrow
+            toggleButton = new JButton("▼");
+            toggleButton.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
+            toggleButton.setFocusPainted(false);
+            toggleButton.setBorderPainted(false);
+            toggleButton.setContentAreaFilled(false);
+            toggleButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            toggleButton.addActionListener(_ -> toggleExpanded());
+
+            // Info label
+            infoLabel = new JLabel(buildInfoText());
+            infoLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
+            infoLabel.setForeground(ThemeManager.TEXT_SECONDARY);
+
+            // More button + menu
+            groupMenu = new JPopupMenu();
+            batchEnableItem = new JMenuItem(i18n.getMessage("device.group.batchEnable"));
+            batchEnableItem.addActionListener(_ -> batchEnableAll());
+            batchDisableItem = new JMenuItem(i18n.getMessage("device.group.batchDisable"));
+            batchDisableItem.addActionListener(_ -> batchDisableAll());
+            batchBlacklistItem = new JMenuItem(i18n.getMessage("device.group.batchBlacklist"));
+            batchBlacklistItem.addActionListener(_ -> blacklistDevice());
+            groupMenu.add(batchEnableItem);
+            groupMenu.add(batchDisableItem);
+            groupMenu.addSeparator();
+            groupMenu.add(batchBlacklistItem);
+
+            moreButton = new JButton("⋮");
+            moreButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+            moreButton.setFocusPainted(false);
+            moreButton.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
+            moreButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            moreButton.addActionListener(e -> groupMenu.show(moreButton, 0, moreButton.getHeight()));
+
+            JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+            leftPanel.setOpaque(false);
+            leftPanel.add(toggleButton);
+            leftPanel.add(infoLabel);
+
+            header.add(leftPanel, BorderLayout.CENTER);
+            header.add(moreButton, BorderLayout.EAST);
+
+            // --- Volumes container ---
+            volumesContainer = new JPanel();
+            volumesContainer.setLayout(new BoxLayout(volumesContainer, BoxLayout.Y_AXIS));
+            volumesContainer.setOpaque(false);
+
+            add(header);
+            add(volumesContainer);
+        }
+
+        private String buildInfoText() {
+            StringBuilder sb = new StringBuilder();
+            if (device.getVid() != null && device.getPid() != null) {
+                sb.append(i18n.getMessage("device.group.vidPid", device.getVid(), device.getPid()));
+                sb.append("  ");
+            }
+            sb.append("SN:").append(device.getSerialNumber());
+            sb.append("  ");
+            long totalBytes = device.getVolumes().stream()
+                .mapToLong(v -> {
+                    try {
+                        return v.getFileStore() != null ? v.getFileStore().getTotalSpace() : 0;
+                    } catch (IOException _) { return 0; }
+                })
+                .sum();
+            sb.append(i18n.getMessage("device.group.totalCapacity", SizeFormatter.format(totalBytes)));
+            return sb.toString();
+        }
+
+        public void refreshHeader() {
+            infoLabel.setText(buildInfoText());
+        }
+
+        public void addVolumeCard(VolumeCard card) {
+            volumesContainer.add(card);
+            volumesContainer.revalidate();
+            volumesContainer.repaint();
+            refreshHeader();
+        }
+
+        public void removeVolumeCard(VolumeCard card) {
+            volumesContainer.remove(card);
+            volumesContainer.revalidate();
+            volumesContainer.repaint();
+            refreshHeader();
+        }
+
+        public java.util.List<VolumeCard> getVolumeCards() {
+            java.util.List<VolumeCard> cards = new java.util.ArrayList<>();
+            for (Component c : volumesContainer.getComponents()) {
+                if (c instanceof VolumeCard vc) cards.add(vc);
+            }
+            return cards;
+        }
+
+        private void toggleExpanded() {
+            expanded = !expanded;
+            toggleButton.setText(expanded ? "▼" : "▶");
+            volumesContainer.setVisible(expanded);
+            revalidate();
+            repaint();
+        }
+
+        private void batchEnableAll() {
+            for (Volume v : device.getVolumes()) {
+                deviceManager.enable(v);
+            }
+        }
+
+        private void batchDisableAll() {
+            for (Volume v : device.getVolumes()) {
+                deviceManager.disable(v);
+            }
+        }
+
+        private void blacklistDevice() {
+            String sn = device.getSerialNumber();
+            int confirm = JOptionPane.showConfirmDialog(parentFrame,
+                i18n.getMessage("device.card.blacklist.confirm", sn, sn),
+                i18n.getMessage("device.card.blacklist.confirm.title"),
+                JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+            if (confirm == JOptionPane.YES_OPTION) {
+                ConfigManager.getInstance().addToDeviceBlacklistBySerial(sn);
+                JOptionPane.showMessageDialog(parentFrame,
+                    i18n.getMessage("device.card.blacklist.success"),
+                    i18n.getMessage("device.card.blacklist.success.title"),
+                    JOptionPane.INFORMATION_MESSAGE);
+            }
+        }
+
+        public void refreshLanguage() {
+            batchEnableItem.setText(i18n.getMessage("device.group.batchEnable"));
+            batchDisableItem.setText(i18n.getMessage("device.group.batchDisable"));
+            batchBlacklistItem.setText(i18n.getMessage("device.group.batchBlacklist"));
+            refreshHeader();
+        }
+    }
+
     // ========== VolumeCard — compact single-line card ==========
 
     private static class VolumeCard extends JPanel {
 
-        private final I18NManager i18n = I18NManager.getInstance();
+        private final I18nManager i18n = I18nManager.getInstance();
         private Volume volume;
         private final JFrame parentFrame;
         private final DeviceManager deviceManager;
