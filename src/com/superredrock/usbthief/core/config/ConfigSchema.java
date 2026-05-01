@@ -41,6 +41,9 @@ public class ConfigSchema {
     public static final ConfigEntry<String> INDEX_PATH =
             stringEntry("indexPath", "Path to the index file (relative or absolute)", "index.obj", "Index Management");
 
+    public static final ConfigEntry<Integer> INDEX_CACHE_SIZE =
+            intEntry("indexCacheSize", "Maximum number of entries in the in-memory index cache", 10_000, "Index Management");
+
     // File copy configuration
     public static final ConfigEntry<Integer> BUFFER_SIZE =
             intEntry("bufferSize", "Buffer size for file copying (bytes)", 16 * 1024, "File Copy");
@@ -184,6 +187,7 @@ public class ConfigSchema {
         registerEntry(SAVE_INITIAL_DELAY_SECONDS);
         registerEntry(SAVE_DELAY_SECONDS);
         registerEntry(INDEX_PATH);
+        registerEntry(INDEX_CACHE_SIZE);
         registerEntry(BUFFER_SIZE);
         registerEntry(HASH_BUFFER_SIZE);
         registerEntry(MAX_FILE_SIZE);

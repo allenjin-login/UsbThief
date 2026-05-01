@@ -67,6 +67,12 @@
             <artifactId>log4j-core</artifactId>
             <version>2.25.4</version>
         </dependency>
+        <!-- Caffeine - High-performance in-memory cache -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+            <version>3.2.3</version>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -173,7 +179,7 @@
                                 <argument>${java.home}/jmods${path.separator}${project.build.outputDirectory}${path.separator}${project.build.directory}/libs</argument>
                                 <!-- Add modules (including transitive dependencies) -->
                                 <argument>--add-modules</argument>
-                                <argument>UsbThief,com.formdev.flatlaf,com.sun.jna,com.sun.jna.platform,org.apache.logging.log4j,org.apache.logging.log4j.core</argument>
+                                <argument>UsbThief,com.formdev.flatlaf,com.sun.jna,com.sun.jna.platform,org.apache.logging.log4j,org.apache.logging.log4j.core,com.github.benmanes.caffeine</argument>
                                 <!-- Output directory -->
                                 <argument>--output</argument>
                                 <argument>${project.build.directory}/${jlink.image.name}</argument>

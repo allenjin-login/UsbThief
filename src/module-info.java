@@ -6,6 +6,7 @@ module UsbThief {
     requires com.sun.jna.platform;
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
+    requires com.github.benmanes.caffeine;
 
     exports com.superredrock.usbthief.index;
     exports com.superredrock.usbthief.core;
