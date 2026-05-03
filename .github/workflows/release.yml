@@ -31,9 +31,6 @@ jobs:
           if ($version -match '^v') {
             $version = $version.Substring(1)
           }
-          if ($version -match '-java11$') {
-            $version = $version.Substring(0, $version.Length - 7)
-          }
           echo "version=$version" >> $env:GITHUB_OUTPUT
           echo "is_java11=${{ contains(github.ref_name, '-java11') }}" >> $env:GITHUB_OUTPUT
           echo "Version: $version"
@@ -57,8 +54,10 @@ jobs:
       - name: Update version in pom.xml
         run: |
           $version = "${{ steps.version.outputs.version }}"
-          Write-Host "Setting version to: $version"
-          mvn versions:set "-DnewVersion=$version" "-DgenerateBackupPoms=false" -B
+          # Strip -java11 suffix for Maven version (must be valid SemVer)
+          $mavenVersion = $version -replace '-java11$', ''
+          Write-Host "Setting Maven version to: $mavenVersion"
+          mvn versions:set "-DnewVersion=$mavenVersion" "-DgenerateBackupPoms=false" -B
 
       - name: Build package (EXE + ZIP)
         run: mvn clean package -B
@@ -105,6 +104,8 @@ jobs:
           body: |
             ## UsbThief ${{ needs.build.outputs.version }}
 
+            > **Java 11 build** — Supports Windows 7 and later. For Windows 10/11, use the standard release instead.
+
             ### Downloads
             - **UsbThief-${{ needs.build.outputs.version }}.zip** - Full distribution (EXE + custom runtime)
             - **UsbThief-${{ needs.build.outputs.version }}.exe** - Standalone executable
@@ -119,5 +120,5 @@ jobs:
             ./artifacts/UsbThief-*.exe
             ./artifacts/UsbThief-*.zip
           draft: false
-          prerelease: ${{ contains(needs.build.outputs.version, '-') }}
+          prerelease: ${{ contains(needs.build.outputs.version, '-') && !contains(needs.build.outputs.version, '-java11') }}
           generate_release_notes: true
