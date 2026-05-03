@@ -1,19 +1,30 @@
-# Continuous Integration - Build and Test
-# Triggers on push to master and pull requests
-
 name: CI
 
 on:
   push:
     branches: [ master ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
   pull_request:
     branches: [ master ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 jobs:
   build:
     name: Build and Test
     runs-on: windows-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -23,25 +34,11 @@ jobs:
         with:
           distribution: oracle
           java-version: '25'
+          cache: 'maven'
 
-      - name: Verify Java version
-        run: java --version
+      - name: Build
+        run: mvn clean package -B
 
-      - name: Cache Maven dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
-
-      - name: Compile
-        run: mvn clean compile -B
-
-      - name: Run tests
-        run: mvn test -B
-      - name: Build package
-        run: mvn package -B -DskipTests
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
@@ -49,7 +46,9 @@ jobs:
           name: test-results
           path: target/surefire-reports/
           retention-days: 7
+
       - name: Upload EXE artifact
+        if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
           name: UsbThief-exe
@@ -57,33 +56,9 @@ jobs:
           retention-days: 14
 
       - name: Upload ZIP artifact
+        if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
           name: UsbThief-zip
           path: target/UsbThief-*.zip
           retention-days: 14
-
-  lint:
-    name: Code Quality Check
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Java 25
-        uses: actions/setup-java@v5
-        with:
-          distribution: oracle
-          java-version: '25'
-
-      - name: Cache Maven dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
-
-      - name: Compile (check for errors)
-        run: mvn compile -B

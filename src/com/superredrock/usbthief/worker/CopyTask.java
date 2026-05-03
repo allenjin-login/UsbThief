@@ -135,6 +135,7 @@ public class CopyTask implements Callable<CopyResult> {
                     deviceSerial
             ));
         }
+        logger.info("Copied: {}",processingPath);
 
         // Check for interruption after finally (in case interruption occurred during file operations)
         if (Thread.currentThread().isInterrupted() && result == CopyResult.SUCCESS){
@@ -163,7 +164,7 @@ public class CopyTask implements Callable<CopyResult> {
                 if (now - lastLog >= LOG_INTERVAL_MS) {
                     if (lastLogTime.compareAndSet(lastLog, now)) {
                         double speed = speedCollector.getProbeGroup().getTotalSpeed();
-                        logger.info("Copying: {} - Global: {} MB/s",
+                        logger.debug("Copying: {} - Global: {} MB/s",
                             source.getFileName(), String.format("%.2f", speed));
                     }
                 }

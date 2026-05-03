@@ -3,8 +3,8 @@ module UsbThief {
     requires java.prefs;
     requires java.desktop;
     requires com.formdev.flatlaf;
-    requires transitive com.sun.jna;
-    requires transitive com.sun.jna.platform;
+    requires com.sun.jna;
+    requires com.sun.jna.platform;
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
     requires com.github.benmanes.caffeine;

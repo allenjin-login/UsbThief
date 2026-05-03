@@ -81,7 +81,7 @@ public class VerifyTask implements Callable<CopyResult> {
 
             size = attrs.size();
             if (size > 10L * 1024 * 1024 * 1024) {
-                logger.info("File too big, skipping verify: {}", processingPath);
+                logger.warn("File too big, skipping verify: {}", processingPath);
                 TaskScheduler.getInstance().submit(new CopyTask(processingPath, deviceSerial, null));
                 return CopyResult.SKIPPED;
             }

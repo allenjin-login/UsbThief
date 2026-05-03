@@ -3,6 +3,7 @@ package com.superredrock.usbthief.index;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
@@ -83,5 +84,61 @@ class IndexDiskStoreTest {
 
         Map<Path, CheckSum> entries = store.load();
         assertTrue(entries.isEmpty());
+    }
+
+    @Test
+    void loadEmptyFileReturnsEmpty(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("empty.idx");
+        Files.createFile(file);
+        IndexDiskStore store = new IndexDiskStore(file);
+        Map<Path, CheckSum> entries = store.load();
+        assertTrue(entries.isEmpty());
+    }
+
+    @Test
+    void appendDuplicatePathKeepsLatest(@TempDir Path dir) {
+        Path file = dir.resolve("dup.idx");
+        IndexDiskStore store = new IndexDiskStore(file);
+
+        Path pathA = Path.of("E:\\test\\file.txt");
+        CheckSum csOld = new CheckSum(HASH_A);
+        CheckSum csNew = new CheckSum(HASH_B);
+
+        store.append(pathA, csOld);
+        store.append(pathA, csNew);
+
+        Map<Path, CheckSum> entries = store.load();
+        assertEquals(1, entries.size());
+        assertEquals(csNew, entries.get(pathA));
+    }
+
+    @Test
+    void clearRemovesAllData(@TempDir Path dir) {
+        Path file = dir.resolve("clear.idx");
+        IndexDiskStore store = new IndexDiskStore(file);
+
+        store.append(Path.of("E:\\a.txt"), new CheckSum(HASH_A));
+        store.append(Path.of("E:\\b.txt"), new CheckSum(HASH_B));
+
+        store.clear();
+
+        Map<Path, CheckSum> entries = store.load();
+        assertTrue(entries.isEmpty());
+    }
+
+    @Test
+    void largeDataset(@TempDir Path dir) {
+        Path file = dir.resolve("large.idx");
+        IndexDiskStore store = new IndexDiskStore(file);
+
+        int count = 100;
+        for (int i = 0; i < count; i++) {
+            byte[] hash = new byte[32];
+            hash[0] = (byte) i;
+            store.append(Path.of("E:\\file_" + i + ".txt"), new CheckSum(hash));
+        }
+
+        Map<Path, CheckSum> entries = store.load();
+        assertEquals(count, entries.size());
     }
 }

@@ -8,7 +8,7 @@ public class ClockThread extends Thread {
 
     private static final AtomicInteger counter = new AtomicInteger(0);
 
-    private long remaining;
+    private volatile long remaining;
     private final TimeUnit unit;
     private volatile boolean paused = false;
     private volatile boolean cancelled = false;
@@ -50,7 +50,6 @@ public class ClockThread extends Thread {
                 }
             }
 
-
             long start = System.currentTimeMillis();
             try {
                 unit.sleep(1);
@@ -59,12 +58,9 @@ public class ClockThread extends Thread {
                 return;
             }
 
-
             if (!paused && !cancelled) {
-                synchronized (this){
-                    long e = unit.convert(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS);
-                    remaining -= e;
-                }
+                long elapsed = unit.convert(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS);
+                remaining -= elapsed;
             }
         }
 
@@ -97,7 +93,7 @@ public class ClockThread extends Thread {
         notifyAll();
     }
 
-    public synchronized long getRemaining(TimeUnit targetUnit) {
+    public long getRemaining(TimeUnit targetUnit) {
         return targetUnit.convert(remaining, this.unit);
     }
 

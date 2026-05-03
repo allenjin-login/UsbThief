@@ -1,6 +1,3 @@
-# Release - Build and Publish
-# Triggers on version tags (v*)
-
 name: Release
 
 on:
@@ -11,14 +8,17 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
 jobs:
   build:
     name: Build Release Artifacts
     runs-on: windows-latest
-    
+
     outputs:
       version: ${{ steps.version.outputs.version }}
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -28,17 +28,7 @@ jobs:
         with:
           distribution: oracle
           java-version: '25'
-
-      - name: Verify Java version
-        run: java --version
-
-      - name: Cache Maven dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+          cache: 'maven'
 
       - name: Extract version from tag
         id: version
@@ -56,18 +46,8 @@ jobs:
           Write-Host "Setting version to: $version"
           mvn versions:set "-DnewVersion=$version" "-DgenerateBackupPoms=false" -B
 
-      - name: Run tests
-        run: mvn test -B
-        continue-on-error: true
-
       - name: Build package (EXE + ZIP)
-        run: mvn package -B -DskipTests
-
-      - name: List build artifacts
-        run: |
-          echo "=== Build Artifacts ==="
-          dir target\*.exe
-          dir target\*.zip
+        run: mvn clean package -B
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
@@ -87,7 +67,7 @@ jobs:
     name: Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -104,24 +84,21 @@ jobs:
           name: UsbThief-${{ needs.build.outputs.version }}-zip
           path: ./artifacts/
 
-      - name: List artifacts
-        run: ls -la ./artifacts/
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           name: UsbThief ${{ needs.build.outputs.version }}
           body: |
             ## UsbThief ${{ needs.build.outputs.version }}
-            
+
             ### Downloads
             - **UsbThief-${{ needs.build.outputs.version }}.zip** - Full distribution (EXE + custom runtime)
             - **UsbThief-${{ needs.build.outputs.version }}.exe** - Standalone executable
-            
+
             ### System Requirements
             - Windows 10/11 (64-bit)
             - No Java installation required (custom JRE included)
-            
+
             ### Changelog
             See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/master/CHANGELOG.md) for details.
           files: |
