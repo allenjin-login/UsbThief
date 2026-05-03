@@ -7,7 +7,7 @@
     <groupId>com.superredrock</groupId>
     <artifactId>UsbThief</artifactId>
     <!-- Version: major.minor.patch (SemVer) -->
-    <version>1.2.0</version>
+    <version>1.2.1</version>
 
     <name>UsbThief</name>
     <description>USB device monitoring and file copying tool</description>
@@ -26,7 +26,7 @@
         <!-- Version components (for resource filtering and Launch4j) -->
         <project.version.major>1</project.version.major>
         <project.version.minor>2</project.version.minor>
-        <project.version.patch>0</project.version.patch>
+        <project.version.patch>1</project.version.patch>
         <build.timestamp>${maven.build.timestamp}</build.timestamp>
         <maven.build.timestamp.format>yyyyMMdd</maven.build.timestamp.format>
         <!-- Jlink configuration -->

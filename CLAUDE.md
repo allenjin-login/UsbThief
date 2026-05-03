@@ -144,7 +144,16 @@ This application is Windows-only due to:
 
 ## Release Process
 
-The `mvn package` command produces:
+`mvn package` produces:
 - `target/UsbThief-{version}.exe` - Launch4j Windows executable
 - `target/UsbThief-{version}.zip` - Distribution with bundled jlink runtime
 - `target/runtime/` - Custom JRE image
+
+### Release Checklist
+
+1. **Update version** — edit `<version>` in `pom.xml` to the new version
+2. **Update README.md** — reflect any changes (features, screenshots, requirements)
+3. **Update CLAUDE.md** — ensure architecture docs and commands stay current
+4. **Tag and push** — `git tag v<version> && git push origin master --tags`
+
+The `release.yml` workflow triggers on `v*` tags, builds artifacts on Windows, and creates a GitHub Release with EXE + ZIP.

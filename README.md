@@ -1,336 +1,153 @@
 # UsbThief
 
-<p align="center">
-  <img src="src/com/superredrock/usbthief/gui/App.png" alt="UsbThief Logo" width="32" height="32">
-</p>
+USB device monitoring and file copying tool for Windows.
 
-<p align="center">
-  <strong>Smart USB Device Monitoring & File Copying Utility for Windows</strong>
-</p>
-
-<p align="center">
-  <a href="#features">Features</a> •
-  <a href="#installation">Installation</a> •
-  <a href="#usage">Usage</a> •
-  <a href="#configuration">Configuration</a> •
-  <a href="#tech-stack">Tech Stack</a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/superRedRock/usb-thief/releases">
-    <img src="https://img.shields.io/github/v/release/superRedRock/usb-thief?include_prereleases&style=flat-square" alt="Release">
-  </a>
-  <a href="https://github.com/superRedRock/usb-thief/blob/master/LICENSE">
-    <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License">
-  </a>
-  <img src="https://img.shields.io/badge/Java-25%20%28Preview%29-orange?style=flat-square" alt="Java 25">
-  <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=flat-square" alt="Platform">
-  <a href="https://github.com/superRedRock/usb-thief/actions">
-    <img src="https://img.shields.io/github/actions/workflow/status/superRedRock/usb-thief/build.yml?branch=master&style=flat-square" alt="Build">
-  </a>
-</p>
-
----
-
-## Overview
-
-UsbThief is a Windows desktop application that automatically detects USB drives, monitors file changes in real-time, and copies files with intelligent deduplication. Built with Java 25 and a modern Swing UI, it runs quietly in the background or system tray.
-
-**Why UsbThief?**
-- Automatic USB detection and file monitoring
-- MD5 checksum-based deduplication (copies only new files)
-- Priority-based scheduling (important files first)
-- Adaptive load control (adjusts to system conditions)
-- Hot language switching (English, Chinese, German)
-- System tray integration for background operation
-
----
+English | [中文](#中文)
 
 ## Features
 
-### Core Capabilities
+- **Auto Detection** — Automatically detects USB drives and monitors file changes in real-time via WatchService
+- **Smart Deduplication** — MD5 checksum-based deduplication with Caffeine LRU cache and binary disk persistence
+- **Rate Limiting** — Adaptive bandwidth control with auto/manual modes and real-time speed chart
+- **Device Management** — Enable/disable individual volumes, blacklist devices by serial number, batch operations
+- **File Filtering** — By extension (whitelist/blacklist), size, time, hidden files, and symlinks
+- **Storage Control** — Disk space monitoring with OK/LOW/CRITICAL thresholds and automatic recycling
+- **Statistics** — Cumulative and per-session metrics: files copied, speed, extension counts, error tracking
+- **Internationalization** — English, Chinese, Japanese, German with runtime switching
+- **System Tray** — Minimize to tray, auto-start on login, start hidden
+- **Dark/Light Theme** — FlatLaf-based theming with toggle
 
-| Feature | Description |
-|---------|-------------|
-| **USB Detection** | Real-time monitoring with automatic drive detection |
-| **Two-Phase Scanning** | Initial scan, then WatchService for incremental changes |
-| **Checksum Deduplication** | MD5-based duplicate detection with Caffeine LRU cache + binary disk store |
-| **Priority Scheduling** | Extension-based priorities (PDF=10, DOCX=8, TXT=5, TMP=1) |
-| **Volume Eject Handling** | Blocks Windows eject, interrupts active copies, preserves cooldown timers |
-| **Storage Management** | Configurable storage limits with OK/LOW/CRITICAL thresholds and auto-cleanup |
-| **File Size Filter** | Skip files below configurable minimum size |
-| **System Directory Filter** | Automatically skips Windows system and chkdsk recovery folders |
-| **Ghost Device Persistence** | Remembers offline devices, restores on reconnect |
-| **Debug Dashboard** | Global debug panel with sniffer, volume, task, and storage tabs |
-| **System Tray Integration** | Minimize to tray for background operation |
+## Requirements
 
-### User Interface
-
-- Modern Swing UI with FlatLaf 3.5.4 (light/dark themes)
-- Tabbed interface with device list, statistics, and logs
-- Compact device cards with real-time status and controls
-- Configurable filters, storage management, and rate limiting
-- First-run welcome dialog
-
-### Internationalization
-
-| Language | Status |
-|----------|--------|
-| English (en) | Complete |
-| Chinese Simplified (zh_CN) | Complete |
-| Japanese (ja) | Complete |
-| German (de) | Complete |
-
-Languages can be switched at runtime without restarting the application.
-
----
-
-## Screenshots
-
-> **Note:** Screenshots will be added in a future release.
-
-<!--
-<p align="center">
-  <img src="docs/screenshots/main.png" alt="Main Interface" width="600">
-  <br><em>Main interface with device list and file history</em>
-</p>
--->
-
----
-
-## Installation
-
-### Option 1: Download Release (Recommended)
-
-Download the latest release from the [Releases](https://github.com/superRedRock/usb-thief/releases) page:
-
-1. Download `UsbThief-x.x.x.zip`
-2. Extract to your preferred location
-3. Run `UsbThief-x.x.x.exe`
-
-The distribution includes a custom JRE built with jlink, so no Java installation is required.
-
-### Option 2: Build from Source
-
-<details>
-<summary>Click to expand build instructions</summary>
-
-#### Prerequisites
-
-- Java 25 JDK (or later)
+- Windows 10/11 (64-bit)
+- Java 25 JDK (uses preview features)
 - Maven 3.9+
 
-#### Steps
+## Build
 
 ```bash
-# Clone the repository
-git clone https://github.com/superRedRock/usb-thief.git
-cd usb-thief
-
-# Compile
-mvn clean compile
-
-# Run tests
-mvn test
-
-# Build EXE + ZIP distribution
-mvn package
+mvn clean package
 ```
 
-The built files will be in `target/`:
-- `UsbThief-{version}.exe` - Windows executable
-- `UsbThief-{version}.zip` - Distribution package
-- `runtime/` - Custom JRE
+Produces:
+- `target/UsbThief-{version}.exe` — Windows executable (Launch4j)
+- `target/UsbThief-{version}.zip` — Distribution with bundled jlink runtime
+- `target/runtime/` — Custom JRE image
 
-#### Run from Source (Development)
+## Run from Source
 
 ```bash
-# Compile and copy dependencies
-mvn compile dependency:copy-dependencies -DoutputDirectory=target/libs
-
-# Run directly
-java -p "target/classes;target/libs" -m UsbThief/com.superredrock.usbthief.Main --enable-preview
+java -p target/classes -m UsbThief/com.superredrock.usbthief.Main --enable-preview
 ```
-
-</details>
-
----
-
-## Usage
-
-### Quick Start
-
-1. **Launch** UsbThief.exe
-2. **Configure** the destination folder via Settings dialog
-3. **Insert** a USB drive - it will be detected automatically
-4. **Monitor** the file history and statistics tabs
-
-### Device Management
-
-- **Enable/Disable**: Toggle device monitoring with the enable button
-- **Scan Now**: Trigger immediate file scan
-- **Pause/Resume**: Control scanning per device
-
-### Configuration
-
-Configure these via **Settings > Configuration**:
-
-| Setting | Description |
-|---------|-------------|
-| Destination Folder | Where copied files are stored |
-| File Filters | Include/exclude patterns |
-| Rate Limiting | Maximum copy speed |
-| Priority Rules | File type priorities |
-
-### System Tray
-
-When minimized, UsbThief runs in the system tray. Right-click the tray icon for quick actions:
-
-- Show/Hide window
-- Pause/Resume all operations
-- Exit application
-
----
 
 ## Configuration
 
-Configuration files are stored in `~/.usbthief/`:
+All settings are accessible via the GUI:
+
+| Setting | Description |
+|---------|-------------|
+| File Filters | Extension whitelist/blacklist, max file size, time range, hidden files |
+| Rate Limit | Adaptive bandwidth control, base rate, load-level percentages |
+| Storage Management | Reserved space, max copy space, recycle strategy, protected file age |
+| Device Blacklist | Block devices by serial number |
+| Auto-start | Launch on Windows login |
+| Language | English / 中文 / 日本語 / Deutsch |
+
+Configuration is stored in XML and supports import/export.
+
+## Architecture
+
+Built with Java 25 (JPMS modules), Swing + FlatLaf, JNA for Windows API, Log4j2, and Caffeine cache.
 
 ```
-~/.usbthief/
-├── languages.properties    # Language preferences
-├── devices/                # Ghost device records
-│   ├── ABC123.record       # Per-device persistence
-│   └── XYZ789.record
-└── index/                  # Checksum index
+USB Detection (JNA) → Sniffer (WatchService) → CopyTask → Index (dedup) → NIO copy
+                                                          ↓
+                                              TaskScheduler (priority queue)
+                                                          ↓
+                                              RateLimiter → StorageController
 ```
 
-All directories are auto-created on first run.
-
-<details>
-<summary>Language Configuration</summary>
-
-Edit `~/.usbthief/languages.properties` to customize:
-
-```properties
-# Set language priority (higher = first in menu)
-zh_CN.priority=10
-en.priority=5
-
-# Custom display names
-zh_CN.displayName=Simplified Chinese
-zh_CN.nativeName=简体中文
-
-# Set default language
-default.language=en
-```
-
-</details>
-
----
-
-## Tech Stack
-
-| Category | Technology |
-|----------|------------|
-| **Language** | Java 25 (modular, JPMS, preview features) |
-| **UI Framework** | Swing with FlatLaf 3.5.4 |
-| **Build System** | Maven 3.9+ |
-| **Runtime** | Custom JRE via jlink |
-| **Packaging** | Launch4j (Windows EXE) |
-| **Testing** | JUnit 5.11.4, Mockito 5.15.2 |
-| **Platform** | Windows only |
-
-### Architecture Highlights
-
-- **Event-driven**: EventBus with parallel listener dispatch
-- **Thread-based services**: Each service runs in its own Thread with tick-based execution
-- **CompletableFuture chains**: ClockThread and Sniffer use async chaining for lifecycle control
-- **LRU cache + binary persistence**: Index uses Caffeine in-memory cache backed by custom binary disk format
-- **Singleton pattern**: Central managers (ConfigManager, EventBus, I18NManager)
-- **Immutable events**: All events are immutable after creation
-- **Thread-safe collections**: CopyOnWriteArrayList, ConcurrentHashMap throughout
-
----
-
-## Contributing
-
-Contributions are welcome. Here's how to help:
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
-
-### Development Guidelines
-
-- Follow the existing code style (see `AGENTS.md` in the repo)
-- Write tests for new functionality
-- Update documentation for user-facing changes
-- Ensure `mvn test` passes before submitting PRs
-
----
-
-## Changelog
-
-### v1.2.0 (2026-05-01)
-
-**Index System Rewrite**
-- Rewritten Index with Caffeine LRU cache for O(1) in-memory lookups
-- Custom binary disk store (`IndexDiskStore`) replacing Java serialization
-- Configurable cache size via `INDEX_CACHE_SIZE`
-- In-memory disk index cache for fast startup
-
-**ClockThread Rewrite**
-- Rewritten with CompletableFuture, lifecycle control, and chain API
-- Replaced SLM cooldown polling with ClockThread-based timers
-- Thread safety fixes for cancel/interrupt lifecycle
-
-**Volume Eject State**
-- Handle `DBT_DEVICEQUERYREMOVE` to block Windows eject
-- Interrupt active NIO copies when volume enters EJECTING state
-- Preserve cooldown timers across device eject/remove cycles
-
-**Storage Management**
-- Configurable storage limits with OK/LOW/CRITICAL thresholds
-- Toggle storage management on/off via settings
-- `RecyclerService` auto-cleanup when space is low
-- File size filter to skip files below minimum size
-
-**Debug Dashboard**
-- Global debug panel replacing per-sniffer debug views
-- 4 tabs: Sniffer lifecycle, Volume states, Task queue, Storage status
-- Live-updating with polling-based snapshots
-
-**Other Improvements**
-- Move dialogs to `gui.dailog` package for better organization
-- `SystemDirectoryFilter` now exposes `isSystemDirName()` as public API
-- Japanese language support added
-- Compact UI redesign with speed chart and dynamic tray icons
-
----
+See [CLAUDE.md](CLAUDE.md) for detailed architecture documentation.
 
 ## License
 
-This project is licensed under the MIT License.
-
-```
-Copyright (c) 2026 SuperRedRock
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-```
+Copyright (C) 2026 SuperRedRock
 
 ---
 
-<p align="center">
-  Made with care by <a href="https://github.com/superRedRock">SuperRedRock</a>
-</p>
+<a id="中文"></a>
+
+# 中文
+
+Windows USB 设备监控与文件复制工具。
+
+[English](#usbthief) | 中文
+
+## 功能
+
+- **自动检测** — 自动检测 USB 设备，通过 WatchService 实时监控文件变化
+- **智能去重** — 基于 MD5 校验和的去重，使用 Caffeine LRU 缓存 + 二进制磁盘持久化
+- **速率限制** — 自适应带宽控制，支持自动/手动模式和实时速度图表
+- **设备管理** — 单独启用/禁用卷、按序列号拉黑设备、批量操作
+- **文件过滤** — 按扩展名（白名单/黑名单）、大小、时间、隐藏文件和符号链接过滤
+- **存储控制** — 磁盘空间监控，OK/LOW/CRITICAL 三级阈值，自动回收
+- **统计信息** — 累计和当前会话指标：已复制文件数、速度、扩展名统计、错误追踪
+- **多语言** — 英语、中文、日语、德语，支持运行时切换
+- **系统托盘** — 最小化到托盘、开机自启、启动时隐藏
+- **深色/浅色主题** — 基于 FlatLaf 的主题切换
+
+## 环境要求
+
+- Windows 10/11（64 位）
+- Java 25 JDK（使用预览特性）
+- Maven 3.9+
+
+## 构建
+
+```bash
+mvn clean package
+```
+
+产出物：
+- `target/UsbThief-{version}.exe` — Windows 可执行文件（Launch4j）
+- `target/UsbThief-{version}.zip` — 包含 jlink 运行时的发行包
+- `target/runtime/` — 自定义 JRE 镜像
+
+## 从源码运行
+
+```bash
+java -p target/classes -m UsbThief/com.superredrock.usbthief.Main --enable-preview
+```
+
+## 配置
+
+所有设置均可通过 GUI 界面访问：
+
+| 设置 | 说明 |
+|------|------|
+| 文件过滤 | 扩展名白名单/黑名单、最大文件大小、时间范围、隐藏文件 |
+| 速率限制 | 自适应带宽控制、基准速率、负载级别百分比 |
+| 存储管理 | 预留空间、最大复制空间、回收策略、受保护文件时长 |
+| 设备黑名单 | 按序列号屏蔽设备 |
+| 开机自启 | Windows 登录时自动启动 |
+| 语言 | English / 中文 / 日本語 / Deutsch |
+
+配置以 XML 存储，支持导入/导出。
+
+## 架构
+
+基于 Java 25（JPMS 模块）、Swing + FlatLaf、JNA（Windows API）、Log4j2 和 Caffeine 缓存构建。
+
+```
+USB 检测 (JNA) → Sniffer (WatchService) → CopyTask → Index (去重) → NIO 复制
+                                                          ↓
+                                              TaskScheduler (优先级队列)
+                                                          ↓
+                                              RateLimiter → StorageController
+```
+
+详细架构文档见 [CLAUDE.md](CLAUDE.md)。
+
+## 许可证
+
+Copyright (C) 2026 SuperRedRock
