@@ -125,7 +125,7 @@ public abstract class Service extends Thread implements Closeable {
         }
     }
 
-    public void resume() {
+    public void resumeService() {
         stateLock.lock();
         try {
             if (state != ServiceState.PAUSED) {

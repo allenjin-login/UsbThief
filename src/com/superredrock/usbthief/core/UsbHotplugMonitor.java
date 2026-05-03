@@ -295,56 +295,56 @@ public class UsbHotplugMonitor {
             throw new IllegalStateException("Monitor already running");
         }
 
-        messageThread = Thread.ofPlatform()
-                .name("UsbHotplugMonitor-MsgThread")
-                .daemon(true)
-                .start(() -> {
-                    String className = "UsbThiefMonitorClass";
-                    WNDCLASSEX wndClass = new WNDCLASSEX();
-                    wndClass.lpszClassName = className;
-                    wndClass.lpfnWndProc = windowProc;
-                    wndClass.hInstance = Kernel32.INSTANCE.GetModuleHandle(null);
-                    user32.RegisterClassEx(wndClass);
+        messageThread = new Thread(() -> {
+            String className = "UsbThiefMonitorClass";
+            WNDCLASSEX wndClass = new WNDCLASSEX();
+            wndClass.lpszClassName = className;
+            wndClass.lpfnWndProc = windowProc;
+            wndClass.hInstance = Kernel32.INSTANCE.GetModuleHandle(null);
+            user32.RegisterClassEx(wndClass);
 
-                    hwnd = user32.CreateWindowEx(
-                            0, className, "UsbThiefMonitor", 0,
-                            0, 0, 0, 0,
-                            null, null, wndClass.hInstance, null
-                    );
+            hwnd = user32.CreateWindowEx(
+                    0, className, "UsbThiefMonitor", 0,
+                    0, 0, 0, 0,
+                    null, null, wndClass.hInstance, null
+            );
 
-                    if (hwnd == null) {
-                        logger.error("Failed to create hidden window for UsbHotplugMonitor");
-                        return;
-                    }
+            if (hwnd == null) {
+                logger.error("Failed to create hidden window for UsbHotplugMonitor");
+                return;
+            }
 
-                    hDeviceNotify = registerDeviceInterfaceNotification(hwnd);
-                    if (hDeviceNotify == null) {
-                        int error = Kernel32.INSTANCE.GetLastError();
-                        logger.warn("Failed to register for device interface notifications, error: {} (continuing with volume-only mode)", error);
-                    }
+            hDeviceNotify = registerDeviceInterfaceNotification(hwnd);
+            if (hDeviceNotify == null) {
+                int error = Kernel32.INSTANCE.GetLastError();
+                logger.warn("Failed to register for device interface notifications, error: {} (continuing with volume-only mode)", error);
+            }
 
-                    running = true;
-                    logger.info("USB hot-plug monitor started with hidden window hwnd={}", hwnd);
+            running = true;
+            logger.info("USB hot-plug monitor started with hidden window hwnd={}", hwnd);
 
-                    MSG msg = new MSG();
-                    while (user32.GetMessage(msg, null, 0, 0) > 0) {
-                        user32.TranslateMessage(msg);
-                        user32.DispatchMessage(msg);
-                    }
+            MSG msg = new MSG();
+            while (user32.GetMessage(msg, null, 0, 0) > 0) {
+                user32.TranslateMessage(msg);
+                user32.DispatchMessage(msg);
+            }
 
-                    for (String dl : volumeHandleRegs.keySet().toArray(new String[0])) {
-                        cleanupVolumeHandle(dl);
-                    }
-                    if (hDeviceNotify != null) {
-                        user32.UnregisterDeviceNotification(hDeviceNotify);
-                        hDeviceNotify = null;
-                    }
-                    user32.DestroyWindow(hwnd);
-                    user32.UnregisterClass(className, wndClass.hInstance);
-                    hwnd = null;
-                    running = false;
-                    logger.info("USB hot-plug monitor message loop exited");
-                });
+            for (String dl : volumeHandleRegs.keySet().toArray(new String[0])) {
+                cleanupVolumeHandle(dl);
+            }
+            if (hDeviceNotify != null) {
+                user32.UnregisterDeviceNotification(hDeviceNotify);
+                hDeviceNotify = null;
+            }
+            user32.DestroyWindow(hwnd);
+            user32.UnregisterClass(className, wndClass.hInstance);
+            hwnd = null;
+            running = false;
+            logger.info("USB hot-plug monitor message loop exited");
+        });
+        messageThread.setName("UsbHotplugMonitor-MsgThread");
+        messageThread.setDaemon(true);
+        messageThread.start();
     }
 
     public synchronized void start(long hwndValue) {

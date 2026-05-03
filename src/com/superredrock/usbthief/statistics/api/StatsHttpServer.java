@@ -34,7 +34,7 @@ public final class StatsHttpServer {
             server = HttpServer.create(new InetSocketAddress(port), 0);
             server.createContext("/api/stats/stream", handler::handleStream);
             server.createContext("/api/stats", handler::handleStats);
-            server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
+            server.setExecutor(Executors.newCachedThreadPool());
             server.start();
 
             // Push SSE updates every 2 seconds

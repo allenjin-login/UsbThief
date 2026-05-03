@@ -21,6 +21,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
+        <maven.compiler.release>11</maven.compiler.release>
         <junit.version>5.11.4</junit.version>
         <mockito.version>5.15.2</mockito.version>
         <!-- Version components (for resource filtering and Launch4j) -->

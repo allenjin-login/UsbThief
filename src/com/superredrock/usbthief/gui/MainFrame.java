@@ -553,7 +553,7 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         if (startHidden) {
             windowVisible = false;
             setVisible(false);
-            logger.info("Application started hidden (startHidden=%s)".formatted(true));
+            logger.info(String.format("Application started hidden (startHidden=%s)", true));
         } else {
             windowVisible = true;
             setVisible(true);

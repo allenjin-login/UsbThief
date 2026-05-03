@@ -84,7 +84,7 @@ class ServiceTest {
         // Ticks may still increase briefly, but should stop within the wait period
         assertTrue(ticksAfterWait >= ticksWhenPaused);
 
-        svc.resume();
+        svc.resumeService();
         assertEquals(ServiceState.RUNNING, svc.getServiceState());
     }
 

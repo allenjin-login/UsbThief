@@ -79,7 +79,7 @@ class ClockThreadTest {
         // While paused, remaining should not decrease significantly
         assertTrue(remaining2 >= remaining1 - 50);
 
-        ct.resume();
+        ct.resumeCountdown();
         assertFalse(ct.isPaused());
         ct.onCountdown().get(5, TimeUnit.SECONDS);
         assertTrue(ct.isDone());
@@ -99,7 +99,7 @@ class ClockThreadTest {
         ClockThread ct = new ClockThread(200);
         ct.start();
         assertFalse(ct.isPaused());
-        assertDoesNotThrow(ct::resume);
+        assertDoesNotThrow(ct::resumeCountdown);
         ct.cancel();
     }
 

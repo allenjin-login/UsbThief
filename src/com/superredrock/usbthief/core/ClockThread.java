@@ -88,7 +88,7 @@ public class ClockThread extends Thread {
         }
     }
 
-    public synchronized void resume() {
+    public synchronized void resumeCountdown() {
         paused = false;
         notifyAll();
     }

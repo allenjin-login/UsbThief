@@ -33,7 +33,7 @@ public class LanguageDiscovery {
     private static void addLocaleFromMatcher(List<LanguageInfo> languages, Matcher matcher, String source) {
         String language = matcher.group(1);
         String country = matcher.group(2);
-        Locale locale = country != null ? Locale.of(language, country) : Locale.of(language);
+        Locale locale = country != null ? new Locale(language, country) : new Locale(language);
         languages.add(new LanguageInfo(locale));
         logger.debug("Discovered language from {}: {}", source, locale);
     }
