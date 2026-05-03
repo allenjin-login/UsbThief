@@ -19,14 +19,14 @@ mvn test
 mvn package
 
 # Run from source (development)
-java -p target/classes -m UsbThief/com.superredrock.usbthief.Main --enable-preview
+java -p target/classes -m UsbThief/com.superredrock.usbthief.Main
 ```
 
-**Requirements:** Java 25 JDK (uses preview features), Maven 3.9+
+**Requirements:** Java 11 JDK, Maven 3.9+
 
 ## Architecture Overview
 
-UsbThief is a Windows desktop application for USB device monitoring and file copying. Built with Java 25 (modular JPMS), Swing UI (FlatLaf), and JNA for Windows API integration.
+UsbThief is a Windows desktop application for USB device monitoring and file copying. Built with Java 11 (modular JPMS), Swing UI (FlatLaf), and JNA for Windows API integration.
 
 ### Package Structure
 
@@ -58,7 +58,7 @@ Services run as daemon threads with tick-based execution:
 - Singleton, thread-safe event dispatch
 - Synchronous listeners via `register()`, async via `registerAsync()`
 - Dispatch uses `parallelStream()` for concurrent listener notification
-- All events are immutable records
+- All events are immutable final classes
 
 **ClockThread** (`core.ClockThread`)
 - Timer thread using CompletableFuture for async chaining
@@ -154,6 +154,6 @@ This application is Windows-only due to:
 1. **Update version** — edit `<version>` in `pom.xml` to the new version
 2. **Update README.md** — reflect any changes (features, screenshots, requirements)
 3. **Update CLAUDE.md** — ensure architecture docs and commands stay current
-4. **Tag and push** — `git tag v<version> && git push origin master --tags`
+4. **Tag and push** — `git tag v<version> && git push origin java11 --tags`
 
 The `release.yml` workflow triggers on `v*` tags, builds artifacts on Windows, and creates a GitHub Release with EXE + ZIP.
