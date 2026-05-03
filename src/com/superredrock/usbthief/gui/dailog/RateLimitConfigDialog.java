@@ -155,7 +155,7 @@ public class RateLimitConfigDialog extends JDialog implements I18nManager.Locale
         gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 4;
         gbc.weightx = 0;
         resetButton = new JButton(i18n.getMessage("ratelimit.stats.resetButton"));
-        resetButton.addActionListener(_ -> resetStats());
+        resetButton.addActionListener(ignored -> resetStats());
         panel.add(resetButton, gbc);
 
         // Speed chart
@@ -226,13 +226,13 @@ public class RateLimitConfigDialog extends JDialog implements I18nManager.Locale
         panel.setBackground(ThemeManager.BACKGROUND_PRIMARY);
 
         saveButton = new JButton(i18n.getMessage("ratelimit.button.save"));
-        saveButton.addActionListener(_ -> saveAndClose());
+        saveButton.addActionListener(ignored -> saveAndClose());
 
         cancelButton = new JButton(i18n.getMessage("ratelimit.button.cancel"));
-        cancelButton.addActionListener(_ -> dispose());
+        cancelButton.addActionListener(ignored -> dispose());
 
         applyButton = new JButton(i18n.getMessage("ratelimit.button.apply"));
-        applyButton.addActionListener(_ -> applySettings());
+        applyButton.addActionListener(ignored -> applySettings());
 
         panel.add(applyButton);
         panel.add(cancelButton);
@@ -245,7 +245,7 @@ public class RateLimitConfigDialog extends JDialog implements I18nManager.Locale
      * Starts the update timer for refreshing statistics.
      */
     private void startUpdateTimer() {
-        updateTimer = new Timer(1000, _ -> updateStats());
+        updateTimer = new Timer(1000, ignored -> updateStats());
         updateTimer.start();
         // Initial update
         updateStats();

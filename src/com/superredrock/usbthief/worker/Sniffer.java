@@ -104,7 +104,7 @@ public class Sniffer extends Thread implements Closeable {
                                 .filter(suffixFilter.asPredicate())
                                 .peek(path -> {
                                     long fileSize = 0;
-                                    try {fileSize = Files.size(path);} catch (IOException _) {}
+                                    try {fileSize = Files.size(path);} catch (IOException ignored) {}
                                     EventBus.getInstance().dispatch(new FileDiscoveredEvent(path, fileSize, volume.getSerialNumber()));}
                                 )
                                 .forEach(path -> {

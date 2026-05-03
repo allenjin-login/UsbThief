@@ -82,7 +82,7 @@ public class TrayIconManager {
     public void onError() {
         currentState = TrayState.ERROR;
         applyIcon(TrayState.ERROR);
-        Timer recoverTimer = new Timer(5000, _ -> updateState());
+        Timer recoverTimer = new Timer(5000, ignored -> updateState());
         recoverTimer.setRepeats(false);
         recoverTimer.start();
     }
@@ -183,17 +183,17 @@ public class TrayIconManager {
     public void registerEventListeners() {
         EventBus eventBus = EventBus.getInstance();
 
-        eventBus.register(VolumeInsertedEvent.class, _ -> {
+        eventBus.register(VolumeInsertedEvent.class, ignored -> {
             onScanStarted();
             javax.swing.SwingUtilities.invokeLater(this::updateState);
         });
 
-        eventBus.register(VolumeRemovedEvent.class, _ -> {
+        eventBus.register(VolumeRemovedEvent.class, ignored -> {
             onScanEnded();
             javax.swing.SwingUtilities.invokeLater(this::updateState);
         });
 
-        eventBus.register(CopyCompletedEvent.class, _ -> {
+        eventBus.register(CopyCompletedEvent.class, ignored -> {
             javax.swing.SwingUtilities.invokeLater(this::updateState);
         });
     }

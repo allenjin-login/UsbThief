@@ -162,7 +162,7 @@ public class StatisticsPanel extends JPanel implements I18nManager.LocaleChangeL
     }
 
     private void startUpdateTimer() {
-        updateTimer = new Timer(1000, _ -> updateDisplay());
+        updateTimer = new Timer(1000, ignored -> updateDisplay());
         updateTimer.start();
     }
 

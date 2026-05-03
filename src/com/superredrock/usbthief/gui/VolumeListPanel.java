@@ -91,25 +91,25 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
         moreActionsMenu = new JPopupMenu();
 
         selectAllMenuItem = new JMenuItem(i18n.getMessage("device.menu.selectAll"));
-        selectAllMenuItem.addActionListener(_ -> setSelectAll(true));
+        selectAllMenuItem.addActionListener(ignored -> setSelectAll(true));
 
         deselectAllMenuItem = new JMenuItem(i18n.getMessage("device.menu.deselectAll"));
-        deselectAllMenuItem.addActionListener(_ -> setSelectAll(false));
+        deselectAllMenuItem.addActionListener(ignored -> setSelectAll(false));
 
         batchEnableMenuItem = new JMenuItem(i18n.getMessage("device.button.batchEnable"));
-        batchEnableMenuItem.addActionListener(_ -> batchEnable());
+        batchEnableMenuItem.addActionListener(ignored -> batchEnable());
         batchEnableMenuItem.setEnabled(false);
 
         batchDisableMenuItem = new JMenuItem(i18n.getMessage("device.button.batchDisable"));
-        batchDisableMenuItem.addActionListener(_ -> batchDisable());
+        batchDisableMenuItem.addActionListener(ignored -> batchDisable());
         batchDisableMenuItem.setEnabled(false);
 
         batchBlacklistMenuItem = new JMenuItem(i18n.getMessage("device.button.batchBlacklist"));
-        batchBlacklistMenuItem.addActionListener(_ -> batchAddToBlacklist());
+        batchBlacklistMenuItem.addActionListener(ignored -> batchAddToBlacklist());
         batchBlacklistMenuItem.setEnabled(false);
 
         blacklistManageMenuItem = new JMenuItem(i18n.getMessage("device.button.blacklistManage"));
-        blacklistManageMenuItem.addActionListener(_ -> BlacklistDialog.showBlacklistDialog(parentFrame));
+        blacklistManageMenuItem.addActionListener(ignored -> BlacklistDialog.showBlacklistDialog(parentFrame));
 
         moreActionsMenu.add(selectAllMenuItem);
         moreActionsMenu.add(deselectAllMenuItem);
@@ -132,7 +132,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
                 if (dev == null) {
                     noDevice.add(volume);
                 } else {
-                    byDevice.computeIfAbsent(dev, _ -> new java.util.ArrayList<>()).add(volume);
+                    byDevice.computeIfAbsent(dev, ignored -> new java.util.ArrayList<>()).add(volume);
                 }
             }
 
@@ -157,7 +157,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
     }
 
     private void startUpdateTimer() {
-        updateTimer = new Timer(1000, _ -> {
+        updateTimer = new Timer(1000, ignored -> {
             if (mainFrame != null) {
                 mainFrame.updateStatusBar();
             }
@@ -383,7 +383,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
 
     private VolumeCard createVolumeCard(Volume volume) {
         VolumeCard card = new VolumeCard(volume, parentFrame, deviceManager);
-        card.getCheckBox().addItemListener(_ -> updateBatchButtons());
+        card.getCheckBox().addItemListener(ignored -> updateBatchButtons());
         return card;
     }
 
@@ -469,7 +469,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
             toggleButton.setBorderPainted(false);
             toggleButton.setContentAreaFilled(false);
             toggleButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-            toggleButton.addActionListener(_ -> toggleExpanded());
+            toggleButton.addActionListener(ignored -> toggleExpanded());
 
             // Info label
             infoLabel = new JLabel(buildInfoText());
@@ -479,11 +479,11 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
             // More button + menu
             groupMenu = new JPopupMenu();
             batchEnableItem = new JMenuItem(i18n.getMessage("device.group.batchEnable"));
-            batchEnableItem.addActionListener(_ -> batchEnableAll());
+            batchEnableItem.addActionListener(ignored -> batchEnableAll());
             batchDisableItem = new JMenuItem(i18n.getMessage("device.group.batchDisable"));
-            batchDisableItem.addActionListener(_ -> batchDisableAll());
+            batchDisableItem.addActionListener(ignored -> batchDisableAll());
             batchBlacklistItem = new JMenuItem(i18n.getMessage("device.group.batchBlacklist"));
-            batchBlacklistItem.addActionListener(_ -> blacklistDevice());
+            batchBlacklistItem.addActionListener(ignored -> blacklistDevice());
             groupMenu.add(batchEnableItem);
             groupMenu.add(batchDisableItem);
             groupMenu.addSeparator();
@@ -525,7 +525,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
                 .mapToLong(v -> {
                     try {
                         return v.getFileStore() != null ? v.getFileStore().getTotalSpace() : 0;
-                    } catch (IOException _) { return 0; }
+                    } catch (IOException ignored) { return 0; }
                 })
                 .sum();
             sb.append(i18n.getMessage("device.group.totalCapacity", SizeFormatter.format(totalBytes)));
@@ -678,7 +678,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
 
             cardMenu = new JPopupMenu();
             detailMenuItem = new JMenuItem(i18n.getMessage("device.card.button.details"));
-            detailMenuItem.addActionListener(_ -> showDetailDialog());
+            detailMenuItem.addActionListener(ignored -> showDetailDialog());
             cardMenu.add(detailMenuItem);
 
             toggleMenuItem = null;
@@ -687,15 +687,15 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
 
             if (volume.isPresent()) {
                 toggleMenuItem = new JMenuItem(getToggleButtonText());
-                toggleMenuItem.addActionListener(_ -> toggleVolume());
+                toggleMenuItem.addActionListener(ignored -> toggleVolume());
                 cardMenu.add(toggleMenuItem);
 
                 blacklistMenuItem = new JMenuItem(i18n.getMessage("device.card.button.blacklist"));
-                blacklistMenuItem.addActionListener(_ -> addToBlacklist());
+                blacklistMenuItem.addActionListener(ignored -> addToBlacklist());
                 cardMenu.add(blacklistMenuItem);
 
                 removeMenuItem = new JMenuItem(i18n.getMessage("device.card.button.remove"));
-                removeMenuItem.addActionListener(_ -> removeVolume());
+                removeMenuItem.addActionListener(ignored -> removeVolume());
                 cardMenu.add(removeMenuItem);
 
                 updateButtonEnabled();

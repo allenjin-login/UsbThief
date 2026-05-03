@@ -113,7 +113,7 @@ public class SystemTrayIcon {
             trayIconManager.registerEventListeners();
 
             // Periodic state update
-            stateTimer = new Timer(1000, _ -> {
+            stateTimer = new Timer(1000, ignored -> {
                 trayIconManager.updateState();
                 updateDynamicMenuItems();
             });
@@ -149,7 +149,7 @@ public class SystemTrayIcon {
                     logger.debug("Loaded tray icon: {}", name);
                     return icon.getImage();
                 }
-            } catch (Exception _) {
+            } catch (Exception ignored) {
                 // Continue to next format
             }
         }

@@ -167,7 +167,7 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         }
 
         // Timer to update stats
-        Timer statsTimer = new Timer(1000, _ -> updateCompactStats());
+        Timer statsTimer = new Timer(1000, ignored -> updateCompactStats());
         statsTimer.start();
 
         return panel;
@@ -226,49 +226,49 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         JMenu actionMenu = new JMenu(i18n.getMessage("menu.action"));
 
         JMenuItem saveIndexItem = new JMenuItem(i18n.getMessage("menu.action.saveIndex"));
-        saveIndexItem.addActionListener(_ -> saveIndex());
+        saveIndexItem.addActionListener(ignored -> saveIndex());
         actionMenu.add(saveIndexItem);
 
         actionMenu.addSeparator();
 
         JMenuItem clearStatsItem = new JMenuItem(i18n.getMessage("menu.action.clearStats"));
-        clearStatsItem.addActionListener(_ -> clearStatistics());
+        clearStatsItem.addActionListener(ignored -> clearStatistics());
         actionMenu.add(clearStatsItem);
 
         JMenuItem clearIndexItem = new JMenuItem(i18n.getMessage("menu.action.clearIndex"));
-        clearIndexItem.addActionListener(_ -> clearIndex());
+        clearIndexItem.addActionListener(ignored -> clearIndex());
         actionMenu.add(clearIndexItem);
 
         actionMenu.addSeparator();
 
         JMenuItem deviceInfoItem = new JMenuItem(i18n.getMessage("menu.action.deviceInfo"));
-        deviceInfoItem.addActionListener(_ -> showDeviceInfoDialog());
+        deviceInfoItem.addActionListener(ignored -> showDeviceInfoDialog());
         actionMenu.add(deviceInfoItem);
 
         JMenuItem statsWindowItem = new JMenuItem(i18n.getMessage("menu.action.statistics"));
-        statsWindowItem.addActionListener(_ -> showStatisticsWindow());
+        statsWindowItem.addActionListener(ignored -> showStatisticsWindow());
         actionMenu.add(statsWindowItem);
 
         actionMenu.addSeparator();
 
         JMenuItem hideItem = new JMenuItem(i18n.getMessage("menu.action.hide"));
-        hideItem.addActionListener(_ -> hideWindow());
+        hideItem.addActionListener(ignored -> hideWindow());
         actionMenu.add(hideItem);
 
         JMenuItem logWindowItem = new JMenuItem(i18n.getMessage("menu.view.logwindow"));
-        logWindowItem.addActionListener(_ -> showLogWindow());
+        logWindowItem.addActionListener(ignored -> showLogWindow());
         actionMenu.add(logWindowItem);
 
         actionMenu.addSeparator();
 
         JMenuItem debugMonitorItem = new JMenuItem("Debug Monitor");
-        debugMonitorItem.addActionListener(_ -> showDebugMonitor());
+        debugMonitorItem.addActionListener(ignored -> showDebugMonitor());
         actionMenu.add(debugMonitorItem);
 
         actionMenu.addSeparator();
 
         JMenuItem exitItem = new JMenuItem(i18n.getMessage("menu.action.exit"));
-        exitItem.addActionListener(_ -> {
+        exitItem.addActionListener(ignored -> {
             logger.info("Exit requested from menu");
             performShutdown();
         });
@@ -276,25 +276,25 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
 
         JMenu configMenu = new JMenu(i18n.getMessage("menu.config"));
         JMenuItem preferencesItem = new JMenuItem(i18n.getMessage("menu.config.preferences"));
-        preferencesItem.addActionListener(_ -> showPreferences());
+        preferencesItem.addActionListener(ignored -> showPreferences());
         configMenu.add(preferencesItem);
 
         JMenuItem clearStatsConfigItem = new JMenuItem(i18n.getMessage("menu.config.clearStats"));
-        clearStatsConfigItem.addActionListener(_ -> clearStatistics());
+        clearStatsConfigItem.addActionListener(ignored -> clearStatistics());
         configMenu.add(clearStatsConfigItem);
 
         JMenuItem storageItem = new JMenuItem(i18n.getMessage("menu.config.storageManagement"));
-        storageItem.addActionListener(_ -> showStorageManagement());
+        storageItem.addActionListener(ignored -> showStorageManagement());
         configMenu.add(storageItem);
 
         configMenu.addSeparator();
 
         JMenuItem filterConfigItem = new JMenuItem(i18n.getMessage("filter.menu.item"));
-        filterConfigItem.addActionListener(_ -> FilterConfigDialog.showFilterConfigDialog(this));
+        filterConfigItem.addActionListener(ignored -> FilterConfigDialog.showFilterConfigDialog(this));
         configMenu.add(filterConfigItem);
 
         JMenuItem rateLimitItem = new JMenuItem(i18n.getMessage("menu.settings.ratelimit"));
-        rateLimitItem.addActionListener(_ -> {
+        rateLimitItem.addActionListener(ignored -> {
             RateLimitConfigDialog dialog = new RateLimitConfigDialog(this);
             dialog.setVisible(true);
         });
@@ -303,26 +303,26 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         configMenu.addSeparator();
 
         JMenuItem themeItem = new JMenuItem(i18n.getMessage("theme.toggle"));
-        themeItem.addActionListener(_ -> toggleTheme());
+        themeItem.addActionListener(ignored -> toggleTheme());
         configMenu.add(themeItem);
 
         JCheckBoxMenuItem autoStartItem = new JCheckBoxMenuItem(
             i18n.getMessage("autostart.toggle"),
             AutoStartManager.getInstance().isAutoStartEnabled()
         );
-        autoStartItem.addActionListener(_ -> toggleAutoStart(autoStartItem));
+        autoStartItem.addActionListener(ignored -> toggleAutoStart(autoStartItem));
         configMenu.add(autoStartItem);
 
         JCheckBoxMenuItem startHiddenItem = new JCheckBoxMenuItem(
             i18n.getMessage("starthidden.toggle"),
             ConfigManager.getInstance().get(ConfigSchema.START_HIDDEN)
         );
-        startHiddenItem.addActionListener(_ -> toggleStartHidden(startHiddenItem));
+        startHiddenItem.addActionListener(ignored -> toggleStartHidden(startHiddenItem));
         configMenu.add(startHiddenItem);
 
         JMenu helpMenu = new JMenu(i18n.getMessage("menu.help"));
         JMenuItem aboutItem = new JMenuItem(i18n.getMessage("menu.help.about"));
-        aboutItem.addActionListener(_ -> showAbout());
+        aboutItem.addActionListener(ignored -> showAbout());
         helpMenu.add(aboutItem);
 
         menuBar.add(actionMenu);
@@ -348,7 +348,7 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         String displayText = langInfo.nativeName() + " (" + langInfo.displayName() + ")";
         JCheckBoxMenuItem languageItem = new JCheckBoxMenuItem(displayText);
         languageItem.setSelected(langInfo.locale().equals(currentLocale));
-        languageItem.addActionListener(_ -> {
+        languageItem.addActionListener(ignored -> {
             logger.info("Switching to language: {}", langInfo.locale());
             languageConfig.setDefaultLanguage(langInfo.localeString());
             languageConfig.save();

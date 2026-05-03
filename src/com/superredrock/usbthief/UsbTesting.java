@@ -56,7 +56,7 @@ public class UsbTesting {
         });
 
         synchronized (lock) {
-            try { lock.wait(5000); } catch (InterruptedException _) {}
+            try { lock.wait(5000); } catch (InterruptedException ignored) {}
         }
 
         if (hwndHolder[0] == 0) {
@@ -77,7 +77,7 @@ public class UsbTesting {
         }, "InputWaiter").start();
 
         while (running) {
-            try { Thread.sleep(1000); } catch (InterruptedException _) { break; }
+            try { Thread.sleep(1000); } catch (InterruptedException ignored) { break; }
         }
     }
 
@@ -153,7 +153,7 @@ public class UsbTesting {
                 long total = v.getFileStore().getTotalSpace();
                 long free = v.getFileStore().getUsableSpace();
                 logger.info("  Storage: {} / {}", SizeFormatter.format(total - free), SizeFormatter.format(total));
-            } catch (Exception _) {}
+            } catch (Exception ignored) {}
         }
     }
 

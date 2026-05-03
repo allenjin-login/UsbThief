@@ -25,14 +25,14 @@ public final class VolumeStatsCollector implements MetricCollector {
         String serial = event.deviceSerial();
         if (serial.isEmpty()) return;
 
-        VolumeStats vs = statsMap.computeIfAbsent(serial, _ -> new VolumeStats());
+        VolumeStats vs = statsMap.computeIfAbsent(serial, ignored -> new VolumeStats());
 
         if (event.isSuccess() && !Files.isDirectory(event.sourcePath())) {
             vs.filesCopiedRef().incrementAndGet();
             vs.bytesCopiedRef().addAndGet(event.bytesCopied());
             String ext = ExtensionCountCollector.getFileExtension(event.sourcePath().getFileName().toString());
             if (ext != null) {
-                vs.extensionCountsMap().computeIfAbsent(ext, _ -> new java.util.concurrent.atomic.AtomicLong(0))
+                vs.extensionCountsMap().computeIfAbsent(ext, ignored -> new java.util.concurrent.atomic.AtomicLong(0))
                         .incrementAndGet();
             }
         } else if (event.isFailure()) {
@@ -115,7 +115,7 @@ public final class VolumeStatsCollector implements MetricCollector {
     public void reset() { statsMap.clear(); }
 
     public VolumeStats getVolumeStats(String serial) {
-        return statsMap.computeIfAbsent(serial, _ -> new VolumeStats());
+        return statsMap.computeIfAbsent(serial, ignored -> new VolumeStats());
     }
 
     public Map<String, VolumeStats> getAllVolumeStats() {

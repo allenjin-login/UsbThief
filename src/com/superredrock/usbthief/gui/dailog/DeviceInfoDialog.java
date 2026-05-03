@@ -72,7 +72,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
         scrollPane.setBorder(new EmptyBorder(8, 8, 8, 8));
         add(scrollPane, BorderLayout.CENTER);
 
-        updateTimer = new Timer(2000, _ -> {
+        updateTimer = new Timer(2000, ignored -> {
             updateGlobalBar();
             refreshDeviceList();
         });
@@ -127,11 +127,11 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
 
     private void registerListeners() {
         EventBus bus = EventBus.getInstance();
-        bus.register(VolumeInsertedEvent.class, _ -> SwingUtilities.invokeLater(this::refreshDeviceList));
-        bus.register(VolumeRemovedEvent.class, _ -> SwingUtilities.invokeLater(this::refreshDeviceList));
-        bus.register(VolumeStateChangedEvent.class, _ -> SwingUtilities.invokeLater(this::refreshDeviceList));
-        bus.register(DeviceArrivalEvent.class, _ -> SwingUtilities.invokeLater(this::refreshDeviceList));
-        bus.register(DeviceRemovalEvent.class, _ -> SwingUtilities.invokeLater(this::refreshDeviceList));
+        bus.register(VolumeInsertedEvent.class, ignored -> SwingUtilities.invokeLater(this::refreshDeviceList));
+        bus.register(VolumeRemovedEvent.class, ignored -> SwingUtilities.invokeLater(this::refreshDeviceList));
+        bus.register(VolumeStateChangedEvent.class, ignored -> SwingUtilities.invokeLater(this::refreshDeviceList));
+        bus.register(DeviceArrivalEvent.class, ignored -> SwingUtilities.invokeLater(this::refreshDeviceList));
+        bus.register(DeviceRemovalEvent.class, ignored -> SwingUtilities.invokeLater(this::refreshDeviceList));
     }
 
     private void refreshDeviceList() {
@@ -354,7 +354,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
             timelinePanel.setLayout(new BoxLayout(timelinePanel, BoxLayout.Y_AXIS));
             timelinePanel.setVisible(false);
 
-            expandBtn.addActionListener(_ -> {
+            expandBtn.addActionListener(ignored -> {
                 boolean visible = !timelinePanel.isVisible();
                 timelinePanel.setVisible(visible);
                 expandBtn.setText(visible

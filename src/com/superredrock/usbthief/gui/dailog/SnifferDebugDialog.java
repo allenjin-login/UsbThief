@@ -103,7 +103,7 @@ public class SnifferDebugDialog extends JDialog {
         };
         EventBus.getInstance().register(Event.class, eventListener);
 
-        timer = new Timer(POLL_MS, _ -> refresh());
+        timer = new Timer(POLL_MS, ignored -> refresh());
         timer.start();
 
         addWindowListener(new java.awt.event.WindowAdapter() {
@@ -131,7 +131,7 @@ public class SnifferDebugDialog extends JDialog {
             btn.setFont(btn.getFont().deriveFont(Font.PLAIN, 12f));
             btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             int tabIndex = i;
-            btn.addActionListener(_ -> switchTab(tabIndex));
+            btn.addActionListener(ignored -> switchTab(tabIndex));
             tabButtons[i] = btn;
             bar.add(btn);
         }
@@ -492,7 +492,7 @@ public class SnifferDebugDialog extends JDialog {
                 btn.setForeground(ThemeManager.TEXT_MUTED);
                 btn.setBorder(new LineBorder(ThemeManager.BORDER_COLOR, 1, true));
             }
-            btn.addActionListener(_ -> {
+            btn.addActionListener(ignored -> {
                 activeEventFilter = cat;
             });
             filters.add(btn);

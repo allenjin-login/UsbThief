@@ -106,7 +106,7 @@ public class LogWindow extends JDialog {
 
         // ESC to close
         getRootPane().registerKeyboardAction(
-                _ -> setVisible(false),
+                ignored -> setVisible(false),
             KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
             JComponent.WHEN_IN_FOCUSED_WINDOW
         );

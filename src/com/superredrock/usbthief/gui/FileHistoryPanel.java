@@ -72,10 +72,10 @@ public class FileHistoryPanel extends JPanel {
         });
 
         searchButton = new JButton(i18n.getMessage("filehistory.search.button"));
-        searchButton.addActionListener(_ -> applyFilter());
+        searchButton.addActionListener(ignored -> applyFilter());
 
         clearButton = new JButton(i18n.getMessage("filehistory.clear.button"));
-        clearButton.addActionListener(_ -> {
+        clearButton.addActionListener(ignored -> {
             searchField.setText("");
             applyFilter();
         });

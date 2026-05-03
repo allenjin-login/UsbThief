@@ -24,7 +24,7 @@ public final class DeviceHistoryCollector implements MetricCollector {
 
     private void onDeviceArrival(DeviceArrivalEvent event) {
         String serial = event.device().getSerialNumber();
-        DeviceHistoryEntry entry = historyMap.computeIfAbsent(serial, _ ->
+        DeviceHistoryEntry entry = historyMap.computeIfAbsent(serial, ignored ->
                 new DeviceHistoryEntry(serial, event.device().getVid(), event.device().getPid(), event.timestamp()));
         entry.recordConnection(event.timestamp());
     }

@@ -21,7 +21,7 @@ public final class ExtensionCountCollector implements MetricCollector {
         if (!event.isSuccess() || Files.isDirectory(event.sourcePath())) return;
         String ext = getFileExtension(event.sourcePath().getFileName().toString());
         if (ext != null) {
-            counts.computeIfAbsent(ext, _ -> new AtomicLong(0)).incrementAndGet();
+            counts.computeIfAbsent(ext, ignored -> new AtomicLong(0)).incrementAndGet();
         }
     }
 

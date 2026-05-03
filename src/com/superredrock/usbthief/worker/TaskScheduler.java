@@ -165,7 +165,7 @@ public ThreadPoolExecutor getPool() {
         if (delegate instanceof CopyTask ct) serial = ct.getDeviceSerial();
         else if (delegate instanceof VerifyTask vt) serial = vt.getDeviceSerial();
         if (serial != null && !serial.isEmpty()) {
-            futuresBySerial.computeIfAbsent(serial, _ -> new CopyOnWriteArrayList<>()).add(future);
+            futuresBySerial.computeIfAbsent(serial, ignored -> new CopyOnWriteArrayList<>()).add(future);
         }
     }
 

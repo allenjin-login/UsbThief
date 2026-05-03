@@ -34,7 +34,7 @@ public class SpeedChartPanel extends JPanel {
         setPreferredSize(new Dimension(0, 120));
         setMinimumSize(new Dimension(200, 100));
 
-        sampleTimer = new Timer(SAMPLE_INTERVAL_MS, _ -> sample());
+        sampleTimer = new Timer(SAMPLE_INTERVAL_MS, ignored -> sample());
         sampleTimer.start();
     }
 

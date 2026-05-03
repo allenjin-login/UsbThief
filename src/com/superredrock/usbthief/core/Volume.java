@@ -94,7 +94,7 @@ public class Volume {
      */
     public boolean isConnected() {
         if (fileStore == null) {
-            try { fileStore = Files.getFileStore(this.rootPath); } catch (IOException _) { return false; }
+            try { fileStore = Files.getFileStore(this.rootPath); } catch (IOException ignored) { return false; }
         }
         return fileStore != null && Files.exists(rootPath);
     }

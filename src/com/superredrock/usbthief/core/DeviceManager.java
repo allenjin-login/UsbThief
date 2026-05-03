@@ -73,7 +73,7 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
 
     @Override
     protected void tick() {
-        volumesMap.forEach((_, volume) -> {
+        volumesMap.forEach((ignored, volume) -> {
             Volume.VolumeState oldState = volume.getState();
             volume.updateState();
             if (volume.isChangeAndReset()) {
@@ -100,7 +100,7 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
     }
 
     public Volume getVolume(Path path) {
-        return volumesMap.search(1, (_, volume) ->
+        return volumesMap.search(1, (ignored, volume) ->
                 path.startsWith(volume.getRootPath()) ? volume : null);
     }
 
@@ -109,7 +109,7 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
     }
 
     public Volume getVolumeByDriveLetter(String driveLetter) {
-        return volumesMap.search(1, (_, v) ->
+        return volumesMap.search(1, (ignored, v) ->
                 driveLetter.equals(v.getDriveLetter()) ? v : null);
     }
 
@@ -182,7 +182,7 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
             return;
         }
         // Register Device (pure info board) — independent of Volume
-        Device device = devicesMap.computeIfAbsent(serial, _ -> {
+        Device device = devicesMap.computeIfAbsent(serial, ignored -> {
             Device d = new Device(serial, identity.vid(), identity.pid(), dbccName);
             logger.info("New device registered: {} (VID:{}, PID:{})", serial, identity.vid(), identity.pid());
             EventBus.getInstance().dispatch(new NewDeviceJoinedEvent(d));
@@ -258,7 +258,7 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
 
         monitor.unregisterVolumeHandle(driveLetter);
 
-        Volume volume = volumesMap.search(1, (_, v) ->
+        Volume volume = volumesMap.search(1, (ignored, v) ->
                 driveLetter.equals(v.getDriveLetter()) ? v : null);
         if (volume != null) {
             volume.setState(Volume.VolumeState.OFFLINE);
