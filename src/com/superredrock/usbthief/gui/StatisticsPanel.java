@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class StatisticsPanel extends JPanel implements I18nManager.LocaleChangeListener {
     private final I18nManager i18n = I18nManager.getInstance();
@@ -213,7 +214,7 @@ public class StatisticsPanel extends JPanel implements I18nManager.LocaleChangeL
             data = counts.entrySet().stream()
                 .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
                 .limit(20)
-                .toList();
+                .collect(Collectors.toList());
             fireTableDataChanged();
         }
 

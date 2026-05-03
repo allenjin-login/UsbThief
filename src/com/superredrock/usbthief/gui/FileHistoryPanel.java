@@ -190,7 +190,7 @@ public class FileHistoryPanel extends JPanel {
 
         private void evictIfNeeded() {
             while (records.size() > maxEntries) {
-                records.removeFirst();
+                records.remove(0);
                 fireTableRowsDeleted(0, 0);
             }
         }

@@ -259,7 +259,7 @@ public class EventPanel extends JPanel {
 
         public void removeFirstEntry() {
             if (!eventEntries.isEmpty()) {
-                eventEntries.removeFirst();
+                eventEntries.remove(0);
                 fireTableRowsDeleted(0, 0);
             }
         }

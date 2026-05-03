@@ -49,7 +49,7 @@ public class PriorityRule {
             int sizeAdjustment = calculateSizeAdjustment(file);
 
             // Clamp to valid range
-            return Math.clamp(basePriority + sizeAdjustment, 0, 100);
+            return Math.max(0, Math.min(100, basePriority + sizeAdjustment));
 
         } catch (Exception e) {
             logger.warn("优先级计算失败，使用默认值: {}", file, e);

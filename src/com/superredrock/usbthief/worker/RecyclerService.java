@@ -160,7 +160,7 @@ public class RecyclerService extends Service {
             // Limit batch size to avoid blocking tick()
             List<Path> toDelete = emptyFolders.stream()
                     .limit(MAX_FOLDERS_PER_TICK)
-                    .toList();
+                    .collect(Collectors.toList());
 
             // Delete folders
             for (Path folder : toDelete) {

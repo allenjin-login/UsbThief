@@ -35,6 +35,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class SnifferDebugDialog extends JDialog {
 
@@ -93,7 +94,7 @@ public class SnifferDebugDialog extends JDialog {
             synchronized (eventBuffer) {
                 eventBuffer.add(new CapturedEvent(event));
                 while (eventBuffer.size() > EVENT_BUFFER_SIZE) {
-                    eventBuffer.removeFirst();
+                    eventBuffer.remove(0);
                 }
             }
             if (event instanceof VolumeRemovedEvent vre) {
@@ -598,7 +599,7 @@ public class SnifferDebugDialog extends JDialog {
         List<Thread> filtered = allThreads.stream()
             .filter(t -> !isSystemThread(t.getName()))
             .sorted(Comparator.comparing(Thread::getName))
-            .toList();
+            .collect(Collectors.toList());
 
         long daemonCount = filtered.stream().filter(Thread::isDaemon).count();
 

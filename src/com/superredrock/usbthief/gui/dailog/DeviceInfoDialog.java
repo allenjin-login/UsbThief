@@ -28,6 +28,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChangeListener {
 
@@ -365,7 +366,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
             List<Map.Entry<Long, String>> sorted = timeline.entrySet().stream()
                 .sorted(Map.Entry.<Long, String>comparingByKey().reversed())
                 .limit(20)
-                .toList();
+                .collect(Collectors.toList());
 
             for (var te : sorted) {
                 String eventKey = "deviceinfo.timeline." + te.getValue().toLowerCase();

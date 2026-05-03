@@ -13,7 +13,7 @@ public class PriorityTask<T extends Callable<R>, R> implements Comparable<Priori
 
     public PriorityTask(T delegate, int priority) {
         this.delegate = delegate;
-        this.priority = Math.clamp(priority, 0, 100);
+        this.priority = Math.max(0, Math.min(100, priority));
     }
 
 

@@ -302,7 +302,7 @@ public class LogPanel extends JPanel {
 
         public void removeFirstEntry() {
             if (!logEntries.isEmpty()) {
-                logEntries.removeFirst();
+                logEntries.remove(0);
                 fireTableRowsDeleted(0, 0);
             }
         }

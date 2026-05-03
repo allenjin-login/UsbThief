@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * File selection algorithms for storage recycling.
@@ -52,7 +53,7 @@ public final class FileSelector {
         List<FileMetadata> filtered = files.stream()
                 .filter(f -> !f.isProtected())
                 .sorted(Comparator.comparingLong(FileMetadata::copyTime))
-                .toList();
+                .collect(Collectors.toList());
 
         for (FileMetadata file : filtered) {
             result.add(file);
@@ -87,7 +88,7 @@ public final class FileSelector {
         List<FileMetadata> filtered = files.stream()
                 .filter(f -> !f.isProtected())
                 .sorted(Comparator.comparingLong(FileMetadata::size).reversed())
-                .toList();
+                .collect(Collectors.toList());
 
         for (FileMetadata file : filtered) {
             result.add(file);

@@ -42,7 +42,7 @@ public class SpeedChartPanel extends JPanel {
         currentSpeed = Statistics.getInstance().getSpeedCollector().getProbeGroup().getTotalSpeed();
         speedHistory.addLast(currentSpeed);
         if (speedHistory.size() > MAX_SAMPLES) {
-            speedHistory.removeFirst();
+            speedHistory.remove(0);
         }
         if (currentSpeed > peakSpeed) {
             peakSpeed = currentSpeed;
