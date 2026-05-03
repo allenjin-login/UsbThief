@@ -9,6 +9,14 @@
     <!-- Version: major.minor.patch (SemVer) -->
     <version>1.2.0</version>
 
+    <name>UsbThief</name>
+    <description>USB device monitoring and file copying tool</description>
+    <inceptionYear>2026</inceptionYear>
+
+    <organization>
+        <name>SuperRedRock</name>
+    </organization>
+
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>25</maven.compiler.source>
@@ -232,7 +240,7 @@
                             <workingDirectory>${project.build.directory}/${jlink.image.name}/bin</workingDirectory>
                             <arguments>
                                 <argument>-Command</argument>
-                                <argument>(Get-Content runtime.bat) -replace 'set JLINK_VM_OPTIONS=', 'set JLINK_VM_OPTIONS=--enable-preview --enable-native-access=com.sun.jna' | Set-Content runtime.bat</argument>
+                                <argument>(Get-Content runtime.bat) -replace 'set JLINK_VM_OPTIONS=', 'set JLINK_VM_OPTIONS=--enable-preview --enable-native-access=com.sun.jna -Dsun.java2d.d3d=false' | Set-Content runtime.bat</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -248,7 +256,7 @@
                             <workingDirectory>${project.build.directory}/${jlink.image.name}/bin</workingDirectory>
                             <arguments>
                                 <argument>-Command</argument>
-                                <argument>(Get-Content runtime) -replace 'JLINK_VM_OPTIONS=', 'JLINK_VM_OPTIONS=--enable-preview --enable-native-access=com.sun.jna' | Set-Content runtime</argument>
+                                <argument>(Get-Content runtime) -replace 'JLINK_VM_OPTIONS=', 'JLINK_VM_OPTIONS=--enable-preview --enable-native-access=com.sun.jna -Dsun.java2d.d3d=false' | Set-Content runtime</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -281,6 +289,7 @@
                                 <opts>
                                     <opt>--enable-preview</opt>
                                     <opt>--enable-native-access=com.sun.jna</opt>
+                                    <opt>-Dsun.java2d.d3d=false</opt>
                                     <opt>-Dlaunch4j.exefile="%EXEFILE%"</opt>
                                 </opts>
                             </jre>

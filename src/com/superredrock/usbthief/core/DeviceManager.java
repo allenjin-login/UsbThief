@@ -10,6 +10,7 @@ import com.superredrock.usbthief.core.event.device.VolumeInsertedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeStateChangedEvent;
 import com.superredrock.usbthief.worker.SnifferLifecycleManager;
+import com.superredrock.usbthief.worker.TaskScheduler;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -278,11 +279,17 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
         logger.info("Volume ejecting: {} ({})", driveLetter, serial);
 
         try {
+            TaskScheduler.getInstance().cancelBySerial(serial);
             SnifferLifecycleManager.getInstance().stop(serial);
         } catch (Exception e) {
             logger.warn("Error during eject cleanup for {}: {}", serial, e.getMessage());
         }
         lastAddDevice = null;
+        try {
+            TimeUnit.SECONDS.sleep(5);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         return true;
     }
 

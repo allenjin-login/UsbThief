@@ -94,7 +94,7 @@ public class SnifferLifecycleManager extends Service {
         bus.register(VolumeStateChangedEvent.class, event -> {
             Volume volume = event.volume();
             String serial = volume.getSerialNumber();
-            Volume.VolumeState newState = event.newState();
+            var newState = event.newState();
 
             switch (newState) {
                 case OFFLINE, EJECTING -> {
@@ -109,8 +109,7 @@ public class SnifferLifecycleManager extends Service {
                     stop(serial);
                 }
                 case IDLE -> {
-                    if (event.oldState() == Volume.VolumeState.OFFLINE ||
-                        event.oldState() == Volume.VolumeState.UNAVAILABLE) {
+                    if (!event.oldState().isPresent()) {
                         logger.debug("Volume became IDLE, will create sniffer on next tick: {}", serial);
                     }
                 }
@@ -131,7 +130,7 @@ public class SnifferLifecycleManager extends Service {
         Collection<Volume> volumes = QueueManager.getDeviceManager().getAllVolumes();
         for (Volume volume : volumes) {
             String serial = volume.getSerialNumber();
-            if (volume.getState() == Volume.VolumeState.IDLE &&
+            if (volume.isActive() &&
                 !sniffers.containsKey(serial) &&
                 !timers.containsKey(serial)) {
                 createSniffer(volume);
@@ -215,7 +214,7 @@ public class SnifferLifecycleManager extends Service {
 
         if (delayMs <= 0) {
             Volume vol = getVolumeBySerial(serial);
-            if (vol != null && vol.getState() == Volume.VolumeState.IDLE && !sniffers.containsKey(serial)) {
+            if (vol != null && vol.isActive() && !sniffers.containsKey(serial)) {
                 logger.info("No delay, restarting sniffer for: {}", serial);
                 createSniffer(vol);
             }
@@ -226,7 +225,7 @@ public class SnifferLifecycleManager extends Service {
             .thenRun(() -> {
                 timers.remove(serial);
                 Volume vol = getVolumeBySerial(serial);
-                if (vol != null && vol.getState() == Volume.VolumeState.IDLE && !sniffers.containsKey(serial)) {
+                if (vol != null && vol.isActive() && !sniffers.containsKey(serial)) {
                     logger.info("Cooldown elapsed, restarting sniffer for: {}", serial);
                     createSniffer(vol);
                 } else {

@@ -56,6 +56,10 @@ public class VerifyTask implements Callable<CopyResult> {
         return processingPath;
     }
 
+    public String getDeviceSerial() {
+        return deviceSerial;
+    }
+
     @Override
     public CopyResult call() {
         long size = 0;
@@ -68,14 +72,19 @@ public class VerifyTask implements Callable<CopyResult> {
             }
 
             Volume volume = QueueManager.getDeviceManager().getVolume(processingPath);
-            if (volume != null && volume.getState() == Volume.VolumeState.EJECTING) {
+            if (volume != null && volume.isEjecting()) {
                 return CopyResult.SKIPPED;
             }
-            if (volume != null && !volume.isConnected() && volume.getState() == Volume.VolumeState.IDLE) {
+            if (volume != null && !volume.isConnected() && volume.isActive()) {
                 return CopyResult.FAIL;
             }
 
             size = attrs.size();
+            if (size > 10L * 1024 * 1024 * 1024) {
+                logger.info("File too big, skipping verify: {}", processingPath);
+                TaskScheduler.getInstance().submit(new CopyTask(processingPath, deviceSerial, null));
+                return CopyResult.SKIPPED;
+            }
             CheckSum hash = verify(processingPath);
 
             if (QueueManager.getIndex().checkDuplicate(processingPath, hash)) {

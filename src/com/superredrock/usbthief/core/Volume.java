@@ -2,7 +2,7 @@ package com.superredrock.usbthief.core;
 
 import java.io.IOException;
 import java.nio.file.*;
-import java.util.Objects;
+import java.util.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -19,10 +19,27 @@ public class Volume {
         UNAVAILABLE,   // Volume exists but inaccessible (AccessDeniedException / IOException)
         IDLE,          // Ready, no active operations
         DISABLED,      // Manually disabled by user (user-controlled, requires manual action)
-        EJECTING       // Windows requested eject, stopping tasks
+        EJECTING;      // Windows requested eject, stopping tasks
+
+        /** Device is physically present (not OFFLINE). */
+        public boolean isPresent() { return this != OFFLINE; }
     }
 
     private static final Logger logger = LogManager.getLogger(Volume.class);
+
+    /**
+     * Valid state transitions. Any transition not in this map is logged as a warning.
+     */
+    private static final EnumMap<VolumeState, Set<VolumeState>> VALID_TRANSITIONS;
+    static {
+        VALID_TRANSITIONS = new EnumMap<>(VolumeState.class);
+        var idleTargets = EnumSet.of(VolumeState.DISABLED, VolumeState.EJECTING, VolumeState.OFFLINE, VolumeState.UNAVAILABLE);
+        VALID_TRANSITIONS.put(VolumeState.UNAVAILABLE, EnumSet.of(VolumeState.IDLE, VolumeState.OFFLINE));
+        VALID_TRANSITIONS.put(VolumeState.OFFLINE, EnumSet.of(VolumeState.IDLE, VolumeState.UNAVAILABLE));
+        VALID_TRANSITIONS.put(VolumeState.IDLE, Collections.unmodifiableSet(idleTargets));
+        VALID_TRANSITIONS.put(VolumeState.DISABLED, EnumSet.of(VolumeState.IDLE, VolumeState.OFFLINE));
+        VALID_TRANSITIONS.put(VolumeState.EJECTING, EnumSet.of(VolumeState.OFFLINE));
+    }
 
     private Path rootPath;
     private FileStore fileStore;
@@ -33,13 +50,6 @@ public class Volume {
     private volatile VolumeState state;
     private volatile boolean stateChange;
 
-    /**
-     * Creates a Volume from a root path and serial number.
-     * Initializes FileStore and volume name if the path is accessible.
-     *
-     * @param rootPath     the root path of the volume (e.g., Path.of("E:\\"))
-     * @param serialNumber the serial number identifying this volume's device
-     */
     public Volume(Path rootPath, String serialNumber) {
         this.rootPath = rootPath;
         this.serialNumber = serialNumber;
@@ -48,9 +58,6 @@ public class Volume {
         refreshMetadata();
     }
 
-    /**
-     * Extracts the drive letter from a root path.
-     */
     private String extractDriveLetter(Path path) {
         String pathStr = path.toString();
         if (pathStr.length() >= 2 && pathStr.charAt(1) == ':') {
@@ -59,9 +66,6 @@ public class Volume {
         return "";
     }
 
-    /**
-     * Refreshes FileStore and volume name from the current root path.
-     */
     public void refreshMetadata() {
         if (!Files.exists(rootPath) || !Files.isDirectory(rootPath)) {
             this.fileStore = null;
@@ -79,10 +83,6 @@ public class Volume {
         }
     }
 
-    /**
-     * Updates the volume's root path and refreshes metadata.
-     * Used when a device reconnects with a different drive letter.
-     */
     public void updateRootPath(Path newRootPath) {
         this.rootPath = newRootPath;
         this.driveLetter = extractDriveLetter(newRootPath);
@@ -90,18 +90,18 @@ public class Volume {
     }
 
     /**
-     * Checks if the volume is currently accessible and in IDLE state.
+     * Checks if the volume filesystem is currently accessible.
      */
     public boolean isConnected() {
-        if (fileStore == null){
-            try {fileStore = Files.getFileStore(this.rootPath);} catch (IOException _) {return false;}
+        if (fileStore == null) {
+            try { fileStore = Files.getFileStore(this.rootPath); } catch (IOException _) { return false; }
         }
         return fileStore != null && Files.exists(rootPath);
     }
 
     /**
      * Updates the volume state based on filesystem accessibility.
-     * Disabled volumes are not updated.
+     * DISABLED and EJECTING states are not auto-updated.
      */
     public void updateState() {
         if (state == VolumeState.DISABLED || state == VolumeState.EJECTING) {
@@ -119,76 +119,60 @@ public class Volume {
         }
     }
 
-    public Path getRootPath() {
-        return rootPath;
-    }
+    // ========== State query helpers ==========
 
-    public FileStore getFileStore() {
-        return fileStore;
-    }
+    public boolean isOffline() { return state == VolumeState.OFFLINE; }
+    public boolean isUnavailable() { return state == VolumeState.UNAVAILABLE; }
+    public boolean isActive() { return state == VolumeState.IDLE; }
+    public boolean isDisabled() { return state == VolumeState.DISABLED; }
+    public boolean isEjecting() { return state == VolumeState.EJECTING; }
 
-    public String getVolumeName() {
-        return volumeName;
-    }
+    /** Device is physically present (not OFFLINE). */
+    public boolean isPresent() { return state != VolumeState.OFFLINE; }
 
-    public String getDriveLetter() {
-        return driveLetter;
-    }
+    // ========== Getters ==========
 
-    public String getSerialNumber() {
-        return serialNumber;
-    }
+    public Path getRootPath() { return rootPath; }
+    public FileStore getFileStore() { return fileStore; }
+    public String getVolumeName() { return volumeName; }
+    public String getDriveLetter() { return driveLetter; }
+    public String getSerialNumber() { return serialNumber; }
+    public Device getDevice() { return device; }
+    public void setDevice(Device device) { this.device = device; }
 
-    public Device getDevice() {
-        return device;
-    }
-
-    public void setDevice(Device device) {
-        this.device = device;
-    }
-
-    public VolumeState getState() {
-        return state;
-    }
+    public VolumeState getState() { return state; }
 
     /**
-     * Sets the volume state and tracks if state changed.
+     * Sets the volume state. Validates the transition and logs warnings for invalid ones.
      */
     public void setState(VolumeState newState) {
-        if (this.state != newState) {
+        VolumeState old = this.state;
+        if (old != newState) {
+            Set<VolumeState> allowed = VALID_TRANSITIONS.get(old);
+            if (allowed != null && !allowed.contains(newState)) {
+                logger.warn("Invalid state transition: {} -> {} for volume {}", old, newState, driveLetter);
+            }
             this.stateChange = true;
         }
         this.state = newState;
     }
 
-    /**
-     * Checks if state changed since last call and resets the flag.
-     */
     public boolean isChangeAndReset() {
         boolean changed = this.stateChange;
         this.stateChange = false;
         return changed;
     }
 
-    /**
-     * Enables the volume. Transition to IDLE state on next update.
-     */
     public void enable() {
         if (this.state == VolumeState.DISABLED) {
             setState(VolumeState.IDLE);
         }
     }
 
-    /**
-     * Disables the volume and prevents automatic operations.
-     */
     public void disable() {
         setState(VolumeState.DISABLED);
     }
 
-    /**
-     * Marks the volume as ejecting. Terminal state — never returns to IDLE.
-     */
     public void setEjecting() {
         setState(VolumeState.EJECTING);
         logger.info("Volume set to EJECTING: {}", driveLetter);

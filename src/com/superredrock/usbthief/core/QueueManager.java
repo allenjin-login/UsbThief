@@ -1,12 +1,9 @@
 package com.superredrock.usbthief.core;
 
-import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.index.Index;
 import com.superredrock.usbthief.worker.SnifferLifecycleManager;
 import com.superredrock.usbthief.worker.TaskScheduler;
 
-import java.util.concurrent.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -22,7 +19,6 @@ public class QueueManager {
     private static Index index;
 
     private static final ThreadGroup diskScanners = new ThreadGroup("DiskScanner");
-    private static final RejectionAwarePolicy rejectionPolicy = new RejectionAwarePolicy();
 
     protected static final Logger logger = LogManager.getLogger(QueueManager.class);
 
@@ -78,13 +74,10 @@ public class QueueManager {
             logger.info("Thread pool shutdown completed");
 
         } catch (Exception e) {
-            logger.error("Error during quit: {}", e);
+            logger.error("Error during quit:", e);
         }
 
         logger.info("Quit completed");
     }
 
-    public static RejectionAwarePolicy getRejectionPolicy() {
-        return rejectionPolicy;
-    }
 }

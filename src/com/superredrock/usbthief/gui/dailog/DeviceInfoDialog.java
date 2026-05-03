@@ -66,7 +66,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
         setLayout(new BorderLayout());
         add(globalBar, BorderLayout.NORTH);
         JScrollPane scrollPane = new JScrollPane(deviceListPanel);
-        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scrollPane.setBorder(new EmptyBorder(8, 8, 8, 8));
         add(scrollPane, BorderLayout.CENTER);
@@ -126,11 +126,11 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
 
     private void registerListeners() {
         EventBus bus = EventBus.getInstance();
-        bus.register(VolumeInsertedEvent.class, e -> SwingUtilities.invokeLater(this::refreshDeviceList));
-        bus.register(VolumeRemovedEvent.class, e -> SwingUtilities.invokeLater(this::refreshDeviceList));
-        bus.register(VolumeStateChangedEvent.class, e -> SwingUtilities.invokeLater(this::refreshDeviceList));
-        bus.register(DeviceArrivalEvent.class, e -> SwingUtilities.invokeLater(this::refreshDeviceList));
-        bus.register(DeviceRemovalEvent.class, e -> SwingUtilities.invokeLater(this::refreshDeviceList));
+        bus.register(VolumeInsertedEvent.class, _ -> SwingUtilities.invokeLater(this::refreshDeviceList));
+        bus.register(VolumeRemovedEvent.class, _ -> SwingUtilities.invokeLater(this::refreshDeviceList));
+        bus.register(VolumeStateChangedEvent.class, _ -> SwingUtilities.invokeLater(this::refreshDeviceList));
+        bus.register(DeviceArrivalEvent.class, _ -> SwingUtilities.invokeLater(this::refreshDeviceList));
+        bus.register(DeviceRemovalEvent.class, _ -> SwingUtilities.invokeLater(this::refreshDeviceList));
     }
 
     private void refreshDeviceList() {

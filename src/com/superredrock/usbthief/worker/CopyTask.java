@@ -60,8 +60,8 @@ public class CopyTask implements Callable<CopyResult> {
         return processingPath;
     }
 
-    public static SpeedCollector getSpeedCollector() {
-        return speedCollector;
+    public String getDeviceSerial() {
+        return deviceSerial;
     }
 
 
@@ -114,16 +114,8 @@ public class CopyTask implements Callable<CopyResult> {
                     // File fits - proceed with copy
                     if (Files.isDirectory(processingPath)){
                         Files.createDirectories(destinationPath);
-                    } else if (preVerifiedHash != null) {
+                    }else {
                         doCopy(processingPath, destinationPath, size, preVerifiedHash, buffer, volume);
-                        bytesCopied = size;
-                    } else {
-                        CheckSum hash = VerifyTask.verify(processingPath);
-                        if (QueueManager.getIndex().checkDuplicate(processingPath, hash)){
-                            logger.info("Path Ignore: {}", processingPath);
-                        } else {
-                            doCopy(processingPath, destinationPath, size, hash, buffer, volume);
-                        }
                         bytesCopied = size;
                     }
                 }
@@ -180,7 +172,9 @@ public class CopyTask implements Callable<CopyResult> {
             }
         }
         copyFileAttributes(source, dest, attributes);
-        QueueManager.getIndex().addFile(hash, source, size);
+        if (hash != null){
+            QueueManager.getIndex().addFile(hash, source, size);
+        }
     }
 
     /**

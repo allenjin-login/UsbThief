@@ -11,7 +11,7 @@ public final class DeviceHistoryEntry {
     private final String vid;
     private final String pid;
     private final AtomicLong insertionCount = new AtomicLong(0);
-    private volatile long firstSeenTime;
+    private final long firstSeenTime;
     private volatile long lastSeenTime;
     private final ConcurrentHashMap<Long, String> timelineLog = new ConcurrentHashMap<>();
 

@@ -64,7 +64,7 @@ public class LoggingConfig {
             // Console appender: INFO+ only
             PatternLayout consoleLayout = PatternLayout.newBuilder()
                     .withConfiguration(config)
-                    .withPattern("%d{HH:mm:ss} [%-5level] [%logger{1.}] %msg%n")
+                    .withPattern("%d{HH:mm:ss} %highlight{[%level]}{WARN=red} [%logger{1.}] %msg%n")
                     .build();
             ConsoleAppender console = ConsoleAppender.createDefaultAppenderForLayout(consoleLayout);
             console.start();
@@ -72,7 +72,7 @@ public class LoggingConfig {
 
             PatternLayout fileLayout = PatternLayout.newBuilder()
                     .withConfiguration(config)
-                    .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%-5level] [%logger{1.}] %msg%n")
+                    .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%level] [%logger{1.}] %msg%n")
                     .build();
             RollingFileAppender file = createRollingAppender("File", "logs/lastest.log",
                     "logs/info-%d{yyyy-MM-dd}.log", fileLayout);

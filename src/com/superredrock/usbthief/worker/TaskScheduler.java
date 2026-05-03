@@ -7,8 +7,8 @@ import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
-import java.util.PriorityQueue;
 import java.util.concurrent.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,16 +24,14 @@ public class TaskScheduler extends Service {
             ConfigManager.getInstance().get(ConfigSchema.MAX_POOL_SIZE),
             ConfigManager.getInstance().get(ConfigSchema.KEEP_ALIVE_TIME_SECONDS),
             TimeUnit.SECONDS,
-            new ArrayBlockingQueue<>(ConfigManager.getInstance().get(ConfigSchema.TASK_QUEUE_CAPACITY)),
-            QueueManager.getRejectionPolicy()
-    );
+            new ArrayBlockingQueue<>(ConfigManager.getInstance().get(ConfigSchema.TASK_QUEUE_CAPACITY)));
 
-    private final PriorityQueue<PriorityTask<?, ?>> priorityQueue;
+    private final PriorityBlockingQueue<PriorityTask<?, ?>> priorityQueue;
     private final PriorityRule priorityRule;
-    private volatile boolean accumulating = false;
+    private final ConcurrentHashMap<String, CopyOnWriteArrayList<Future<?>>> futuresBySerial = new ConcurrentHashMap<>();
 
     private TaskScheduler() {
-        this.priorityQueue = new PriorityQueue<>();
+        this.priorityQueue = new PriorityBlockingQueue<>();
         this.priorityRule = new PriorityRule();
     }
     
@@ -80,6 +78,17 @@ public ThreadPoolExecutor getPool() {
         } else {
             dispatchAll();
         }
+
+        pruneCompletedFutures();
+    }
+
+    private void pruneCompletedFutures() {
+        for (var entry : futuresBySerial.entrySet()) {
+            entry.getValue().removeIf(Future::isDone);
+            if (entry.getValue().isEmpty()) {
+                futuresBySerial.remove(entry.getKey());
+            }
+        }
     }
 
     @Override
@@ -111,26 +120,17 @@ public ThreadPoolExecutor getPool() {
         int priority = priorityRule.calculatePriority(task);
         PriorityTask<Callable<R>, R> priorityTask = new PriorityTask<>(task, priority);
 
-        synchronized (priorityQueue) {
-            priorityQueue.offer(priorityTask);
-        }
+        priorityQueue.offer(priorityTask);
 
         return priorityTask;
     }
 
     private void dispatchBatch(int batchSize) {
-        if (accumulating) {
-            accumulating = false;
-            int queueDepth = getQueueDepth();
-            logger.info("Load decreased - resuming submissions, accumulated tasks: {}", queueDepth);
-        }
-
         List<PriorityTask<?, ?>> batch = new ArrayList<>(batchSize);
-
-        synchronized (priorityQueue) {
-            for (int i = 0; i < batchSize && !priorityQueue.isEmpty(); i++) {
-                batch.add(priorityQueue.poll());
-            }
+        for (int i = 0; i < batchSize; i++) {
+            PriorityTask<?, ?> task = priorityQueue.poll();
+            if (task == null) break;
+            batch.add(task);
         }
 
         if (batch.isEmpty()) {
@@ -143,19 +143,8 @@ public ThreadPoolExecutor getPool() {
     }
 
     private void dispatchAll() {
-        if (accumulating) {
-            accumulating = false;
-            int queueDepth = getQueueDepth();
-            logger.info("Load decreased - resuming submissions, accumulated tasks: {}", queueDepth);
-        }
-
         List<PriorityTask<?, ?>> allTasks = new ArrayList<>();
-
-        synchronized (priorityQueue) {
-            while (!priorityQueue.isEmpty()) {
-                allTasks.add(priorityQueue.poll());
-            }
-        }
+        priorityQueue.drainTo(allTasks);
 
         if (allTasks.isEmpty()) {
             return;
@@ -172,18 +161,62 @@ public ThreadPoolExecutor getPool() {
             try {
                 Future<?> future = pool.submit((Callable<Object>) task.unwrap());
                 task.setFuture(future);
+                trackFuture(task.unwrap(), future);
             } catch (RejectedExecutionException e) {
-                logger.warn("Task rejected during dispatch, re-queuing");
-                synchronized (priorityQueue) {
-                    priorityQueue.offer(task);
+                int requeued = allTasks.size() - allTasks.indexOf(task);
+                priorityQueue.offer(task);
+                for (int i = allTasks.indexOf(task) + 1; i < allTasks.size(); i++) {
+                    priorityQueue.offer(allTasks.get(i));
                 }
+                logger.warn("Pool saturated, {} tasks re-queued", requeued);
+                return;
             } catch (Exception e) {
                 logger.error("Failed to submit task, dropping", e);
             }
         }
     }
 
-    public synchronized int getQueueDepth() {
+    private void trackFuture(Object delegate, Future<?> future) {
+        String serial = null;
+        if (delegate instanceof CopyTask ct) serial = ct.getDeviceSerial();
+        else if (delegate instanceof VerifyTask vt) serial = vt.getDeviceSerial();
+        if (serial != null && !serial.isEmpty()) {
+            futuresBySerial.computeIfAbsent(serial, _ -> new CopyOnWriteArrayList<>()).add(future);
+        }
+    }
+
+    public int cancelBySerial(String serial) {
+        int cancelled = 0;
+
+        CopyOnWriteArrayList<Future<?>> futures = futuresBySerial.remove(serial);
+        if (futures != null) {
+            for (Future<?> f : futures) {
+                if (!f.isDone()) {
+                    f.cancel(true);
+                    cancelled++;
+                }
+            }
+        }
+
+        Iterator<PriorityTask<?, ?>> it = priorityQueue.iterator();
+        while (it.hasNext()) {
+            Object delegate = it.next().unwrap();
+            String s = null;
+            if (delegate instanceof CopyTask ct) s = ct.getDeviceSerial();
+            else if (delegate instanceof VerifyTask vt) s = vt.getDeviceSerial();
+            if (serial.equals(s)) {
+                it.remove();
+                cancelled++;
+            }
+        }
+
+        if (cancelled > 0) {
+            logger.info("Cancelled {} tasks for serial {}", cancelled, serial);
+        }
+        return cancelled;
+    }
+
+    public int getQueueDepth() {
         return priorityQueue.size();
     }
 
@@ -192,17 +225,13 @@ public ThreadPoolExecutor getPool() {
         logger.info("Cleaning up TaskScheduler...");
 
         int drained = 0;
-        synchronized (priorityQueue) {
-            while (!priorityQueue.isEmpty()) {
-                PriorityTask<?, ?> task = priorityQueue.poll();
-                if (task != null) {
-                    try {
-                        pool.submit(task.unwrap());
-                        drained++;
-                    } catch (Exception e) {
-                        logger.warn("Failed to submit task during cleanup: {}", e);
-                    }
-                }
+        PriorityTask<?, ?> task;
+        while ((task = priorityQueue.poll()) != null) {
+            try {
+                pool.submit(task.unwrap());
+                drained++;
+            } catch (Exception e) {
+                logger.warn("Failed to submit task during cleanup: {}", e);
             }
         }
 

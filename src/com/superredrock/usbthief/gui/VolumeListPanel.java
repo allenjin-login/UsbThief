@@ -674,7 +674,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
             rightPanel.setOpaque(false);
 
             checkBox = new JCheckBox();
-            checkBox.setEnabled(volume.getState() != Volume.VolumeState.OFFLINE);
+            checkBox.setEnabled(volume.isPresent());
 
             cardMenu = new JPopupMenu();
             detailMenuItem = new JMenuItem(i18n.getMessage("device.card.button.details"));
@@ -685,7 +685,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
             blacklistMenuItem = null;
             removeMenuItem = null;
 
-            if (volume.getState() != Volume.VolumeState.OFFLINE) {
+            if (volume.isPresent()) {
                 toggleMenuItem = new JMenuItem(getToggleButtonText());
                 toggleMenuItem.addActionListener(_ -> toggleVolume());
                 cardMenu.add(toggleMenuItem);
@@ -747,7 +747,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
         }
 
         private String getToggleButtonText() {
-            return volume.getState() == Volume.VolumeState.DISABLED
+            return volume.isDisabled()
                 ? i18n.getMessage("device.card.button.enable")
                 : i18n.getMessage("device.card.button.disable");
         }
@@ -763,8 +763,8 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
         }
 
         private void toggleVolume() {
-            if (volume.getState() == Volume.VolumeState.OFFLINE) return;
-            if (volume.getState() == Volume.VolumeState.DISABLED) {
+            if (volume.isOffline()) return;
+            if (volume.isDisabled()) {
                 deviceManager.enable(volume);
             } else {
                 deviceManager.disable(volume);
@@ -773,7 +773,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
 
         private void addToBlacklist() {
             String sn = volume.getSerialNumber();
-            String path = volume.getState() == Volume.VolumeState.OFFLINE ? "?" : volume.getRootPath().toString();
+            String path = volume.isOffline() ? "?" : volume.getRootPath().toString();
             int confirm = JOptionPane.showConfirmDialog(parentFrame,
                 i18n.getMessage("device.card.blacklist.confirm", path, sn),
                 i18n.getMessage("device.card.blacklist.confirm.title"),
@@ -789,7 +789,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
 
         private void removeVolume() {
             String sn = volume.getSerialNumber();
-            String path = volume.getState() == Volume.VolumeState.OFFLINE
+            String path = volume.isOffline()
                 ? i18n.getMessage("device.card.offline") : volume.getRootPath().toString();
             int confirm = JOptionPane.showConfirmDialog(parentFrame,
                 i18n.getMessage("device.remove.confirm", path, sn),
@@ -812,7 +812,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
             p.add(new JLabel(i18n.getMessage("device.card.detail.fs") + ": " + getFsType()));
             p.add(new JLabel(i18n.getMessage("device.card.detail.state") + ": " + volume.getState()));
             p.add(new JLabel(i18n.getMessage("device.card.detail.ghost") + ": " +
-                (volume.getState() == Volume.VolumeState.OFFLINE
+                (volume.isOffline()
                     ? i18n.getMessage("device.card.detail.yes")
                     : i18n.getMessage("device.card.detail.no"))));
             p.add(new JLabel(i18n.getMessage("device.card.detail.storage") + ": " + getStorageInfo()));
@@ -841,14 +841,14 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
         }
 
         private void updateButtonEnabled() {
-            boolean enabled = volume.getState() != Volume.VolumeState.OFFLINE;
+            boolean enabled = volume.isPresent();
             checkBox.setEnabled(enabled);
             if (toggleMenuItem != null) toggleMenuItem.setEnabled(enabled);
         }
 
         public void refreshVolumeInfo() {
             SwingUtilities.invokeLater(() -> {
-                if (volume.getState() == Volume.VolumeState.OFFLINE || volume.getRootPath() == null) {
+                if (volume.isOffline() || volume.getRootPath() == null) {
                     pathLabel.setText(i18n.getMessage("device.card.offline"));
                 } else {
                     pathLabel.setText(volume.getRootPath().toString());
