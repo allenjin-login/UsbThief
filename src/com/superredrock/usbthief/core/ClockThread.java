@@ -8,9 +8,8 @@ public class ClockThread extends Thread {
 
     private static final AtomicInteger counter = new AtomicInteger(0);
 
+    private long remaining;
     private final TimeUnit unit;
-    private final long initialDelay;
-    private volatile long deadlineMs;
     private volatile boolean paused = false;
     private volatile boolean cancelled = false;
     private final CompletableFuture<Void> future = new CompletableFuture<>();
@@ -18,9 +17,8 @@ public class ClockThread extends Thread {
     public ClockThread(TimeUnit unit, long delay) {
         if (unit == null) throw new IllegalArgumentException("TimeUnit cannot be null");
         if (delay < 0) throw new IllegalArgumentException("Delay must be non-negative: " + delay);
+        this.remaining = delay;
         this.unit = unit;
-        this.initialDelay = delay;
-        this.deadlineMs = System.currentTimeMillis() + unit.toMillis(delay);
         setDaemon(true);
         setName("ClockThread-" + counter.incrementAndGet());
     }
@@ -40,27 +38,33 @@ public class ClockThread extends Thread {
 
     @Override
     public void run() {
-        while (!cancelled) {
-            synchronized (this) {
-                while (paused && !cancelled) {
+        while (remaining > 0 && !cancelled) {
+            synchronized (this){
+                if (paused) {
                     try {
-                        wait(1000);
+                        wait();
                     } catch (InterruptedException e) {
                         completeExceptionally(e);
                         return;
                     }
                 }
-                if (cancelled) return;
             }
 
-            if (System.currentTimeMillis() >= deadlineMs) break;
 
+            long start = System.currentTimeMillis();
             try {
-                long sleepMs = Math.min(1000, deadlineMs - System.currentTimeMillis());
-                if (sleepMs > 0) TimeUnit.MILLISECONDS.sleep(sleepMs);
+                unit.sleep(1);
             } catch (InterruptedException e) {
                 completeExceptionally(e);
                 return;
+            }
+
+
+            if (!paused && !cancelled) {
+                synchronized (this){
+                    long e = unit.convert(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS);
+                    remaining -= e;
+                }
             }
         }
 
@@ -79,9 +83,6 @@ public class ClockThread extends Thread {
     public void cancel() {
         cancelled = true;
         future.cancel(true);
-        synchronized (this) {
-            notifyAll();
-        }
         interrupt();
     }
 
@@ -96,15 +97,8 @@ public class ClockThread extends Thread {
         notifyAll();
     }
 
-    public synchronized void restart() {
-        deadlineMs = System.currentTimeMillis() + unit.toMillis(initialDelay);
-        paused = false;
-        notifyAll();
-    }
-
-    public long getRemaining(TimeUnit targetUnit) {
-        long ms = Math.max(0, deadlineMs - System.currentTimeMillis());
-        return targetUnit.convert(ms, TimeUnit.MILLISECONDS);
+    public synchronized long getRemaining(TimeUnit targetUnit) {
+        return targetUnit.convert(remaining, this.unit);
     }
 
     public boolean isDone() {

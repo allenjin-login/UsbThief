@@ -29,6 +29,7 @@ public class TaskScheduler extends Service {
     private final PriorityBlockingQueue<PriorityTask<?, ?>> priorityQueue;
     private final PriorityRule priorityRule;
     private final ConcurrentHashMap<String, CopyOnWriteArrayList<Future<?>>> futuresBySerial = new ConcurrentHashMap<>();
+    private volatile int dispatchBudget = Integer.MAX_VALUE;
 
     private TaskScheduler() {
         this.priorityQueue = new PriorityBlockingQueue<>();
@@ -73,10 +74,13 @@ public ThreadPoolExecutor getPool() {
             return;
         }
 
-        if (priorityQueue.size() > 1000) {
-            dispatchBatch((int) (priorityQueue.size() * 0.5));
-        } else {
-            dispatchAll();
+        List<PriorityTask<?, ?>> batch = new ArrayList<>();
+        priorityQueue.drainTo(batch, dispatchBudget);
+
+        if (!batch.isEmpty()) {
+            logger.debug("Dispatching {} tasks (budget: {})", batch.size(),
+                    dispatchBudget == Integer.MAX_VALUE ? "∞" : dispatchBudget);
+            dispatchTask(batch);
         }
 
         pruneCompletedFutures();
@@ -125,54 +129,34 @@ public ThreadPoolExecutor getPool() {
         return priorityTask;
     }
 
-    private void dispatchBatch(int batchSize) {
-        List<PriorityTask<?, ?>> batch = new ArrayList<>(batchSize);
-        for (int i = 0; i < batchSize; i++) {
-            PriorityTask<?, ?> task = priorityQueue.poll();
-            if (task == null) break;
-            batch.add(task);
-        }
-
-        if (batch.isEmpty()) {
-            return;
-        }
-
-        logger.debug("Dispatching batch of {} tasks", batch.size());
-
-        dispatchTask(batch);
-    }
-
-    private void dispatchAll() {
-        List<PriorityTask<?, ?>> allTasks = new ArrayList<>();
-        priorityQueue.drainTo(allTasks);
-
-        if (allTasks.isEmpty()) {
-            return;
-        }
-
-        logger.debug("Dispatching all {} tasks (LOW load mode)", allTasks.size());
-
-        dispatchTask(allTasks);
-    }
-
     @SuppressWarnings("unchecked")
     private void dispatchTask(List<PriorityTask<?, ?>> allTasks) {
-        for (PriorityTask<?, ?> task : allTasks) {
+        int dispatched = 0;
+        for (int i = 0; i < allTasks.size(); i++) {
+            PriorityTask<?, ?> task = allTasks.get(i);
             try {
                 Future<?> future = pool.submit((Callable<Object>) task.unwrap());
                 task.setFuture(future);
                 trackFuture(task.unwrap(), future);
+                dispatched++;
             } catch (RejectedExecutionException e) {
-                int requeued = allTasks.size() - allTasks.indexOf(task);
+                int requeued = allTasks.size() - i;
                 priorityQueue.offer(task);
-                for (int i = allTasks.indexOf(task) + 1; i < allTasks.size(); i++) {
-                    priorityQueue.offer(allTasks.get(i));
+                for (int j = i + 1; j < allTasks.size(); j++) {
+                    priorityQueue.offer(allTasks.get(j));
                 }
-                logger.warn("Pool saturated, {} tasks re-queued", requeued);
+                // Negative feedback: halve budget based on successful dispatch count
+                dispatchBudget = Math.max(1, dispatched / 2 + 1);
+                logger.debug("Pool saturated, {} tasks re-queued (budget → {})", requeued, dispatchBudget);
                 return;
             } catch (Exception e) {
                 logger.error("Failed to submit task, dropping", e);
             }
+        }
+
+        // Positive feedback: gradually double budget on full success
+        if (dispatchBudget < Integer.MAX_VALUE) {
+            dispatchBudget = (int) Math.min((long) dispatchBudget * 2, Integer.MAX_VALUE);
         }
     }
 

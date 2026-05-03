@@ -109,7 +109,6 @@ public class ConfigSchema {
             booleanEntry("gui.closeActionRemember", "Remember the close action choice", false, "Window");
 
     // Blacklist configuration
-    @Deprecated
     public static final ConfigEntry<List<String>> DEVICE_BLACKLIST =
             listEntry("deviceBlacklist", "Device blacklist by path (deprecated, use deviceBlacklistBySerial)", List.of(), "Blacklist");
 
@@ -182,7 +181,7 @@ public class ConfigSchema {
 
     // Statistics API configuration
     public static final ConfigEntry<Boolean> STATS_API_ENABLED =
-            booleanEntry("stats.api.enabled", "Enable/disable HTTP API for statistics", true, "Statistics API");
+            booleanEntry("stats.api.enabled", "Enable/disable HTTP API for statistics", false, "Statistics API");
 
     public static final ConfigEntry<Integer> STATS_API_PORT =
             intEntry("stats.api.port", "HTTP API port number", 8421, "Statistics API");

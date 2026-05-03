@@ -51,7 +51,7 @@
         <dependency>
             <groupId>com.formdev</groupId>
             <artifactId>flatlaf</artifactId>
-            <version>3.5.4</version>
+            <version>3.7.1</version>
         </dependency>
         <!-- JNA JPMS - Java Native Access with module-info for jlink -->
         <dependency>
@@ -240,7 +240,7 @@
                             <workingDirectory>${project.build.directory}/${jlink.image.name}/bin</workingDirectory>
                             <arguments>
                                 <argument>-Command</argument>
-                                <argument>(Get-Content runtime.bat) -replace 'set JLINK_VM_OPTIONS=', 'set JLINK_VM_OPTIONS=--enable-preview --enable-native-access=com.sun.jna -Dsun.java2d.d3d=false' | Set-Content runtime.bat</argument>
+                                <argument>(Get-Content runtime.bat) -replace 'set JLINK_VM_OPTIONS=', 'set JLINK_VM_OPTIONS=--enable-preview --enable-native-access=com.sun.jna,com.formdev.flatlaf -Dsun.java2d.d3d=false' | Set-Content runtime.bat</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -256,7 +256,7 @@
                             <workingDirectory>${project.build.directory}/${jlink.image.name}/bin</workingDirectory>
                             <arguments>
                                 <argument>-Command</argument>
-                                <argument>(Get-Content runtime) -replace 'JLINK_VM_OPTIONS=', 'JLINK_VM_OPTIONS=--enable-preview --enable-native-access=com.sun.jna -Dsun.java2d.d3d=false' | Set-Content runtime</argument>
+                                <argument>(Get-Content runtime) -replace 'JLINK_VM_OPTIONS=', 'JLINK_VM_OPTIONS=--enable-preview --enable-native-access=com.sun.jna,com.formdev.flatlaf -Dsun.java2d.d3d=false' | Set-Content runtime</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -288,7 +288,7 @@
                                 <minVersion>25</minVersion>
                                 <opts>
                                     <opt>--enable-preview</opt>
-                                    <opt>--enable-native-access=com.sun.jna</opt>
+                                    <opt>--enable-native-access=com.sun.jna,com.formdev.flatlaf</opt>
                                     <opt>-Dsun.java2d.d3d=false</opt>
                                     <opt>-Dlaunch4j.exefile="%EXEFILE%"</opt>
                                 </opts>
