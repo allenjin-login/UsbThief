@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+      - 'v*-java11'
 
 permissions:
   contents: write
@@ -23,13 +24,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java 25
-        uses: actions/setup-java@v5
-        with:
-          distribution: oracle
-          java-version: '25'
-          cache: 'maven'
-
       - name: Extract version from tag
         id: version
         run: |
@@ -37,8 +31,28 @@ jobs:
           if ($version -match '^v') {
             $version = $version.Substring(1)
           }
+          if ($version -match '-java11$') {
+            $version = $version.Substring(0, $version.Length - 7)
+          }
           echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "is_java11=${{ contains(github.ref_name, '-java11') }}" >> $env:GITHUB_OUTPUT
           echo "Version: $version"
+
+      - name: Setup Java 11
+        if: contains(github.ref_name, '-java11')
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '11'
+          cache: 'maven'
+
+      - name: Setup Java 25
+        if: "!contains(github.ref_name, '-java11')"
+        uses: actions/setup-java@v5
+        with:
+          distribution: oracle
+          java-version: '25'
+          cache: 'maven'
 
       - name: Update version in pom.xml
         run: |
@@ -96,7 +110,7 @@ jobs:
             - **UsbThief-${{ needs.build.outputs.version }}.exe** - Standalone executable
 
             ### System Requirements
-            - Windows 10/11 (64-bit)
+            - Windows 7 or later (64-bit)
             - No Java installation required (custom JRE included)
 
             ### Changelog
