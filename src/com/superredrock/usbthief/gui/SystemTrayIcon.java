@@ -4,7 +4,6 @@ import com.superredrock.usbthief.core.SizeFormatter;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.statistics.Statistics;
-import com.superredrock.usbthief.worker.CopyTask;
 
 import javax.swing.*;
 import java.awt.*;
@@ -128,10 +127,10 @@ public class SystemTrayIcon {
     }
 
     private void updateDynamicMenuItems() {
-        double speed = CopyTask.getSpeedProbeGroup().getTotalSpeed();
+        double speed = Statistics.getInstance().getSpeedCollector().getProbeGroup().getTotalSpeed();
         speedItem.setLabel(String.format("Speed: %.1f MB/s", speed));
 
-        long bytes = CopyTask.getSpeedProbeGroup().getTotalBytes();
+        long bytes = Statistics.getInstance().getSpeedCollector().getProbeGroup().getTotalBytes();
         long files = Statistics.getInstance().getTotalFilesCopied();
         copiedItem.setLabel(String.format("Copied: %s (%d files)", SizeFormatter.format(bytes), files));
     }

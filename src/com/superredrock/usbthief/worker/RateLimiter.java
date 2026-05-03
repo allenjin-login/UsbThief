@@ -1,7 +1,5 @@
 package com.superredrock.usbthief.worker;
 
-import com.superredrock.usbthief.statistics.SpeedStatistics;
-
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -9,17 +7,10 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * Token bucket rate limiter with dynamic rate adjustment.
  *
- * <p>Supports:</p>
- * <ul>
- *   <li>Dynamic rate limit changes via {@link #setRateLimit(long)}</li>
- *   <li>Optional SpeedStatistics integration for tracking copy speeds</li>
- * </ul>
- *
  * <p>Thread safety:</p>
  * <ul>
  *   <li>ReentrantLock protects token state during acquire/refill operations</li>
  *   <li>Volatile fields for rate limit and burst size allow safe dynamic updates</li>
- *   <li>SpeedStatistics uses internal ThreadLocal pattern (no additional sync needed)</li>
  * </ul>
  *
  * @since 2026-02-03
@@ -32,82 +23,27 @@ public class RateLimiter {
     private final ReentrantLock lock = new ReentrantLock();
     private final Condition condition = lock.newCondition();
 
-    // Optional dependency for statistics tracking
-    private final SpeedStatistics speedStats;
-
-    /**
-     * Creates a rate limiter with the specified limits.
-     *
-     * @param rateLimitBytesPerSecond maximum bytes per second (0 = no limit)
-     * @param burstSize maximum burst size in bytes
-     */
     public RateLimiter(long rateLimitBytesPerSecond, long burstSize) {
-        this(rateLimitBytesPerSecond, burstSize, null);
-    }
-
-    /**
-     * Creates a rate limiter with speed statistics.
-     *
-     * @param rateLimitBytesPerSecond base rate limit in bytes per second (0 = no limit)
-     * @param burstSize maximum burst size in bytes
-     * @param speedStats optional SpeedStatistics for tracking copy speeds (can be null)
-     */
-    public RateLimiter(long rateLimitBytesPerSecond, long burstSize,
-                       SpeedStatistics speedStats) {
         this.rateLimitBytesPerSecond = rateLimitBytesPerSecond;
         this.burstSize = burstSize;
         this.tokens = burstSize;
         this.lastRefillTimestamp = System.nanoTime();
-        this.speedStats = speedStats;
     }
 
-    /**
-     * Returns the current rate limit in bytes per second.
-     *
-     * @return rate limit in bytes per second
-     */
     public long getRateLimitBytesPerSecond() {
         return rateLimitBytesPerSecond;
     }
 
-    /**
-     * Returns the current burst size in bytes.
-     *
-     * @return burst size in bytes
-     */
     public long getBurstSize() {
         return burstSize;
     }
 
-    /**
-     * Sets a new rate limit dynamically.
-     *
-     * <p>The new rate limit takes effect immediately for subsequent token refills.
-     * Existing waiting threads will use the new rate for their wait calculations.</p>
-     *
-     * @param bytesPerSecond new rate limit in bytes per second (0 = no limit)
-     */
     public void setRateLimit(long bytesPerSecond) {
         this.rateLimitBytesPerSecond = bytesPerSecond;
     }
 
-    /**
-     * Acquires permission to transfer the specified number of bytes.
-     *
-     * <p>Blocks until enough tokens are available in the bucket.
-     * After successful acquisition, records bytes to SpeedStatistics if configured.</p>
-     *
-     * @param bytes the number of bytes to acquire
-     * @throws InterruptedException if the thread is interrupted while waiting
-     */
     public void acquire(long bytes) throws InterruptedException {
-        if (rateLimitBytesPerSecond <= 0) {
-            // No rate limiting - just record statistics if available
-            if (speedStats != null) {
-                speedStats.recordBytes(bytes);
-            }
-            return;
-        }
+        if (rateLimitBytesPerSecond <= 0) return;
 
         lock.lock();
         try {
@@ -124,23 +60,14 @@ public class RateLimiter {
         } finally {
             lock.unlock();
         }
-
-        // Record bytes to statistics after successful acquire (outside lock)
-        if (speedStats != null) {
-            speedStats.recordBytes(bytes);
-        }
     }
 
-    /**
-     * Refills tokens based on elapsed time.
-     */
     private void refillTokens() {
         long now = System.nanoTime();
         long elapsedNanos = now - lastRefillTimestamp;
         long elapsedSeconds = TimeUnit.NANOSECONDS.toSeconds(elapsedNanos);
 
         if (elapsedSeconds > 0) {
-            // Use current volatile rate limit value
             long currentRateLimit = rateLimitBytesPerSecond;
             long newTokens = elapsedSeconds * currentRateLimit;
             tokens = Math.min(burstSize, tokens + newTokens);
@@ -148,32 +75,12 @@ public class RateLimiter {
         }
     }
 
-    /**
-     * Calculates the wait time needed for the requested bytes.
-     *
-     * @param bytes the number of bytes requested
-     * @return wait time in nanoseconds (0 if tokens available)
-     */
     private long calculateWaitTime(long bytes) {
-        if (tokens >= bytes) {
-            return 0;
-        }
+        if (tokens >= bytes) return 0;
         long deficit = bytes - tokens;
-        // Use current volatile rate limit value
         long currentRateLimit = rateLimitBytesPerSecond;
-        if (currentRateLimit <= 0) {
-            return 0;
-        }
+        if (currentRateLimit <= 0) return 0;
         long waitSeconds = (deficit + currentRateLimit - 1) / currentRateLimit;
         return TimeUnit.SECONDS.toNanos(waitSeconds);
-    }
-
-    /**
-     * Returns the SpeedStatistics associated with this rate limiter.
-     *
-     * @return SpeedStatistics or null if not configured
-     */
-    public SpeedStatistics getSpeedStatistics() {
-        return speedStats;
     }
 }

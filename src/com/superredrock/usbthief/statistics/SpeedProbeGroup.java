@@ -1,10 +1,11 @@
-package com.superredrock.usbthief.worker;
+package com.superredrock.usbthief.statistics;
 
 import java.io.Closeable;
 import java.lang.ref.WeakReference;
 import java.lang.ref.ReferenceQueue;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

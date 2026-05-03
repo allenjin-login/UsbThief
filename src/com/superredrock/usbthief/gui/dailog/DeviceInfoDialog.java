@@ -1,5 +1,6 @@
 package com.superredrock.usbthief.gui.dailog;
 
+import com.superredrock.usbthief.core.Device;
 import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.SizeFormatter;
 import com.superredrock.usbthief.core.Volume;
@@ -13,6 +14,8 @@ import com.superredrock.usbthief.gui.I18nManager;
 import com.superredrock.usbthief.gui.components.EmptyStatePanel;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.statistics.Statistics;
+import com.superredrock.usbthief.statistics.collector.DeviceHistoryEntry;
+import com.superredrock.usbthief.statistics.collector.VolumeStats;
 
 import javax.swing.*;
 import javax.swing.Timer;
@@ -133,7 +136,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
     private void refreshDeviceList() {
         deviceListPanel.removeAll();
 
-        Map<String, Statistics.DeviceHistoryEntry> allHistory = stats.getAllDeviceHistory();
+        Map<String, DeviceHistoryEntry> allHistory = stats.getAllDeviceHistory();
 
         if (allHistory.isEmpty()) {
             EmptyStatePanel emptyStatePanel = new EmptyStatePanel(
@@ -143,10 +146,10 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
             );
             deviceListPanel.add(emptyStatePanel);
         } else {
-            List<Statistics.DeviceHistoryEntry> liveDevices = new ArrayList<>();
-            List<Statistics.DeviceHistoryEntry> historicalDevices = new ArrayList<>();
+            List<DeviceHistoryEntry> liveDevices = new ArrayList<>();
+            List<DeviceHistoryEntry> historicalDevices = new ArrayList<>();
 
-            for (Statistics.DeviceHistoryEntry entry : allHistory.values()) {
+            for (DeviceHistoryEntry entry : allHistory.values()) {
                 if (stats.isDeviceLive(entry.getSerialNumber())) {
                     liveDevices.add(entry);
                 } else {
@@ -160,7 +163,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
             if (!liveDevices.isEmpty()) {
                 deviceListPanel.add(createSectionHeader(i18n.getMessage("deviceinfo.section.live"), true));
                 deviceListPanel.add(Box.createVerticalStrut(4));
-                for (Statistics.DeviceHistoryEntry entry : liveDevices) {
+                for (DeviceHistoryEntry entry : liveDevices) {
                     deviceListPanel.add(createDeviceCard(entry, true));
                     deviceListPanel.add(Box.createVerticalStrut(6));
                 }
@@ -172,7 +175,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
                 }
                 deviceListPanel.add(createSectionHeader(i18n.getMessage("deviceinfo.section.history"), false));
                 deviceListPanel.add(Box.createVerticalStrut(4));
-                for (Statistics.DeviceHistoryEntry entry : historicalDevices) {
+                for (DeviceHistoryEntry entry : historicalDevices) {
                     deviceListPanel.add(createDeviceCard(entry, false));
                     deviceListPanel.add(Box.createVerticalStrut(6));
                 }
@@ -209,9 +212,11 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
         return header;
     }
 
-    private JPanel createDeviceCard(Statistics.DeviceHistoryEntry historyEntry, boolean isLive) {
-        Volume volume = isLive ? deviceManager.getVolumeBySerial(historyEntry.getSerialNumber()) : null;
-        Statistics.VolumeStats vs = stats.getVolumeStats(historyEntry.getSerialNumber());
+    private JPanel createDeviceCard(DeviceHistoryEntry historyEntry, boolean isLive) {
+        Device device = isLive ? deviceManager.getDeviceBySerial(historyEntry.getSerialNumber()) : null;
+        Volume volume = device != null ? device.getVolumes().stream().findFirst().orElse(null) : null;
+        VolumeStats vs = stats.getVolumeStats(
+                volume != null ? volume.getSerialNumber() : historyEntry.getSerialNumber());
 
         JPanel card = new JPanel();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
@@ -292,9 +297,13 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
         addInfoRow(infoGrid, i18n.getMessage("deviceinfo.card.firstSeen"), formatTimestamp(historyEntry.getFirstSeenTime()));
         addInfoRow(infoGrid, i18n.getMessage("deviceinfo.card.lastSeen"), formatTimestamp(historyEntry.getLastSeenTime()));
 
-        if (volume != null) {
-            long elapsed = System.currentTimeMillis() - vs.getFirstSeenTime();
-            addInfoRow(infoGrid, i18n.getMessage("deviceinfo.card.connected"), formatDuration(elapsed));
+        if (isLive) {
+            long lastConnected = historyEntry.getTimelineLog().entrySet().stream()
+                .filter(e -> "CONNECTED".equals(e.getValue()))
+                .mapToLong(Map.Entry::getKey)
+                .max().orElse(historyEntry.getLastSeenTime());
+            addInfoRow(infoGrid, i18n.getMessage("deviceinfo.card.connected"),
+                    formatDuration(System.currentTimeMillis() - lastConnected));
         }
 
         card.add(infoGrid);

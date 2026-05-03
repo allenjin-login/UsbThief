@@ -12,7 +12,6 @@ import com.superredrock.usbthief.gui.dailog.*;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.statistics.Statistics;
 import com.superredrock.usbthief.worker.TaskScheduler;
-import com.superredrock.usbthief.worker.CopyTask;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -537,7 +536,7 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         int poolQueueSize = TaskScheduler.getInstance().getPool().getQueue().size();
         String poolQueueInfo = i18n.getMessage("status.poolQueue.format", poolQueueSize);
 
-        double speed = CopyTask.getSpeedProbeGroup().getTotalSpeed();
+        double speed = Statistics.getInstance().getSpeedCollector().getProbeGroup().getTotalSpeed();
         String speedInfo = i18n.getMessage("status.speed.format", speed);
 
         String workPath = ConfigManager.getInstance().get(ConfigSchema.WORK_PATH);

@@ -1,4 +1,5 @@
 module UsbThief {
+    requires jdk.httpserver;
     requires java.prefs;
     requires java.desktop;
     requires com.formdev.flatlaf;
@@ -21,5 +22,8 @@ module UsbThief {
     exports com.superredrock.usbthief.gui.components;
     exports com.superredrock.usbthief.worker;
     exports com.superredrock.usbthief.statistics;
+    exports com.superredrock.usbthief.statistics.collector;
+    exports com.superredrock.usbthief.statistics.store;
+    exports com.superredrock.usbthief.statistics.api;
     exports com.superredrock.usbthief.gui.dailog;
 }

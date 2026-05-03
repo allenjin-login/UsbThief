@@ -1,4 +1,4 @@
-package com.superredrock.usbthief.worker;
+package com.superredrock.usbthief.statistics;
 
 import java.io.Closeable;
 import java.util.concurrent.atomic.AtomicLong;

@@ -4,6 +4,7 @@ import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.gui.I18nManager;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
+import com.superredrock.usbthief.statistics.Statistics;
 import com.superredrock.usbthief.worker.CopyTask;
 
 import javax.swing.*;
@@ -281,7 +282,7 @@ public class RateLimitConfigDialog extends JDialog implements I18nManager.Locale
      */
     private double getCurrentSpeed() {
         try {
-            return CopyTask.getSpeedProbeGroup().getTotalSpeed();
+            return Statistics.getInstance().getSpeedCollector().getProbeGroup().getTotalSpeed();
         } catch (Exception e) {
             logger.warn("Failed to get speed: {}", e);
         }

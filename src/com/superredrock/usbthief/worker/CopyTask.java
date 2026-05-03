@@ -1,7 +1,7 @@
 package com.superredrock.usbthief.worker;
 
 import com.superredrock.usbthief.core.Volume;
-import com.superredrock.usbthief.core.Volume.VolumeState;
+
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
@@ -19,6 +19,10 @@ import java.nio.file.attribute.DosFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
+
+import com.superredrock.usbthief.statistics.SpeedProbe;
+import com.superredrock.usbthief.statistics.Statistics;
+import com.superredrock.usbthief.statistics.collector.SpeedCollector;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -33,7 +37,7 @@ public class CopyTask implements Callable<CopyResult> {
     private final CheckSum preVerifiedHash;
     private static volatile RateLimiter rateLimiter;
     private static final Object rateLimiterLock = new Object();
-    private static final SpeedProbeGroup speedProbeGroup = new SpeedProbeGroup("copy-tasks");
+    private static final SpeedCollector speedCollector = Statistics.getInstance().getSpeedCollector();
     private static final AtomicLong lastLogTime = new AtomicLong(0);
     private static final long LOG_INTERVAL_MS = 1000;
 
@@ -49,16 +53,15 @@ public class CopyTask implements Callable<CopyResult> {
         this.processingPath = path;
         this.deviceSerial = deviceSerial != null ? deviceSerial : "";
         this.preVerifiedHash = preVerifiedHash;
-        this.taskProbe = new SpeedProbe("CopyTask-" + path.getFileName());
-        speedProbeGroup.addProbe(taskProbe);
+        this.taskProbe = speedCollector.createProbe("CopyTask-" + path.getFileName());
     }
 
     public Path getProcessingPath() {
         return processingPath;
     }
 
-    public static SpeedProbeGroup getSpeedProbeGroup() {
-        return speedProbeGroup;
+    public static SpeedCollector getSpeedCollector() {
+        return speedCollector;
     }
 
 
@@ -98,12 +101,6 @@ public class CopyTask implements Callable<CopyResult> {
                 result = CopyResult.SKIPPED;
             } else {
                 Volume volume = QueueManager.getDeviceManager().getVolume(processingPath);
-                if (volume != null && !volume.isConnected() && !(volume.getState() == VolumeState.IDLE)) {
-                    return CopyResult.FAIL;
-                }else if (volume != null && volume.getState() == VolumeState.EJECTING){
-                    return CopyResult.SKIPPED;
-                }
-
                 size = Files.size(processingPath);
                 destinationPath = getPath(processingPath);
 
@@ -164,9 +161,6 @@ public class CopyTask implements Callable<CopyResult> {
                 if (Thread.currentThread().isInterrupted()){
                     throw new InterruptedException("Copy cancelled");
                 }
-                if (volume != null && volume.getState() == VolumeState.EJECTING) {
-                    throw new IOException("Volume ejecting, aborting copy: " + source);
-                }
                 buffer.flip();
                 int bytesWritten = writeChannel.write(buffer);
                 taskProbe.record(bytesWritten);
@@ -176,7 +170,7 @@ public class CopyTask implements Callable<CopyResult> {
                 long lastLog = lastLogTime.get();
                 if (now - lastLog >= LOG_INTERVAL_MS) {
                     if (lastLogTime.compareAndSet(lastLog, now)) {
-                        double speed = speedProbeGroup.getTotalSpeed();
+                        double speed = speedCollector.getProbeGroup().getTotalSpeed();
                         logger.info("Copying: {} - Global: {} MB/s",
                             source.getFileName(), String.format("%.2f", speed));
                     }

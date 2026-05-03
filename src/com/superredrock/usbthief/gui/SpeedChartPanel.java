@@ -1,7 +1,7 @@
 package com.superredrock.usbthief.gui;
 
 import com.superredrock.usbthief.gui.theme.ThemeManager;
-import com.superredrock.usbthief.worker.CopyTask;
+import com.superredrock.usbthief.statistics.Statistics;
 
 import javax.swing.*;
 import java.awt.*;
@@ -11,7 +11,7 @@ import java.util.Locale;
 
 /**
  * Real-time scrolling speed curve chart panel.
- * Samples speed from CopyTask.getSpeedProbeGroup() every 500ms,
+ * Samples speed from Statistics.getSpeedCollector() every 500ms,
  * displays the last 60 samples (30 seconds) as a smooth curve with gradient fill.
  */
 public class SpeedChartPanel extends JPanel {
@@ -39,7 +39,7 @@ public class SpeedChartPanel extends JPanel {
     }
 
     private synchronized void sample() {
-        currentSpeed = CopyTask.getSpeedProbeGroup().getTotalSpeed();
+        currentSpeed = Statistics.getInstance().getSpeedCollector().getProbeGroup().getTotalSpeed();
         speedHistory.addLast(currentSpeed);
         if (speedHistory.size() > MAX_SAMPLES) {
             speedHistory.removeFirst();
@@ -55,11 +55,11 @@ public class SpeedChartPanel extends JPanel {
     }
 
     public synchronized long getTotalBytes() {
-        return CopyTask.getSpeedProbeGroup().getTotalBytes();
+        return Statistics.getInstance().getSpeedCollector().getProbeGroup().getTotalBytes();
     }
 
     public synchronized int getProbeCount() {
-        return CopyTask.getSpeedProbeGroup().getProbeCount();
+        return Statistics.getInstance().getSpeedCollector().getProbeGroup().getProbeCount();
     }
 
     public void stop() {

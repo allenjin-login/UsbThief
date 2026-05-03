@@ -47,6 +47,9 @@ public class Main {
         // Load index
         Index.getInstance().load();
 
+        // Initialize statistics (eager init ensures collectors register before services start)
+        Statistics.getInstance();
+
         // Register logging listeners for storage events
         registerStorageEventListeners();
 
@@ -84,7 +87,7 @@ public class Main {
 
     public static void quit() {
         System.out.println("Quitting");
-        Statistics.getInstance().save();
+        Statistics.getInstance().shutdown();
         
         // Stop services
         DeviceManager.getInstance().stopService();

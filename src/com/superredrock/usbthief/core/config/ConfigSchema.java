@@ -180,6 +180,13 @@ public class ConfigSchema {
     public static final ConfigEntry<Boolean> STORAGE_ENABLED =
             booleanEntry("storage.enabled", "Enable storage management (monitoring, recycling, space checks)", true, "Storage Management");
 
+    // Statistics API configuration
+    public static final ConfigEntry<Boolean> STATS_API_ENABLED =
+            booleanEntry("stats.api.enabled", "Enable/disable HTTP API for statistics", true, "Statistics API");
+
+    public static final ConfigEntry<Integer> STATS_API_PORT =
+            intEntry("stats.api.port", "HTTP API port number", 8421, "Statistics API");
+
     // All entries registry
     private static final Map<String, ConfigEntry<?>> ALL_ENTRIES = new ConcurrentHashMap<>();
 
@@ -235,6 +242,8 @@ public class ConfigSchema {
         registerEntry(RECYCLER_PROTECTED_AGE_HOURS);
         registerEntry(STORAGE_WARNING_ENABLED);
         registerEntry(STORAGE_ENABLED);
+        registerEntry(STATS_API_ENABLED);
+        registerEntry(STATS_API_PORT);
     }
 
     private ConfigSchema() {

@@ -4,7 +4,7 @@ import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.device.VolumeInsertedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
 import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
-import com.superredrock.usbthief.worker.CopyTask;
+import com.superredrock.usbthief.statistics.Statistics;
 import com.superredrock.usbthief.worker.SnifferLifecycleManager;
 import com.superredrock.usbthief.worker.TaskScheduler;
 
@@ -65,7 +65,7 @@ public class TrayIconManager {
     }
 
     private TrayState determineState() {
-        int probeCount = CopyTask.getSpeedProbeGroup().getProbeCount();
+        int probeCount = Statistics.getInstance().getSpeedCollector().getProbeGroup().getProbeCount();
         if (probeCount > 0) return TrayState.COPYING;
         if (scanCount > 0 || SnifferLifecycleManager.getInstance().isAlive()) return TrayState.SCANNING;
         return TrayState.IDLE;
@@ -97,7 +97,7 @@ public class TrayIconManager {
 
     private void updateTooltip() {
         if (trayIcon == null) return;
-        double speed = CopyTask.getSpeedProbeGroup().getTotalSpeed();
+        double speed = Statistics.getInstance().getSpeedCollector().getProbeGroup().getTotalSpeed();
         int queue = TaskScheduler.getInstance().getQueueDepth();
 
         String tooltip;
