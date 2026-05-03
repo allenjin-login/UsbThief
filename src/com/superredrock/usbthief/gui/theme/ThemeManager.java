@@ -107,14 +107,14 @@ public class ThemeManager {
 
         try {
             switch (theme) {
-                case DARK -> {
+                case DARK:
                     FlatDarkLaf.setup();
                     updateDarkThemeColors();
-                }
-                case LIGHT -> {
+                    break;
+                case LIGHT:
                     FlatLightLaf.setup();
                     updateLightThemeColors();
-                }
+                    break;
             }
 
             // Save preference
@@ -177,13 +177,13 @@ public class ThemeManager {
      * @return the corresponding color
      */
     public static Color getStateColor(Volume.VolumeState state) {
-        return switch (state) {
-            case IDLE -> DEVICE_ONLINE;
-            case OFFLINE -> DEVICE_OFFLINE;
-            case UNAVAILABLE -> DEVICE_UNAVAILABLE;
-            case DISABLED -> DEVICE_DISABLED;
-            default -> DEVICE_ONLINE;
-        };
+        switch (state) {
+            case IDLE: return DEVICE_ONLINE;
+            case OFFLINE: return DEVICE_OFFLINE;
+            case UNAVAILABLE: return DEVICE_UNAVAILABLE;
+            case DISABLED: return DEVICE_DISABLED;
+            default: return DEVICE_ONLINE;
+        }
     }
 
     /**

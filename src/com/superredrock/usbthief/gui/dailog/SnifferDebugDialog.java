@@ -179,10 +179,18 @@ public class SnifferDebugDialog extends JDialog {
 
     private void refresh() {
         switch (activeTab) {
-            case TAB_SNIFFERS -> refreshSniffers();
-            case TAB_SERVICES -> refreshServices();
-            case TAB_EVENTS -> refreshEvents();
-            case TAB_THREADS -> refreshThreads();
+            case TAB_SNIFFERS:
+                refreshSniffers();
+                break;
+            case TAB_SERVICES:
+                refreshServices();
+                break;
+            case TAB_EVENTS:
+                refreshEvents();
+                break;
+            case TAB_THREADS:
+                refreshThreads();
+                break;
         }
     }
 
@@ -424,12 +432,13 @@ public class SnifferDebugDialog extends JDialog {
         if (svc == null) return new JPanel();
 
         ServiceState state = svc.getServiceState();
-        Color dotColor = switch (state) {
-            case RUNNING -> ThemeManager.ACCENT_SUCCESS;
-            case PAUSED -> ThemeManager.ACCENT_WARNING;
-            case FAILED -> ThemeManager.ACCENT_ERROR;
-            default -> ThemeManager.TEXT_MUTED;
-        };
+        Color dotColor;
+        switch (state) {
+            case RUNNING: dotColor = ThemeManager.ACCENT_SUCCESS; break;
+            case PAUSED: dotColor = ThemeManager.ACCENT_WARNING; break;
+            case FAILED: dotColor = ThemeManager.ACCENT_ERROR; break;
+            default: dotColor = ThemeManager.TEXT_MUTED; break;
+        }
 
         JPanel card = new JPanel(new BorderLayout());
         boolean isFailed = state == ServiceState.FAILED;
@@ -534,13 +543,18 @@ public class SnifferDebugDialog extends JDialog {
 
     private boolean matchesFilter(Event event, String filter) {
         if ("All".equals(filter)) return true;
-        return switch (filter) {
-            case "Device" -> event instanceof DeviceEvent || event instanceof VolumeEvent;
-            case "Copy" -> event instanceof FileDiscoveredEvent || event instanceof CopyCompletedEvent || event instanceof DuplicateDetectedEvent;
-            case "Index" -> event instanceof IndexEvent || event instanceof IndexSavedEvent || event instanceof IndexLoadedEvent;
-            case "Storage" -> event instanceof StorageLowEvent || event instanceof StorageRecoveredEvent || event instanceof FilesRecycledEvent || event instanceof EmptyFoldersDeletedEvent;
-            default -> true;
-        };
+        switch (filter) {
+            case "Device":
+                return event instanceof DeviceEvent || event instanceof VolumeEvent;
+            case "Copy":
+                return event instanceof FileDiscoveredEvent || event instanceof CopyCompletedEvent || event instanceof DuplicateDetectedEvent;
+            case "Index":
+                return event instanceof IndexEvent || event instanceof IndexSavedEvent || event instanceof IndexLoadedEvent;
+            case "Storage":
+                return event instanceof StorageLowEvent || event instanceof StorageRecoveredEvent || event instanceof FilesRecycledEvent || event instanceof EmptyFoldersDeletedEvent;
+            default:
+                return true;
+        }
     }
 
     private JPanel buildEventRow(CapturedEvent ce, DateTimeFormatter fmt) {

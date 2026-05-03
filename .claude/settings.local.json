@@ -47,7 +47,12 @@
       "Bash(target/runtime/bin/java.exe --version)",
       "Bash(target/runtime/bin/java.exe *)",
       "Bash(jlink --help)",
-      "Bash(jlink *)"
+      "Bash(jlink *)",
+      "Bash(grep -v \"^\\\\[ERROR\\\\] $\")",
+      "mcp__tavily__tavily_extract",
+      "Bash(curl -s \"https://repo1.maven.org/maven2/net/java/dev/jna/jna-jpms/maven-metadata.xml\")",
+      "Bash(git remote *)",
+      "Bash(grep -v \"//\")"
     ]
   }
 }

@@ -117,9 +117,14 @@ public final class FileSelector {
      * @return list of selected files, or empty list if no suitable files found
      */
     public static List<FileMetadata> selectAuto(List<FileMetadata> files, long bytesNeeded, StorageLevel level) {
-        return switch (level) {
-            case CRITICAL -> selectBySize(files, bytesNeeded);
-            case OK, LOW -> selectByTime(files, bytesNeeded);
-        };
+        switch (level) {
+            case CRITICAL:
+                return selectBySize(files, bytesNeeded);
+            case OK:
+            case LOW:
+                return selectByTime(files, bytesNeeded);
+            default:
+                throw new AssertionError("Unknown level: " + level);
+        }
     }
 }

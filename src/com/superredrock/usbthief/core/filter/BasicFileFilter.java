@@ -126,13 +126,13 @@ public class BasicFileFilter implements FileFilter {
         // Use ZonedDateTime for variable-length units (weeks, months, years)
         ZonedDateTime now = ZonedDateTime.now();
 
-        return switch (unit) {
-            case UNIT_DAYS -> Instant.now().minus(value, ChronoUnit.DAYS);
-            case UNIT_WEEKS -> now.minusWeeks(value).toInstant();
-            case UNIT_MONTHS -> now.minusMonths(value).toInstant();
-            case UNIT_YEARS -> now.minusYears(value).toInstant();
-            default -> Instant.now().minus(value, ChronoUnit.HOURS);
-        };
+        switch (unit) {
+            case UNIT_DAYS: return Instant.now().minus(value, ChronoUnit.DAYS);
+            case UNIT_WEEKS: return now.minusWeeks(value).toInstant();
+            case UNIT_MONTHS: return now.minusMonths(value).toInstant();
+            case UNIT_YEARS: return now.minusYears(value).toInstant();
+            default: return Instant.now().minus(value, ChronoUnit.HOURS);
+        }
     }
 
     /**

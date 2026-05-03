@@ -112,13 +112,13 @@ public class WelcomeDialog extends JDialog {
     }
 
     private String getFeatureIcon(String featureKey) {
-        return switch (featureKey) {
-            case "welcome.feature.auto" -> "\uD83D\uDD0C";
-            case "welcome.feature.dedupe" -> "♻️";
-            case "welcome.feature.manage" -> "⚙️";
-            case "welcome.feature.stats" -> "\uD83D\uDCCA";
-            default -> "•";
-        };
+        switch (featureKey) {
+            case "welcome.feature.auto": return "\uD83D\uDD0C";
+            case "welcome.feature.dedupe": return "♻️";
+            case "welcome.feature.manage": return "⚙️";
+            case "welcome.feature.stats": return "\uD83D\uDCCA";
+            default: return "•";
+        }
     }
 
     /**

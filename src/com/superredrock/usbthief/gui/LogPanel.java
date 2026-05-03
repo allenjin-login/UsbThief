@@ -338,12 +338,12 @@ public class LogPanel extends JPanel {
         @Override
         public Object getValueAt(int rowIndex, int columnIndex) {
             LogEntry entry = logEntries.get(rowIndex);
-            return switch (columnIndex) {
-                case 0 -> entry.timestamp();
-                case 1 -> entry.level();
-                case 2 -> entry.message();
-                default -> null;
-            };
+            switch (columnIndex) {
+                case 0: return entry.timestamp();
+                case 1: return entry.level();
+                case 2: return entry.message();
+                default: return null;
+            }
         }
     }
 
@@ -365,12 +365,13 @@ public class LogPanel extends JPanel {
         }
 
         private Color getLevelColor(LogLevel level) {
-            return switch (level) {
-                case INFO -> INFO_COLOR;
-                case WARNING -> WARNING_COLOR;
-                case ERROR -> ERROR_COLOR;
-                case SUCCESS -> SUCCESS_COLOR;
-            };
+            switch (level) {
+                case INFO: return INFO_COLOR;
+                case WARNING: return WARNING_COLOR;
+                case ERROR: return ERROR_COLOR;
+                case SUCCESS: return SUCCESS_COLOR;
+                default: throw new AssertionError("Unknown level: " + level);
+            }
         }
     }
 

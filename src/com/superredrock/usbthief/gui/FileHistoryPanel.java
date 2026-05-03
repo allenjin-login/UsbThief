@@ -219,15 +219,15 @@ public class FileHistoryPanel extends JPanel {
 
         @Override
         public String getColumnName(int column) {
-            return switch (column) {
-                case 0 -> I18nManager.getInstance().getMessage("filehistory.table.fileName");
-                case 1 -> I18nManager.getInstance().getMessage("filehistory.table.sourcePath");
-                case 2 -> I18nManager.getInstance().getMessage("filehistory.table.destPath");
-                case 3 -> I18nManager.getInstance().getMessage("filehistory.table.fileSize");
-                case 4 -> I18nManager.getInstance().getMessage("filehistory.table.bytesCopied");
-                case 5 -> I18nManager.getInstance().getMessage("filehistory.table.timestamp");
-                default -> "";
-            };
+            switch (column) {
+                case 0: return I18nManager.getInstance().getMessage("filehistory.table.fileName");
+                case 1: return I18nManager.getInstance().getMessage("filehistory.table.sourcePath");
+                case 2: return I18nManager.getInstance().getMessage("filehistory.table.destPath");
+                case 3: return I18nManager.getInstance().getMessage("filehistory.table.fileSize");
+                case 4: return I18nManager.getInstance().getMessage("filehistory.table.bytesCopied");
+                case 5: return I18nManager.getInstance().getMessage("filehistory.table.timestamp");
+                default: return "";
+            }
         }
 
         @Override
@@ -238,15 +238,15 @@ public class FileHistoryPanel extends JPanel {
         @Override
         public Object getValueAt(int rowIndex, int columnIndex) {
             FileHistoryRecord record = records.get(rowIndex);
-            return switch (columnIndex) {
-                case 0 -> record.fileName();
-                case 1 -> record.sourcePath();
-                case 2 -> record.destPath();
-                case 3 -> record.fileSize();
-                case 4 -> record.bytesCopied();
-                case 5 -> record.timestamp();
-                default -> null;
-            };
+            switch (columnIndex) {
+                case 0: return record.fileName();
+                case 1: return record.sourcePath();
+                case 2: return record.destPath();
+                case 3: return record.fileSize();
+                case 4: return record.bytesCopied();
+                case 5: return record.timestamp();
+                default: return null;
+            }
         }
     }
 

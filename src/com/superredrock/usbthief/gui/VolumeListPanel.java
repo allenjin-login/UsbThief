@@ -753,13 +753,14 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
         }
 
         private String getLocalizedState(Volume.VolumeState state) {
-            return switch (state) {
-                case OFFLINE -> i18n.getMessage("device.state.offline");
-                case UNAVAILABLE -> i18n.getMessage("device.state.unavailable");
-                case IDLE -> i18n.getMessage("device.state.idle");
-                case DISABLED -> i18n.getMessage("device.state.disabled");
-                case EJECTING -> i18n.getMessage("device.state.ejecting");
-            };
+            switch (state) {
+                case OFFLINE: return i18n.getMessage("device.state.offline");
+                case UNAVAILABLE: return i18n.getMessage("device.state.unavailable");
+                case IDLE: return i18n.getMessage("device.state.idle");
+                case DISABLED: return i18n.getMessage("device.state.disabled");
+                case EJECTING: return i18n.getMessage("device.state.ejecting");
+                default: throw new AssertionError("Unknown state: " + state);
+            }
         }
 
         private void toggleVolume() {

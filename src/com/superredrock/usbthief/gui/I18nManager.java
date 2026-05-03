@@ -53,12 +53,12 @@ public class I18nManager {
      */
     private Locale parseLocale(String localeStr) {
         String[] parts = localeStr.split("_");
-        return switch (parts.length) {
-            case 1 -> Locale.of(parts[0]);
-            case 2 -> Locale.of(parts[0], parts[1]);
-            case 3 -> Locale.of(parts[0], parts[1], parts[2]);
-            default -> null;
-        };
+        switch (parts.length) {
+            case 1: return new Locale(parts[0]);
+            case 2: return new Locale(parts[0], parts[1]);
+            case 3: return new Locale(parts[0], parts[1], parts[2]);
+            default: return null;
+        }
     }
 
     public List<LanguageInfo> getAvailableLanguages() {

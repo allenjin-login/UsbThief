@@ -87,9 +87,15 @@ public class RecyclerService extends Service {
 
             // Act based on storage level
             switch (level) {
-                case OK -> deleteEmptyFolders();
-                case LOW -> recycleFiles(RecycleStrategy.TIME_FIRST);
-                case CRITICAL -> recycleFiles(RecycleStrategy.SIZE_FIRST);
+                case OK:
+                    deleteEmptyFolders();
+                    break;
+                case LOW:
+                    recycleFiles(RecycleStrategy.TIME_FIRST);
+                    break;
+                case CRITICAL:
+                    recycleFiles(RecycleStrategy.SIZE_FIRST);
+                    break;
             }
             scanWorkSize();
 
@@ -256,14 +262,20 @@ public class RecyclerService extends Service {
             // Select files based on strategy
             List<FileSelector.FileMetadata> selectedFiles;
             switch (actualStrategy) {
-                case TIME_FIRST -> selectedFiles = FileSelector.selectByTime(files, bytesNeeded);
-                case SIZE_FIRST -> selectedFiles = FileSelector.selectBySize(files, bytesNeeded);
-                case AUTO -> {
+                case TIME_FIRST:
+                    selectedFiles = FileSelector.selectByTime(files, bytesNeeded);
+                    break;
+                case SIZE_FIRST:
+                    selectedFiles = FileSelector.selectBySize(files, bytesNeeded);
+                    break;
+                case AUTO:
                     // For AUTO, use time-first for LOW, size-first for CRITICAL
                     StorageLevel level = storageController.getStorageStatus().level();
                     selectedFiles = FileSelector.selectAuto(files, bytesNeeded, level);
-                }
-                default -> selectedFiles = List.of();
+                    break;
+                default:
+                    selectedFiles = List.of();
+                    break;
             }
 
             if (selectedFiles.isEmpty()) {

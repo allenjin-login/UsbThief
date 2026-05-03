@@ -284,12 +284,12 @@ public class EventPanel extends JPanel {
 
         @Override
         public String getColumnName(int column) {
-            return switch (column) {
-                case 0 -> I18nManager.getInstance().getMessage("event.table.type");
-                case 1 -> I18nManager.getInstance().getMessage("event.table.time");
-                case 2 -> I18nManager.getInstance().getMessage("event.table.description");
-                default -> "";
-            };
+            switch (column) {
+                case 0: return I18nManager.getInstance().getMessage("event.table.type");
+                case 1: return I18nManager.getInstance().getMessage("event.table.time");
+                case 2: return I18nManager.getInstance().getMessage("event.table.description");
+                default: return "";
+            }
         }
 
         @Override
@@ -300,12 +300,12 @@ public class EventPanel extends JPanel {
         @Override
         public Object getValueAt(int rowIndex, int columnIndex) {
             EventEntry entry = eventEntries.get(rowIndex);
-            return switch (columnIndex) {
-                case 0 -> entry.eventType();
-                case 1 -> entry.timestamp();
-                case 2 -> entry.description();
-                default -> null;
-            };
+            switch (columnIndex) {
+                case 0: return entry.eventType();
+                case 1: return entry.timestamp();
+                case 2: return entry.description();
+                default: return null;
+            }
         }
     }
 

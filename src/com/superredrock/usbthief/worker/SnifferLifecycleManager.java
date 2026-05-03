@@ -97,23 +97,26 @@ public class SnifferLifecycleManager extends Service {
             var newState = event.newState();
 
             switch (newState) {
-                case OFFLINE, EJECTING -> {
+                case OFFLINE:
+                case EJECTING:
                     logger.debug("Volume {} , stopping sniffer: {}", newState, serial);
                     stopSnifferOnly(serial);
                     if (!timers.containsKey(serial)) {
                         scheduleRestart(serial, RestartReason.NORMAL_COMPLETION);
                     }
-                }
-                case DISABLED -> {
+                    break;
+                case DISABLED:
                     logger.debug("Volume DISABLED, stopping sniffer: {}", serial);
                     stop(serial);
-                }
-                case IDLE -> {
+                    break;
+                case IDLE:
                     if (!event.oldState().isPresent()) {
                         logger.debug("Volume became IDLE, will create sniffer on next tick: {}", serial);
                     }
-                }
-                default -> {}
+                    break;
+                default:
+                    // Do nothing for other states
+                    break;
             }
         });
     }
@@ -255,13 +258,16 @@ public class SnifferLifecycleManager extends Service {
      */
     private long getRestartDelayMs(RestartReason reason) {
         ConfigManager config = ConfigManager.getInstance();
-        return switch (reason) {
-            case NORMAL_COMPLETION ->
-                TimeUnit.MINUTES.toMillis(config.get(ConfigSchema.SNIFFER_WAIT_NORMAL_MINUTES));
-            case ERROR ->
-                TimeUnit.MINUTES.toMillis(config.get(ConfigSchema.SNIFFER_WAIT_ERROR_MINUTES));
-            case STORAGE_PAUSE -> 0;
-        };
+        switch (reason) {
+            case NORMAL_COMPLETION:
+                return TimeUnit.MINUTES.toMillis(config.get(ConfigSchema.SNIFFER_WAIT_NORMAL_MINUTES));
+            case ERROR:
+                return TimeUnit.MINUTES.toMillis(config.get(ConfigSchema.SNIFFER_WAIT_ERROR_MINUTES));
+            case STORAGE_PAUSE:
+                return 0;
+            default:
+                throw new AssertionError("Unknown reason: " + reason);
+        }
     }
 
     /**

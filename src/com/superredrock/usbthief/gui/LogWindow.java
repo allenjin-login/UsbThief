@@ -208,21 +208,35 @@ public class LogWindow extends JDialog {
     }
 
     private Style getStyleForLevel(String level) {
-        return switch (level) {
-            case "DEBUG", "TRACE", "FINE" -> fineStyle;
-            case "WARN" -> warningStyle;
-            case "ERROR", "FATAL" -> severeStyle;
-            default -> infoStyle;
-        };
+        switch (level) {
+            case "DEBUG":
+            case "TRACE":
+            case "FINE":
+                return fineStyle;
+            case "WARN":
+                return warningStyle;
+            case "ERROR":
+            case "FATAL":
+                return severeStyle;
+            default:
+                return infoStyle;
+        }
     }
 
     private boolean isLevelVisible(String level) {
-        return switch (level) {
-            case "DEBUG", "TRACE", "FINE" -> fineCheckBox.isSelected();
-            case "WARN" -> warningCheckBox.isSelected();
-            case "ERROR", "FATAL" -> severeCheckBox.isSelected();
-            default -> infoCheckBox.isSelected();
-        };
+        switch (level) {
+            case "DEBUG":
+            case "TRACE":
+            case "FINE":
+                return fineCheckBox.isSelected();
+            case "WARN":
+                return warningCheckBox.isSelected();
+            case "ERROR":
+            case "FATAL":
+                return severeCheckBox.isSelected();
+            default:
+                return infoCheckBox.isSelected();
+        }
     }
 
     private boolean matchesSearch(String message) {

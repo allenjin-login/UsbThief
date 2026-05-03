@@ -459,12 +459,13 @@ public class StorageManagementPanel extends JPanel implements I18nManager.Locale
      * @param strategy current strategy value (TIME_FIRST, SIZE_FIRST, or AUTO)
      */
     private void updateStrategyComboBox(String strategy) {
-        int index = switch (strategy) {
-            case "TIME_FIRST" -> 0;
-            case "SIZE_FIRST" -> 1;
-            case "AUTO" -> 2;
-            default -> 2; // Default to AUTO
-        };
+        int index;
+        switch (strategy) {
+            case "TIME_FIRST": index = 0; break;
+            case "SIZE_FIRST": index = 1; break;
+            case "AUTO": index = 2; break;
+            default: index = 2; break; // Default to AUTO
+        }
         strategyComboBox.setSelectedIndex(index);
     }
 
@@ -496,11 +497,13 @@ public class StorageManagementPanel extends JPanel implements I18nManager.Locale
                     SizeFormatter.format(status.totalBytes()));
 
             // Update status label
-            String levelText = switch (status.level()) {
-                case OK -> i18n.getMessage("storage.level.ok");
-                case LOW -> i18n.getMessage("storage.level.low");
-                case CRITICAL -> i18n.getMessage("storage.level.critical");
-            };
+            String levelText;
+            switch (status.level()) {
+                case OK: levelText = i18n.getMessage("storage.level.ok"); break;
+                case LOW: levelText = i18n.getMessage("storage.level.low"); break;
+                case CRITICAL: levelText = i18n.getMessage("storage.level.critical"); break;
+                default: levelText = i18n.getMessage("storage.level.unknown"); break;
+            }
             statusLabel.setText(i18n.getMessage("storage.level") + ": " + levelText);
             statusLabel.setForeground(status.level() == StorageLevel.CRITICAL ? Color.RED :
                     status.level() == StorageLevel.LOW ? Color.ORANGE : Color.GREEN);
@@ -513,11 +516,13 @@ public class StorageManagementPanel extends JPanel implements I18nManager.Locale
      * @param level current storage level
      */
     private void updateProgressBarColor(StorageLevel level) {
-        Color color = switch (level) {
-            case OK -> Color.GREEN;
-            case LOW -> Color.ORANGE;
-            case CRITICAL -> Color.RED;
-        };
+        Color color;
+        switch (level) {
+            case OK: color = Color.GREEN; break;
+            case LOW: color = Color.ORANGE; break;
+            case CRITICAL: color = Color.RED; break;
+            default: color = Color.GRAY; break;
+        }
         storageProgressBar.setForeground(color);
     }
 
@@ -587,12 +592,13 @@ public class StorageManagementPanel extends JPanel implements I18nManager.Locale
 
         // Recycler Strategy
         int strategyIndex = strategyComboBox.getSelectedIndex();
-        String strategy = switch (strategyIndex) {
-            case 0 -> "TIME_FIRST";
-            case 1 -> "SIZE_FIRST";
-            case 2 -> "AUTO";
-            default -> "AUTO";
-        };
+        String strategy;
+        switch (strategyIndex) {
+            case 0: strategy = "TIME_FIRST"; break;
+            case 1: strategy = "SIZE_FIRST"; break;
+            case 2: strategy = "AUTO"; break;
+            default: strategy = "AUTO"; break;
+        }
         config.set(ConfigSchema.RECYCLER_STRATEGY, strategy);
 
         // Protected Age

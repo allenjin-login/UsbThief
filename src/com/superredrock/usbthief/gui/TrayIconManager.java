@@ -123,12 +123,14 @@ public class TrayIconManager {
         Graphics2D g2d = img.createGraphics();
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        Color stateColor = switch (state) {
-            case IDLE -> new Color(0x6C7086);      // Gray
-            case SCANNING -> new Color(0xA6E3A1);   // Green
-            case COPYING -> new Color(0x89B4FA);     // Blue
-            case ERROR -> new Color(0xF38BA8);       // Red
-        };
+        Color stateColor;
+        switch (state) {
+            case IDLE: stateColor = new Color(0x6C7086); break;      // Gray
+            case SCANNING: stateColor = new Color(0xA6E3A1); break;   // Green
+            case COPYING: stateColor = new Color(0x89B4FA); break;     // Blue
+            case ERROR: stateColor = new Color(0xF38BA8); break;       // Red
+            default: stateColor = new Color(0x6C7086); break;
+        }
 
         // Background circle
         int pad = Math.max(1, size / 8);
@@ -162,12 +164,14 @@ public class TrayIconManager {
             g2d.setColor(Color.WHITE);
             g2d.setFont(new Font(Font.SANS_SERIF, Font.BOLD, overlaySize - 2));
             FontMetrics fm = g2d.getFontMetrics();
-            String symbol = switch (state) {
-                case SCANNING -> "⌕"; // search
-                case COPYING -> "↓";  // download arrow
-                case ERROR -> "!";
-                case IDLE -> "";
-            };
+            String symbol;
+            switch (state) {
+                case SCANNING: symbol = "⌕"; break; // search
+                case COPYING: symbol = "↓"; break;  // download arrow
+                case ERROR: symbol = "!"; break;
+                case IDLE: symbol = ""; break;
+                default: symbol = ""; break;
+            }
             int sx = overlayX + (overlaySize - fm.stringWidth(symbol)) / 2;
             int sy = overlayY + fm.getAscent() + (overlaySize - fm.getHeight()) / 2;
             g2d.drawString(symbol, sx, sy);

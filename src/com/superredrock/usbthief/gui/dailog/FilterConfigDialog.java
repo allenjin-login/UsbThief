@@ -545,14 +545,15 @@ public class FilterConfigDialog extends JDialog implements I18nManager.LocaleCha
         long timeValue = configManager.get(ConfigSchema.FILE_FILTER_TIME_VALUE);
         String timeUnit = configManager.get(ConfigSchema.FILE_FILTER_TIME_UNIT);
 
-        int timeUnitIndex = switch (timeUnit.toUpperCase(Locale.ROOT)) {
-            case "HOURS" -> 0;
-            case "DAYS" -> 1;
-            case "WEEKS" -> 2;
-            case "MONTHS" -> 3;
-            case "YEARS" -> 4;
-            default -> 0;
-        };
+        int timeUnitIndex;
+        switch (timeUnit.toUpperCase(Locale.ROOT)) {
+            case "HOURS": timeUnitIndex = 0; break;
+            case "DAYS": timeUnitIndex = 1; break;
+            case "WEEKS": timeUnitIndex = 2; break;
+            case "MONTHS": timeUnitIndex = 3; break;
+            case "YEARS": timeUnitIndex = 4; break;
+            default: timeUnitIndex = 0; break;
+        }
         timeUnitComboBox.setSelectedIndex(timeUnitIndex);
 
         // Update slider range then set value
@@ -566,12 +567,13 @@ public class FilterConfigDialog extends JDialog implements I18nManager.LocaleCha
 
         // Suffix filter settings
         String mode = configManager.get(ConfigSchema.SUFFIX_FILTER_MODE);
-        int modeIndex = switch (mode.toUpperCase(Locale.ROOT)) {
-            case "NONE" -> 0;
-            case "WHITELIST" -> 1;
-            case "BLACKLIST" -> 2;
-            default -> 0;
-        };
+        int modeIndex;
+        switch (mode.toUpperCase(Locale.ROOT)) {
+            case "NONE": modeIndex = 0; break;
+            case "WHITELIST": modeIndex = 1; break;
+            case "BLACKLIST": modeIndex = 2; break;
+            default: modeIndex = 0; break;
+        }
         modeComboBox.setSelectedIndex(modeIndex);
 
         allowNoExtCheckBox.setSelected(configManager.get(ConfigSchema.FILE_FILTER_ALLOW_NO_EXT));
@@ -621,14 +623,15 @@ public class FilterConfigDialog extends JDialog implements I18nManager.LocaleCha
         configManager.set(ConfigSchema.FILE_FILTER_TIME_VALUE, (long) timeValue);
 
         int timeUnitIndex = timeUnitComboBox.getSelectedIndex();
-        String timeUnit = switch (timeUnitIndex) {
-            case 0 -> "HOURS";
-            case 1 -> "DAYS";
-            case 2 -> "WEEKS";
-            case 3 -> "MONTHS";
-            case 4 -> "YEARS";
-            default -> "HOURS";
-        };
+        String timeUnit;
+        switch (timeUnitIndex) {
+            case 0: timeUnit = "HOURS"; break;
+            case 1: timeUnit = "DAYS"; break;
+            case 2: timeUnit = "WEEKS"; break;
+            case 3: timeUnit = "MONTHS"; break;
+            case 4: timeUnit = "YEARS"; break;
+            default: timeUnit = "HOURS"; break;
+        }
         configManager.set(ConfigSchema.FILE_FILTER_TIME_UNIT, timeUnit);
 
         configManager.set(ConfigSchema.FILE_FILTER_INCLUDE_HIDDEN, includeHiddenCheckBox.isSelected());
@@ -636,12 +639,13 @@ public class FilterConfigDialog extends JDialog implements I18nManager.LocaleCha
 
         // Suffix filter settings
         int modeIndex = modeComboBox.getSelectedIndex();
-        String mode = switch (modeIndex) {
-            case 0 -> "NONE";
-            case 1 -> "WHITELIST";
-            case 2 -> "BLACKLIST";
-            default -> "NONE";
-        };
+        String mode;
+        switch (modeIndex) {
+            case 0: mode = "NONE"; break;
+            case 1: mode = "WHITELIST"; break;
+            case 2: mode = "BLACKLIST"; break;
+            default: mode = "NONE"; break;
+        }
         configManager.set(ConfigSchema.SUFFIX_FILTER_MODE, mode);
 
         configManager.set(ConfigSchema.FILE_FILTER_ALLOW_NO_EXT, allowNoExtCheckBox.isSelected());
