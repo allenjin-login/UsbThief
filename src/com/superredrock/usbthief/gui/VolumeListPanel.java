@@ -553,7 +553,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
         public java.util.List<VolumeCard> getVolumeCards() {
             java.util.List<VolumeCard> cards = new java.util.ArrayList<>();
             for (Component c : volumesContainer.getComponents()) {
-                if (c instanceof VolumeCard vc) cards.add(vc);
+                if (c instanceof VolumeCard) { cards.add((VolumeCard) c); }
             }
             return cards;
         }

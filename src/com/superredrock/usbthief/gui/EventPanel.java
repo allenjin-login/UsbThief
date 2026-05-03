@@ -316,7 +316,8 @@ public class EventPanel extends JPanel {
                                                        boolean isSelected, boolean hasFocus, int row, int column) {
             super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 
-            if (value instanceof String eventType) {
+            if (value instanceof String) {
+                String eventType = (String) value;
                 setText(eventType);
                 setForeground(getEventTypeColor(eventType));
                 setFont(getFont().deriveFont(Font.BOLD));

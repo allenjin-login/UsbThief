@@ -132,8 +132,8 @@ final class StatsEventHandler {
 
     private String valueToJson(Object v) {
         if (v instanceof Number) return v.toString();
-        if (v instanceof Boolean b) return b.toString();
-        if (v instanceof String s) return '"' + escape(s) + '"';
+        if (v instanceof Boolean) return v.toString();
+        if (v instanceof String) return '"' + escape((String) v) + '"';
         if (v instanceof Map<?, ?> m) {
             StringBuilder sb = new StringBuilder("{");
             boolean first = true;

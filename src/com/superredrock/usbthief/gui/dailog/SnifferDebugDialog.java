@@ -97,7 +97,8 @@ public class SnifferDebugDialog extends JDialog {
                     eventBuffer.remove(0);
                 }
             }
-            if (event instanceof VolumeRemovedEvent vre) {
+            if (event instanceof VolumeRemovedEvent) {
+                VolumeRemovedEvent vre = (VolumeRemovedEvent) event;
                 cacheEjectedVolume(vre.volume().getSerialNumber());
             }
         };

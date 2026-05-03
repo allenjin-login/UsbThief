@@ -257,7 +257,8 @@ public class FileHistoryPanel extends JPanel {
                                                        boolean isSelected, boolean hasFocus, int row, int column) {
             super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 
-            if (value instanceof Long fileSize) {
+            if (value instanceof Long) {
+                long fileSize = (Long) value;
                 setText(SizeFormatter.format(fileSize));
                 setHorizontalAlignment(SwingConstants.RIGHT);
             }

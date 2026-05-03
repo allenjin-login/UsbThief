@@ -162,8 +162,8 @@ public ThreadPoolExecutor getPool() {
 
     private void trackFuture(Object delegate, Future<?> future) {
         String serial = null;
-        if (delegate instanceof CopyTask ct) serial = ct.getDeviceSerial();
-        else if (delegate instanceof VerifyTask vt) serial = vt.getDeviceSerial();
+        if (delegate instanceof CopyTask) { serial = ((CopyTask) delegate).getDeviceSerial(); }
+        else if (delegate instanceof VerifyTask) { serial = ((VerifyTask) delegate).getDeviceSerial(); }
         if (serial != null && !serial.isEmpty()) {
             futuresBySerial.computeIfAbsent(serial, ignored -> new CopyOnWriteArrayList<>()).add(future);
         }
@@ -186,8 +186,8 @@ public ThreadPoolExecutor getPool() {
         while (it.hasNext()) {
             Object delegate = it.next().unwrap();
             String s = null;
-            if (delegate instanceof CopyTask ct) s = ct.getDeviceSerial();
-            else if (delegate instanceof VerifyTask vt) s = vt.getDeviceSerial();
+            if (delegate instanceof CopyTask) { s = ((CopyTask) delegate).getDeviceSerial(); }
+            else if (delegate instanceof VerifyTask) { s = ((VerifyTask) delegate).getDeviceSerial(); }
             if (serial.equals(s)) {
                 it.remove();
                 cancelled++;

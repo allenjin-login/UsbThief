@@ -354,7 +354,8 @@ public class LogPanel extends JPanel {
                                                        boolean isSelected, boolean hasFocus, int row, int column) {
             super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 
-            if (value instanceof LogLevel level) {
+            if (value instanceof LogLevel) {
+                LogLevel level = (LogLevel) value;
                 setText(level.name());
                 setForeground(getLevelColor(level));
                 setFont(getFont().deriveFont(Font.BOLD));

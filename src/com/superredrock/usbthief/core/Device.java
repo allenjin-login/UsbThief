@@ -59,7 +59,8 @@ public class Device {
 
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof Device device)) return false;
+        if (!(o instanceof Device)) return false;
+        Device device = (Device) o;
         return Objects.equals(serialNumber, device.serialNumber);
     }
 

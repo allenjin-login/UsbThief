@@ -410,9 +410,10 @@ public final class EventBus {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof EventListenerWrapper<?>(Class<?> aClass, EventListener<?> listener1))) return false;
+            if (!(o instanceof EventListenerWrapper)) return false;
+            EventListenerWrapper<?> other = (EventListenerWrapper<?>) o;
             // Equality based on same event type and same listener instance
-            return eventClass.equals(aClass) && listener.equals(listener1);
+            return eventClass.equals(other.eventClass()) && listener.equals(other.listener());
         }
     }
 
@@ -461,7 +462,8 @@ public final class EventBus {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof AsyncEventListenerWrapper<?, ?> wrapper)) return false;
+            if (!(o instanceof AsyncEventListenerWrapper)) return false;
+            AsyncEventListenerWrapper<?, ?> wrapper = (AsyncEventListenerWrapper<?, ?>) o;
             // Equality based on same event type and same listener instance
             return eventClass.equals(wrapper.eventClass) && listener.equals(wrapper.listener);
         }

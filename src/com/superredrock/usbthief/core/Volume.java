@@ -180,7 +180,8 @@ public class Volume {
 
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof Volume volume)) return false;
+        if (!(o instanceof Volume)) return false;
+        Volume volume = (Volume) o;
         return Objects.equals(serialNumber, volume.serialNumber);
     }
 
