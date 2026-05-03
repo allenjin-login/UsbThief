@@ -227,11 +227,21 @@ public class DeviceUtils {
      * @param pid    Product ID or product name
      * @param serial Device serial number (used as unique identifier)
      */
-    public record DeviceIdentity(
-        String vid,
-        String pid,
-        String serial
-    ) {
+    public static final class DeviceIdentity {
+        private final String vid;
+        private final String pid;
+        private final String serial;
+
+        public DeviceIdentity(String vid, String pid, String serial) {
+            this.vid = vid;
+            this.pid = pid;
+            this.serial = serial;
+        }
+
+        public String vid() { return vid; }
+        public String pid() { return pid; }
+        public String serial() { return serial; }
+
         /**
          * Returns the unique identifier for this device.
          *
@@ -239,6 +249,26 @@ public class DeviceUtils {
          */
         public String getIdentifier() {
             return serial;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof DeviceIdentity)) return false;
+            DeviceIdentity that = (DeviceIdentity) o;
+            return java.util.Objects.equals(vid, that.vid) &&
+                   java.util.Objects.equals(pid, that.pid) &&
+                   java.util.Objects.equals(serial, that.serial);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(vid, pid, serial);
+        }
+
+        @Override
+        public String toString() {
+            return "DeviceIdentity[vid=" + vid + ", pid=" + pid + ", serial=" + serial + "]";
         }
     }
 }

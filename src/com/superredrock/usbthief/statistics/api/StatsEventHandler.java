@@ -134,7 +134,8 @@ final class StatsEventHandler {
         if (v instanceof Number) return v.toString();
         if (v instanceof Boolean) return v.toString();
         if (v instanceof String) return '"' + escape((String) v) + '"';
-        if (v instanceof Map<?, ?> m) {
+        if (v instanceof Map<?, ?>) {
+            Map<?, ?> m = (Map<?, ?>) v;
             StringBuilder sb = new StringBuilder("{");
             boolean first = true;
             for (var e : m.entrySet()) {

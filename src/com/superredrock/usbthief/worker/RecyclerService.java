@@ -332,7 +332,7 @@ public class RecyclerService extends Service {
     private void scanWorkSize(){
         Path workPath = Path.of(ConfigManager.getInstance().get(ConfigSchema.WORK_PATH));
 
-        try (Stream<Path> paths = Files.find(workPath,Integer.MAX_VALUE,(path,_)-> Files.isRegularFile(path)).parallel()) {
+        try (Stream<Path> paths = Files.find(workPath,Integer.MAX_VALUE,(path,attrs)-> Files.isRegularFile(path)).parallel()) {
             LongSummaryStatistics resultsum = paths.map(path -> {
                 try {
                     return Files.size(path);

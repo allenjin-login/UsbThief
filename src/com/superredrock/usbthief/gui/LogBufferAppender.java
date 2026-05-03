@@ -31,7 +31,24 @@ public class LogBufferAppender extends AbstractAppender {
     private final ReentrantLock lock = new ReentrantLock();
     private volatile Consumer<LogEntry> listener;
 
-    public record LogEntry(String timestamp, String level, String loggerName, String message) {}
+    public static final class LogEntry {
+        private final String timestamp;
+        private final String level;
+        private final String loggerName;
+        private final String message;
+
+        public LogEntry(String timestamp, String level, String loggerName, String message) {
+            this.timestamp = timestamp;
+            this.level = level;
+            this.loggerName = loggerName;
+            this.message = message;
+        }
+
+        public String timestamp() { return timestamp; }
+        public String level() { return level; }
+        public String loggerName() { return loggerName; }
+        public String message() { return message; }
+    }
 
     protected LogBufferAppender(String name) {
         super(name, null, PatternLayout.createDefaultLayout(), true, Property.EMPTY_ARRAY);

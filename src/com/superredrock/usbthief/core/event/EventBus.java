@@ -401,7 +401,17 @@ public final class EventBus {
      *
      * @param <T> the event type
      */
-    private record EventListenerWrapper<T extends Event>(Class<T> eventClass, EventListener<T> listener) {
+    private static final class EventListenerWrapper<T extends Event> {
+        private final Class<T> eventClass;
+        private final EventListener<T> listener;
+
+        EventListenerWrapper(Class<T> eventClass, EventListener<T> listener) {
+            this.eventClass = eventClass;
+            this.listener = listener;
+        }
+
+        Class<T> eventClass() { return eventClass; }
+        EventListener<T> listener() { return listener; }
 
         boolean canHandle(Event event) {
             return eventClass.isInstance(event);
@@ -413,7 +423,12 @@ public final class EventBus {
             if (!(o instanceof EventListenerWrapper)) return false;
             EventListenerWrapper<?> other = (EventListenerWrapper<?>) o;
             // Equality based on same event type and same listener instance
-            return eventClass.equals(other.eventClass()) && listener.equals(other.listener());
+            return eventClass.equals(other.eventClass) && listener.equals(other.listener);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(eventClass, listener);
         }
     }
 

@@ -343,5 +343,19 @@ public class EventPanel extends JPanel {
         }
     }
 
-    private record EventEntry(String eventType, String timestamp, String description) {}
+    private static final class EventEntry {
+        private final String eventType;
+        private final String timestamp;
+        private final String description;
+
+        EventEntry(String eventType, String timestamp, String description) {
+            this.eventType = eventType;
+            this.timestamp = timestamp;
+            this.description = description;
+        }
+
+        String eventType() { return eventType; }
+        String timestamp() { return timestamp; }
+        String description() { return description; }
+    }
 }

@@ -117,7 +117,17 @@ public class UsbHotplugMonitor {
         public DEV_BROADCAST_HANDLE(Pointer p) { super(p); read(); }
     }
 
-    private record VolumeHandleReg(HANDLE volumeHandle, HDEVNOTIFY notifyHandle) {
+    private static final class VolumeHandleReg {
+        private final HANDLE volumeHandle;
+        private final HDEVNOTIFY notifyHandle;
+
+        VolumeHandleReg(HANDLE volumeHandle, HDEVNOTIFY notifyHandle) {
+            this.volumeHandle = volumeHandle;
+            this.notifyHandle = notifyHandle;
+        }
+
+        HANDLE volumeHandle() { return volumeHandle; }
+        HDEVNOTIFY notifyHandle() { return notifyHandle; }
     }
 
     // ========== Window procedure ==========

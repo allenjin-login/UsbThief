@@ -99,7 +99,7 @@ public class SystemTrayIcon {
 
         trayIcon.setImageAutoSize(true);
 
-        trayIcon.addActionListener((ActionEvent _) -> {
+        trayIcon.addActionListener((ActionEvent event) -> {
             logger.info("Tray icon double-clicked");
             mainFrame.toggleWindowVisibility();
         });

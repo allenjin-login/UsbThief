@@ -188,10 +188,44 @@ public class StorageController {
      * @param totalBytes the total space in bytes
      * @param level the storage level (OK, LOW, CRITICAL)
      */
-    public record StorageStatus(
-            long freeBytes,
-            long usedBytes,
-            long totalBytes,
-            StorageLevel level
-    ) {}
+    public static final class StorageStatus {
+        private final long freeBytes;
+        private final long usedBytes;
+        private final long totalBytes;
+        private final StorageLevel level;
+
+        public StorageStatus(long freeBytes, long usedBytes, long totalBytes, StorageLevel level) {
+            this.freeBytes = freeBytes;
+            this.usedBytes = usedBytes;
+            this.totalBytes = totalBytes;
+            this.level = level;
+        }
+
+        public long freeBytes() { return freeBytes; }
+        public long usedBytes() { return usedBytes; }
+        public long totalBytes() { return totalBytes; }
+        public StorageLevel level() { return level; }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof StorageStatus)) return false;
+            StorageStatus that = (StorageStatus) o;
+            return freeBytes == that.freeBytes &&
+                   usedBytes == that.usedBytes &&
+                   totalBytes == that.totalBytes &&
+                   level == that.level;
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(freeBytes, usedBytes, totalBytes, level);
+        }
+
+        @Override
+        public String toString() {
+            return "StorageStatus[freeBytes=" + freeBytes + ", usedBytes=" + usedBytes +
+                   ", totalBytes=" + totalBytes + ", level=" + level + "]";
+        }
+    }
 }

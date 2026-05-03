@@ -375,7 +375,21 @@ public class LogPanel extends JPanel {
         }
     }
 
-    private record LogEntry(String timestamp, LogLevel level, String message) {}
+    private static final class LogEntry {
+        private final String timestamp;
+        private final LogLevel level;
+        private final String message;
+
+        LogEntry(String timestamp, LogLevel level, String message) {
+            this.timestamp = timestamp;
+            this.level = level;
+            this.message = message;
+        }
+
+        String timestamp() { return timestamp; }
+        LogLevel level() { return level; }
+        String message() { return message; }
+    }
 
     public enum LogLevel {
         INFO, WARNING, ERROR, SUCCESS

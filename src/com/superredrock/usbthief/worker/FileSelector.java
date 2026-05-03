@@ -25,7 +25,45 @@ public final class FileSelector {
      * @param copyTime  when file was copied (epoch milliseconds)
      * @param isProtected true if file cannot be recycled
      */
-    public record FileMetadata(Path path, long size, long copyTime, boolean isProtected) {
+    public static final class FileMetadata {
+        private final Path path;
+        private final long size;
+        private final long copyTime;
+        private final boolean isProtected;
+
+        public FileMetadata(Path path, long size, long copyTime, boolean isProtected) {
+            this.path = path;
+            this.size = size;
+            this.copyTime = copyTime;
+            this.isProtected = isProtected;
+        }
+
+        public Path path() { return path; }
+        public long size() { return size; }
+        public long copyTime() { return copyTime; }
+        public boolean isProtected() { return isProtected; }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof FileMetadata)) return false;
+            FileMetadata that = (FileMetadata) o;
+            return size == that.size &&
+                   copyTime == that.copyTime &&
+                   isProtected == that.isProtected &&
+                   java.util.Objects.equals(path, that.path);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(path, size, copyTime, isProtected);
+        }
+
+        @Override
+        public String toString() {
+            return "FileMetadata[path=" + path + ", size=" + size + ", copyTime=" + copyTime +
+                   ", isProtected=" + isProtected + "]";
+        }
     }
 
     private FileSelector() {
