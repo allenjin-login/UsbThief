@@ -28,7 +28,7 @@ public class Main {
 
     static boolean hasLaunched = config.getBoolean("hasLaunched", false);
 
-    static void main() {
+    public static void main(String[] args) {
         // Initialize Log4j2
         LoggingConfig.initialize();
 
