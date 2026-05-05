@@ -9,9 +9,6 @@ import com.sun.jna.platform.win32.WinNT;
 import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.win32.W32APIOptions;
 
-import java.util.Arrays;
-import java.util.List;
-
 /**
  * Extended SetupAPI interface with additional functions not in JNA's standard SetupApi.
  *

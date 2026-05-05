@@ -149,11 +149,14 @@ This application is Windows-only due to:
 - `target/UsbThief-{version}.zip` - Distribution with bundled jlink runtime
 - `target/runtime/` - Custom JRE image
 
-### Release Checklist
+### Dual-Version Release (Java 25 + Java 11)
+
+When releasing a new version, **both Java 25 and Java 11 builds must be published simultaneously**. All new features must be migrated to the Java 11 codebase before release.
 
 1. **Update version** — edit `<version>` in `pom.xml` to the new version
-2. **Update README.md** — reflect any changes (features, screenshots, requirements)
-3. **Update CLAUDE.md** — ensure architecture docs and commands stay current
-4. **Tag and push** — `git tag v<version> && git push origin master --tags`
+2. **Migrate features to Java 11** — port all new features from the Java 25 codebase to the Java 11 codebase, replacing preview-feature APIs with compatible alternatives
+3. **Update README.md** — reflect any changes (features, screenshots, requirements)
+4. **Update CLAUDE.md** — ensure architecture docs and commands stay current
+5. **Tag and push** — `git tag v<version> && git push origin master --tags`
 
 The `release.yml` workflow triggers on `v*` tags, builds artifacts on Windows, and creates a GitHub Release with EXE + ZIP.
