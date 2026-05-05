@@ -7,15 +7,13 @@ import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
 import com.superredrock.usbthief.index.CheckSum;
+import com.superredrock.usbthief.index.HashAlgorithm;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.security.MessageDigest;
 import java.util.concurrent.Callable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,22 +32,14 @@ public class VerifyTask implements Callable<CopyResult> {
     }
 
     public static CheckSum verify(Path path) throws IOException {
-        MessageDigest digest;
-        try {digest = MessageDigest.getInstance("SHA-256");} catch (Exception e) {throw new RuntimeException(e);}
+        HashAlgorithm algorithm = HashAlgorithm.fromId(
+                ConfigManager.getInstance().get(ConfigSchema.HASH_ALGORITHM));
         ByteBuffer buffer = bufferThreadLocal.get();
-        try (FileChannel readChannel = FileChannel.open(path, StandardOpenOption.READ)) {
-            while (readChannel.read(buffer) != -1) {
-                if (Thread.interrupted()) {
-                    throw new IOException("Hash computation interrupted");
-                }
-                buffer.flip();
-                digest.update(buffer);
-                buffer.clear();
-            }
+        try {
+            return algorithm.compute(path, buffer);
         } finally {
             buffer.clear();
         }
-        return new CheckSum(digest.digest());
     }
 
     public Path getProcessingPath() {

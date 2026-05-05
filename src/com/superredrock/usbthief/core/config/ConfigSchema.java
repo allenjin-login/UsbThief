@@ -63,6 +63,12 @@ public class ConfigSchema {
     public static final ConfigEntry<Boolean> COPY_VERIFY_ENABLED =
             booleanEntry("copyVerifyEnabled", "Enable pre-copy verification (checksum + dedup before copy)", true, "File Copy");
 
+    public static final ConfigEntry<String> HASH_ALGORITHM =
+            stringEntry("hashAlgorithm", "Hash algorithm: SHA-256, MD5, CRC-8, CRC-16, CRC-32, CRC-64", "SHA-256", "File Copy");
+
+    public static final ConfigEntry<String> HASH_ALGORITHM_LAST =
+            stringEntry("hashAlgorithmLast", "Previous hash algorithm (internal, for detecting changes)", "SHA-256", "File Copy");
+
     // File watch configuration
     public static final ConfigEntry<Boolean> WATCH_ENABLED =
             booleanEntry("watchEnabled", "Enable/disable real-time file monitoring", true, "File Watch");
@@ -206,6 +212,8 @@ public class ConfigSchema {
         registerEntry(RETRY_COUNT);
         registerEntry(TIMEOUT_MILLIS);
         registerEntry(COPY_VERIFY_ENABLED);
+        registerEntry(HASH_ALGORITHM);
+        registerEntry(HASH_ALGORITHM_LAST);
         registerEntry(WATCH_ENABLED);
         registerEntry(WATCH_THRESHOLD);
         registerEntry(WATCH_RESET_INTERVAL_SECONDS);

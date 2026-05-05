@@ -7,7 +7,7 @@
     <groupId>com.superredrock</groupId>
     <artifactId>UsbThief</artifactId>
     <!-- Version: major.minor.patch (SemVer) -->
-    <version>1.2.1</version>
+    <version>1.3.0</version>
 
     <name>UsbThief</name>
     <description>USB device monitoring and file copying tool</description>

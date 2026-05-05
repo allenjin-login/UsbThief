@@ -300,6 +300,10 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         });
         configMenu.add(rateLimitItem);
 
+        JMenuItem hashAlgoItem = new JMenuItem(i18n.getMessage("menu.config.hashAlgorithm"));
+        hashAlgoItem.addActionListener(ignored -> HashAlgorithmDialog.showDialog(this));
+        configMenu.add(hashAlgoItem);
+
         configMenu.addSeparator();
 
         JMenuItem themeItem = new JMenuItem(i18n.getMessage("theme.toggle"));

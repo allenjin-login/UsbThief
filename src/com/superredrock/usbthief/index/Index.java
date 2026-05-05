@@ -86,6 +86,15 @@ public class Index extends Service {
     }
 
     public void load() {
+        // Detect algorithm change since last run
+        String lastAlgo = ConfigManager.getInstance().get(ConfigSchema.HASH_ALGORITHM_LAST);
+        String currentAlgo = ConfigManager.getInstance().get(ConfigSchema.HASH_ALGORITHM);
+        if (!currentAlgo.equals(lastAlgo)) {
+            logger.info("Hash algorithm changed from {} to {}, clearing index", lastAlgo, currentAlgo);
+            diskStore.clear();
+            ConfigManager.getInstance().set(ConfigSchema.HASH_ALGORITHM_LAST, currentAlgo);
+        }
+
         Map<Path, CheckSum> diskEntries = diskStore.load();
         totalEntries.set(diskEntries.size());
 
