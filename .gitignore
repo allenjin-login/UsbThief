@@ -47,7 +47,6 @@ Dev/
 
 
 # 配置文件目录（运行时生成的配置示例）
-config/
 logs/
 devices/
 
