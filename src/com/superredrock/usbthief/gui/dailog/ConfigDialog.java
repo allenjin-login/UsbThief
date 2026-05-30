@@ -452,12 +452,10 @@ public class ConfigDialog extends JDialog {
         // Build or retrieve panel for this category
         JPanel categoryPanel = categoryPanelCache.get(currentCategoryKey);
         if (categoryPanel == null) {
+            // Initialize components map BEFORE building the panel
+            allCategoryComponents.putIfAbsent(currentCategoryKey, new HashMap<>());
             categoryPanel = buildCategoryPanel(categoryName);
             categoryPanelCache.put(currentCategoryKey, categoryPanel);
-            // Initialize components map for this category
-            if (!allCategoryComponents.containsKey(currentCategoryKey)) {
-                allCategoryComponents.put(currentCategoryKey, new HashMap<>());
-            }
         }
 
         // Update right panel
