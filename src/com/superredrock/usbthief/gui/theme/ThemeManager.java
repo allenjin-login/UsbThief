@@ -60,7 +60,8 @@ public class ThemeManager {
     public static final Color TOAST_INFO_BORDER = new Color(0x3B82F6);
 
     // Chart colors
-    public static final Color CHART_CURVE = new Color(0x89B4FA);               // Blue curve
+    public static final Color CHART_CURVE = new Color(0x89B4FA);               // Blue (write)
+    public static final Color CHART_CURVE_READ = new Color(0xA6E3A1);          // Green (read)
     public static final Color CHART_GRID_LIGHT = new Color(0xE2E8F0);          // Grid lines (light theme)
     public static final Color CHART_GRID_DARK = new Color(0x313244);           // Grid lines (dark theme)
     public static final Color CHART_BG_LIGHT = new Color(0xF8FAFC);            // Chart background (light theme)

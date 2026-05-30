@@ -36,8 +36,7 @@ class ConfigManagerTest {
     @Test
     void getDefault() {
         assertEquals(2, manager.get(ConfigSchema.CORE_POOL_SIZE));
-        assertEquals(60, manager.get(ConfigSchema.SAVE_DELAY_SECONDS));
-        assertEquals("index.obj", manager.get(ConfigSchema.INDEX_PATH));
+        assertEquals(2000, manager.get(ConfigSchema.INDEX_CACHE_SIZE));
     }
 
     @Test
@@ -48,23 +47,23 @@ class ConfigManagerTest {
 
     @Test
     void getLongType() {
-        assertEquals(0L, manager.get(ConfigSchema.COPY_RATE_LIMIT));
-        manager.set(ConfigSchema.COPY_RATE_LIMIT, 1024L);
-        assertEquals(1024L, manager.get(ConfigSchema.COPY_RATE_LIMIT));
+        assertEquals(0L, manager.get(ConfigSchema.COPY_READ_RATE_LIMIT));
+        manager.set(ConfigSchema.COPY_READ_RATE_LIMIT, 1024L);
+        assertEquals(1024L, manager.get(ConfigSchema.COPY_READ_RATE_LIMIT));
     }
 
     @Test
     void getBooleanType() {
-        assertTrue(manager.get(ConfigSchema.WATCH_ENABLED));
-        manager.set(ConfigSchema.WATCH_ENABLED, false);
         assertFalse(manager.get(ConfigSchema.WATCH_ENABLED));
+        manager.set(ConfigSchema.WATCH_ENABLED, true);
+        assertTrue(manager.get(ConfigSchema.WATCH_ENABLED));
     }
 
     @Test
     void getStringType() {
-        assertEquals("index.obj", manager.get(ConfigSchema.INDEX_PATH));
-        manager.set(ConfigSchema.INDEX_PATH, "/custom/path");
-        assertEquals("/custom/path", manager.get(ConfigSchema.INDEX_PATH));
+        assertEquals("SHA-256", manager.get(ConfigSchema.HASH_ALGORITHM));
+        manager.set(ConfigSchema.HASH_ALGORITHM, "MD5");
+        assertEquals("MD5", manager.get(ConfigSchema.HASH_ALGORITHM));
     }
 
     @Test
@@ -78,10 +77,10 @@ class ConfigManagerTest {
     @Test
     void resetToDefaults() {
         manager.set(ConfigSchema.CORE_POOL_SIZE, 99);
-        manager.set(ConfigSchema.WATCH_ENABLED, false);
+        manager.set(ConfigSchema.WATCH_ENABLED, true);
         manager.resetToDefaults();
         assertEquals(2, manager.get(ConfigSchema.CORE_POOL_SIZE));
-        assertTrue(manager.get(ConfigSchema.WATCH_ENABLED));
+        assertFalse(manager.get(ConfigSchema.WATCH_ENABLED));
     }
 
     @Test

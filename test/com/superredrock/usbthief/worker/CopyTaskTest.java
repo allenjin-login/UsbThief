@@ -37,6 +37,7 @@ class CopyTaskTest {
     @AfterEach
     void tearDown() {
         EventBus.getInstance().clearAll();
+        ConfigManager.getInstance().set(ConfigSchema.WORK_PATH, ConfigSchema.WORK_PATH.defaultValue());
     }
 
     private CopyTask createTask(Path sourceFile) {
@@ -50,7 +51,8 @@ class CopyTaskTest {
 
         // Set work path to dest dir so CopyTask.getPath() resolves correctly
         ConfigManager.getInstance().set(ConfigSchema.WORK_PATH, destDir.toString());
-        ConfigManager.getInstance().set(ConfigSchema.COPY_RATE_LIMIT, 0L);
+        ConfigManager.getInstance().set(ConfigSchema.COPY_READ_RATE_LIMIT, 0L);
+        ConfigManager.getInstance().set(ConfigSchema.COPY_WRITE_RATE_LIMIT, 0L);
 
         CopyTask task = new CopyTask(srcFile, "testSerial");
         // This will try to use StorageController and other singletons
@@ -87,7 +89,8 @@ class CopyTaskTest {
     void dispatchesEventOnCompletion() throws Exception {
         Path srcFile = sourceDir.resolve("test.txt");
         Files.writeString(srcFile, "data");
-        ConfigManager.getInstance().set(ConfigSchema.COPY_RATE_LIMIT, 0L);
+        ConfigManager.getInstance().set(ConfigSchema.COPY_READ_RATE_LIMIT, 0L);
+        ConfigManager.getInstance().set(ConfigSchema.COPY_WRITE_RATE_LIMIT, 0L);
 
         CountDownLatch latch = new CountDownLatch(1);
         CopyCompletedEvent[] captured = new CopyCompletedEvent[1];
@@ -112,7 +115,8 @@ class CopyTaskTest {
     @Test
     void sourceNotFoundRecordsEvent() throws Exception {
         Path nonExistent = sourceDir.resolve("nonexistent.txt");
-        ConfigManager.getInstance().set(ConfigSchema.COPY_RATE_LIMIT, 0L);
+        ConfigManager.getInstance().set(ConfigSchema.COPY_READ_RATE_LIMIT, 0L);
+        ConfigManager.getInstance().set(ConfigSchema.COPY_WRITE_RATE_LIMIT, 0L);
 
         CountDownLatch latch = new CountDownLatch(1);
         CopyResult[] result = new CopyResult[1];

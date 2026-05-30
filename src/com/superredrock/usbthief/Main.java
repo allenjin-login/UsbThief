@@ -6,7 +6,6 @@ import com.superredrock.usbthief.core.LoggingConfig;
 import com.superredrock.usbthief.core.QueueManager;
 
 import com.superredrock.usbthief.core.event.EventBus;
-import com.superredrock.usbthief.index.Index;
 import com.superredrock.usbthief.worker.RecyclerService;
 import com.superredrock.usbthief.worker.SnifferLifecycleManager;
 import com.superredrock.usbthief.worker.TaskScheduler;
@@ -44,9 +43,6 @@ public class Main {
         logger.info("Starting");
         QueueManager.init();
 
-        // Load index
-        Index.getInstance().load();
-
         // Initialize statistics (eager init ensures collectors register before services start)
         Statistics.getInstance();
 
@@ -56,7 +52,6 @@ public class Main {
         // Start services
         DeviceManager.getInstance().start();
         TaskScheduler.getInstance().start();
-        Index.getInstance().start();
         SnifferLifecycleManager.getInstance().start();
         RecyclerService.getInstance().start();
 
@@ -92,7 +87,6 @@ public class Main {
         // Stop services
         DeviceManager.getInstance().stopService();
         TaskScheduler.getInstance().stopService();
-        Index.getInstance().stopService();
         RecyclerService.getInstance().stopService();
         
         QueueManager.quit();

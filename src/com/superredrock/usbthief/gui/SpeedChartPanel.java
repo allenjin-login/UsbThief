@@ -10,9 +10,9 @@ import java.util.ArrayDeque;
 import java.util.Locale;
 
 /**
- * Real-time scrolling speed curve chart panel.
+ * Real-time scrolling speed curve chart panel with read and write curves.
  * Samples speed from Statistics.getSpeedCollector() every 500ms,
- * displays the last 60 samples (30 seconds) as a smooth curve with gradient fill.
+ * displays the last 60 samples (30 seconds) as smooth curves with gradient fill.
  */
 public class SpeedChartPanel extends JPanel {
 
@@ -24,9 +24,11 @@ public class SpeedChartPanel extends JPanel {
     private static final int CHART_PADDING_BOTTOM = 16;
     private static final int NUM_GRID_LINES = 4;
 
-    private final ArrayDeque<Double> speedHistory = new ArrayDeque<>(MAX_SAMPLES);
+    private final ArrayDeque<Double> readHistory = new ArrayDeque<>(MAX_SAMPLES);
+    private final ArrayDeque<Double> writeHistory = new ArrayDeque<>(MAX_SAMPLES);
     private final Timer sampleTimer;
-    private double currentSpeed = 0;
+    private double currentReadSpeed = 0;
+    private double currentWriteSpeed = 0;
     private double peakSpeed = 0;
 
     public SpeedChartPanel() {
@@ -39,27 +41,29 @@ public class SpeedChartPanel extends JPanel {
     }
 
     private synchronized void sample() {
-        currentSpeed = Statistics.getInstance().getSpeedCollector().getProbeGroup().getTotalSpeed();
-        speedHistory.addLast(currentSpeed);
-        if (speedHistory.size() > MAX_SAMPLES) {
-            speedHistory.removeFirst();
-        }
-        if (currentSpeed > peakSpeed) {
-            peakSpeed = currentSpeed;
-        }
+        var collector = Statistics.getInstance().getSpeedCollector();
+        currentReadSpeed = collector.getReadProbeGroup().getTotalSpeed();
+        currentWriteSpeed = collector.getWriteProbeGroup().getTotalSpeed();
+
+        readHistory.addLast(currentReadSpeed);
+        writeHistory.addLast(currentWriteSpeed);
+        if (readHistory.size() > MAX_SAMPLES) readHistory.removeFirst();
+        if (writeHistory.size() > MAX_SAMPLES) writeHistory.removeFirst();
+
+        double maxSample = Math.max(currentReadSpeed, currentWriteSpeed);
+        if (maxSample > peakSpeed) peakSpeed = maxSample;
         repaint();
     }
 
-    public synchronized double getCurrentSpeed() {
-        return currentSpeed;
-    }
+    public synchronized double getCurrentReadSpeed() { return currentReadSpeed; }
+    public synchronized double getCurrentWriteSpeed() { return currentWriteSpeed; }
 
     public synchronized long getTotalBytes() {
-        return Statistics.getInstance().getSpeedCollector().getProbeGroup().getTotalBytes();
+        return Statistics.getInstance().getSpeedCollector().getWriteProbeGroup().getTotalBytes();
     }
 
     public synchronized int getProbeCount() {
-        return Statistics.getInstance().getSpeedCollector().getProbeGroup().getProbeCount();
+        return Statistics.getInstance().getSpeedCollector().getWriteProbeGroup().getProbeCount();
     }
 
     public void stop() {
@@ -80,11 +84,9 @@ public class SpeedChartPanel extends JPanel {
         int chartW = w - CHART_PADDING_LEFT - CHART_PADDING_RIGHT;
         int chartH = h - CHART_PADDING_TOP - CHART_PADDING_BOTTOM;
 
-        // Background
         g2d.setColor(ThemeManager.getInstance().isDarkTheme() ? ThemeManager.CHART_BG_DARK : ThemeManager.CHART_BG_LIGHT);
         g2d.fillRoundRect(chartX, chartY, chartW, chartH, 6, 6);
 
-        // Calculate Y scale
         double maxSpeed = peakSpeed * 1.2;
         if (maxSpeed < 1.0) maxSpeed = 1.0;
 
@@ -102,23 +104,31 @@ public class SpeedChartPanel extends JPanel {
             g2d.drawString(String.format(Locale.ROOT, "%.1f", val), 2, y + 3);
         }
 
-        // Draw curve
-        Double[] samples;
+        Double[] readSamples, writeSamples;
         synchronized (this) {
-            samples = speedHistory.toArray(Double[]::new);
+            readSamples = readHistory.toArray(Double[]::new);
+            writeSamples = writeHistory.toArray(Double[]::new);
         }
 
-        if (samples.length < 2) {
+        if (readSamples.length < 2) {
             g2d.dispose();
             return;
         }
 
-        Color curveColor = ThemeManager.CHART_CURVE;
-
-        // Build path
         double dx = (double) chartW / (MAX_SAMPLES - 1);
+        int offset = MAX_SAMPLES - readSamples.length;
 
-        int offset = MAX_SAMPLES - samples.length;
+        // Draw read curve (green, behind write)
+        drawCurve(g2d, readSamples, offset, dx, chartX, chartY, chartW, chartH, maxSpeed, ThemeManager.CHART_CURVE_READ);
+
+        // Draw write curve (blue, in front)
+        drawCurve(g2d, writeSamples, offset, dx, chartX, chartY, chartW, chartH, maxSpeed, ThemeManager.CHART_CURVE);
+
+        g2d.dispose();
+    }
+
+    private void drawCurve(Graphics2D g2d, Double[] samples, int offset, double dx,
+                           int chartX, int chartY, int chartW, int chartH, double maxSpeed, Color curveColor) {
         double[] xCoords = new double[samples.length];
         double[] yCoords = new double[samples.length];
 
@@ -128,50 +138,40 @@ public class SpeedChartPanel extends JPanel {
             yCoords[i] = Math.max(chartY, Math.min(chartY + chartH, yCoords[i]));
         }
 
-        // Draw filled area with gradient
+        // Gradient fill
         Path2D fillPath = new Path2D.Double();
         fillPath.moveTo(xCoords[0], chartY + chartH);
         fillPath.lineTo(xCoords[0], yCoords[0]);
         for (int i = 1; i < samples.length; i++) {
-            double prevX = xCoords[i - 1];
-            double prevY = yCoords[i - 1];
-            double currX = xCoords[i];
-            double currY = yCoords[i];
-            double ctrlX = (prevX + currX) / 2;
-            fillPath.curveTo(ctrlX, prevY, ctrlX, currY, currX, currY);
+            double ctrlX = (xCoords[i - 1] + xCoords[i]) / 2;
+            fillPath.curveTo(ctrlX, yCoords[i - 1], ctrlX, yCoords[i], xCoords[i], yCoords[i]);
         }
         fillPath.lineTo(xCoords[samples.length - 1], chartY + chartH);
         fillPath.closePath();
 
         GradientPaint gradient = new GradientPaint(
-                0, chartY, new Color(curveColor.getRed(), curveColor.getGreen(), curveColor.getBlue(), 100),
+                0, chartY, new Color(curveColor.getRed(), curveColor.getGreen(), curveColor.getBlue(), 80),
                 0, chartY + chartH, new Color(curveColor.getRed(), curveColor.getGreen(), curveColor.getBlue(), 5));
         g2d.setPaint(gradient);
         g2d.fill(fillPath);
 
-        // Draw curve line
+        // Curve line
         Path2D curvePath = new Path2D.Double();
         curvePath.moveTo(xCoords[0], yCoords[0]);
         for (int i = 1; i < samples.length; i++) {
-            double prevX = xCoords[i - 1];
-            double prevY = yCoords[i - 1];
-            double currX = xCoords[i];
-            double currY = yCoords[i];
-            double ctrlX = (prevX + currX) / 2;
-            curvePath.curveTo(ctrlX, prevY, ctrlX, currY, currX, currY);
+            double ctrlX = (xCoords[i - 1] + xCoords[i]) / 2;
+            curvePath.curveTo(ctrlX, yCoords[i - 1], ctrlX, yCoords[i], xCoords[i], yCoords[i]);
         }
         g2d.setColor(curveColor);
         g2d.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         g2d.draw(curvePath);
 
-        // Draw current point with glow
+        // Current point with glow
         double lastX = xCoords[samples.length - 1];
         double lastY = yCoords[samples.length - 1];
         g2d.setColor(new Color(curveColor.getRed(), curveColor.getGreen(), curveColor.getBlue(), 80));
         g2d.fillOval((int) lastX - 6, (int) lastY - 6, 12, 12);
         g2d.setColor(curveColor);
         g2d.fillOval((int) lastX - 3, (int) lastY - 3, 6, 6);
-
-        g2d.dispose();
     }
 }

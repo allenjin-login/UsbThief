@@ -9,6 +9,7 @@ import com.superredrock.usbthief.core.DeviceUtils;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
 import com.superredrock.usbthief.index.CheckSum;
+import com.superredrock.usbthief.index.IndexKey;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -35,15 +36,18 @@ public class CopyTask implements Callable<CopyResult> {
     protected final Path processingPath;
     private final String deviceSerial;
     private final CheckSum preVerifiedHash;
-    private static volatile RateLimiter rateLimiter;
-    private static final Object rateLimiterLock = new Object();
+
+    private static volatile RateLimiter readRateLimiter;
+    private static volatile RateLimiter writeRateLimiter;
+    private static final Object readRateLimiterLock = new Object();
+    private static final Object writeRateLimiterLock = new Object();
+
     private static final SpeedCollector speedCollector = Statistics.getInstance().getSpeedCollector();
     private static final AtomicLong lastLogTime = new AtomicLong(0);
     private static final long LOG_INTERVAL_MS = 1000;
 
-    private final SpeedProbe taskProbe;
-
-
+    private final SpeedProbe readProbe;
+    private final SpeedProbe writeProbe;
 
     public CopyTask(Path path, String deviceSerial){
         this(path, deviceSerial, null);
@@ -53,7 +57,9 @@ public class CopyTask implements Callable<CopyResult> {
         this.processingPath = path;
         this.deviceSerial = deviceSerial != null ? deviceSerial : "";
         this.preVerifiedHash = preVerifiedHash;
-        this.taskProbe = speedCollector.createProbe("CopyTask-" + path.getFileName());
+        String probeName = "CopyTask-" + path.getFileName();
+        this.readProbe = speedCollector.createReadProbe(probeName + "-read");
+        this.writeProbe = speedCollector.createWriteProbe(probeName + "-write");
     }
 
     public Path getProcessingPath() {
@@ -65,22 +71,40 @@ public class CopyTask implements Callable<CopyResult> {
     }
 
 
-    private static RateLimiter getRateLimiter() {
-        RateLimiter current = rateLimiter;
-        long limit = ConfigManager.getInstance().get(ConfigSchema.COPY_RATE_LIMIT);
+    private static RateLimiter getReadRateLimiter() {
+        RateLimiter current = readRateLimiter;
+        long limit = ConfigManager.getInstance().get(ConfigSchema.COPY_READ_RATE_LIMIT);
         long burst = ConfigManager.getInstance().get(ConfigSchema.COPY_RATE_BURST_SIZE);
 
-        if (current == null || limit != current.getRateLimitBytesPerSecond() 
+        if (current == null || limit != current.getRateLimitBytesPerSecond()
                 || burst != current.getBurstSize()) {
-            synchronized (rateLimiterLock) {
-                current = rateLimiter;
-                if (current == null || limit != current.getRateLimitBytesPerSecond() 
+            synchronized (readRateLimiterLock) {
+                current = readRateLimiter;
+                if (current == null || limit != current.getRateLimitBytesPerSecond()
                         || burst != current.getBurstSize()) {
-                    rateLimiter = new RateLimiter(limit, burst);
+                    readRateLimiter = new RateLimiter(limit, burst);
                 }
             }
         }
-        return rateLimiter;
+        return readRateLimiter;
+    }
+
+    private static RateLimiter getWriteRateLimiter() {
+        RateLimiter current = writeRateLimiter;
+        long limit = ConfigManager.getInstance().get(ConfigSchema.COPY_WRITE_RATE_LIMIT);
+        long burst = ConfigManager.getInstance().get(ConfigSchema.COPY_RATE_BURST_SIZE);
+
+        if (current == null || limit != current.getRateLimitBytesPerSecond()
+                || burst != current.getBurstSize()) {
+            synchronized (writeRateLimiterLock) {
+                current = writeRateLimiter;
+                if (current == null || limit != current.getRateLimitBytesPerSecond()
+                        || burst != current.getBurstSize()) {
+                    writeRateLimiter = new RateLimiter(limit, burst);
+                }
+            }
+        }
+        return writeRateLimiter;
     }
 
 
@@ -155,17 +179,23 @@ public class CopyTask implements Callable<CopyResult> {
                     throw new InterruptedException("Copy cancelled");
                 }
                 buffer.flip();
+
+                int bytesRead = buffer.remaining();
+                getReadRateLimiter().acquire(bytesRead);
+                readProbe.record(bytesRead);
+
                 int bytesWritten = writeChannel.write(buffer);
-                taskProbe.record(bytesWritten);
-                getRateLimiter().acquire(bytesWritten);
+                writeProbe.record(bytesWritten);
+                getWriteRateLimiter().acquire(bytesWritten);
 
                 long now = System.currentTimeMillis();
                 long lastLog = lastLogTime.get();
                 if (now - lastLog >= LOG_INTERVAL_MS) {
                     if (lastLogTime.compareAndSet(lastLog, now)) {
-                        double speed = speedCollector.getProbeGroup().getTotalSpeed();
-                        logger.debug("Copying: {} - Global: {} MB/s",
-                            source.getFileName(), String.format("%.2f", speed));
+                        double readSpeed = speedCollector.getReadProbeGroup().getTotalSpeed();
+                        double writeSpeed = speedCollector.getWriteProbeGroup().getTotalSpeed();
+                        logger.debug("Copying: {} - Read: {} MB/s, Write: {} MB/s",
+                            source.getFileName(), String.format("%.2f", readSpeed), String.format("%.2f", writeSpeed));
                     }
                 }
 
@@ -174,7 +204,7 @@ public class CopyTask implements Callable<CopyResult> {
         }
         copyFileAttributes(source, dest, attributes);
         if (hash != null){
-            QueueManager.getIndex().addFile(hash, source, size);
+            QueueManager.getIndex().addFile(hash, new IndexKey(deviceSerial, source), size);
         }
     }
 
@@ -188,13 +218,13 @@ public class CopyTask implements Callable<CopyResult> {
             FileTime lastModified = sourceAttrs.lastModifiedTime();
             FileTime lastAccess = sourceAttrs.lastAccessTime();
             FileTime creation = sourceAttrs.creationTime();
-            
+
             Files.setAttribute(destination, "basic:lastModifiedTime", lastModified);
             Files.setAttribute(destination, "basic:lastAccessTime", lastAccess);
             // Note: creationTime is not set as it requires elevated privileges on some filesystems
-            
+
             logger.debug("Copied timestamps: modified={}, access={}, creation={}", lastModified, lastAccess, creation);
-            
+
             // Try to copy DOS attributes (Windows)
             try {
                 DosFileAttributes dosAttrs = Files.readAttributes(source, DosFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
@@ -207,7 +237,7 @@ public class CopyTask implements Callable<CopyResult> {
                 // Not a DOS filesystem (e.g., Linux), ignore
                 logger.debug("DOS attributes not supported on this filesystem");
             }
-            
+
         } catch (IOException e) {
             logger.warn("Failed to copy file attributes:", e);
         }

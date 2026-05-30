@@ -56,19 +56,11 @@ public class QueueManager {
             SnifferLifecycleManager.getInstance().stopService();
             logger.info("SnifferLifecycleManager stopped");
 
-            // 2. Stop index periodic save service
-            index.stopService();
-            logger.info("Index ticker stopped");
-
-            // 3. Save index
-            index.save();
-            logger.info("Index saved");
-
-            // 4. Interrupt all disk scanner threads
+            // 2. Interrupt all disk scanner threads
             diskScanners.interrupt();
             logger.info("DiskScanners interrupted");
 
-            // 5. Gracefully shutdown thread pool
+            // 3. Gracefully shutdown thread pool
             TaskScheduler.getInstance().close();
 
             logger.info("Thread pool shutdown completed");

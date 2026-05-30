@@ -47,7 +47,31 @@
       "Bash(target/runtime/bin/java.exe --version)",
       "Bash(target/runtime/bin/java.exe *)",
       "Bash(jlink --help)",
-      "Bash(jlink *)"
+      "Bash(jlink *)",
+      "Bash(findstr /C:\"Tests run\" /C:\"BUILD\")",
+      "Bash(Select-String -Pattern \"Tests run|BUILD\")",
+      "Bash(git stash *)",
+      "Bash(xxd \"E:\\\\IdeaProjects\\\\UsbThief\\\\src\\\\com\\\\superredrock\\\\usbthief\\\\gui\\\\messages.properties\")",
+      "Bash(xxd)",
+      "Bash(Select-String -Pattern \"log|Log|Logger\")",
+      "Bash(Select-Object -First 20)",
+      "Bash(mvn -q exec:java -Dexec.mainClass=\"com.superredrock.usbthief.Main\" -Dexec.args=\"--enable-preview\")",
+      "Bash(java -Dlog4j2.statusLoggerLevel=TRACE -p target/classes -m UsbThief/com.superredrock.usbthief.Main --enable-preview)",
+      "Bash(mvn dependency:build-classpath -q -DincludeScope=compile -Dmdep.outputFile=cp.txt)",
+      "Bash(java -Dlog4j2.statusLoggerLevel=TRACE --module-path \"target/classes;$\\(cat cp.txt\\)\" -m UsbThief/com.superredrock.usbthief.Main --enable-preview)",
+      "Bash(java --module-path \"target/classes;$\\(cat cp.txt\\)\" -m UsbThief/com.superredrock.usbthief.Main --enable-preview)",
+      "Bash(tasklist)",
+      "Bash(wmic process *)",
+      "Bash(taskkill //PID 9524 //F)",
+      "Bash(taskkill //PID 29640 //F)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(taskkill //PID 32120 //F)",
+      "Bash(taskkill //PID 36952 //F)",
+      "Bash(rm -f logs/lastest.log logs/debug.log)",
+      "Bash(java -Dlog4j2.debug=true --module-path \"target/classes;$\\(cat cp.txt\\)\" -m UsbThief/com.superredrock.usbthief.Main --enable-preview)",
+      "Bash(taskkill //PID 28224 //F)",
+      "Bash(taskkill //PID 12336 //F)",
+      "Bash(taskkill //F //IM java.exe)"
     ]
   }
 }

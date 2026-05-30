@@ -8,10 +8,12 @@ module UsbThief {
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
     requires com.github.benmanes.caffeine;
+    requires org.jspecify;
 
     exports com.superredrock.usbthief.index;
     exports com.superredrock.usbthief.core;
     exports com.superredrock.usbthief.core.config;
+    exports com.superredrock.usbthief.core.config.configs;
     exports com.superredrock.usbthief.core.event;
     exports com.superredrock.usbthief.core.event.device;
     exports com.superredrock.usbthief.core.event.index;

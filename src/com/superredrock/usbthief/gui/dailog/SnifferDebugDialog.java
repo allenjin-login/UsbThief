@@ -10,8 +10,6 @@ import com.superredrock.usbthief.core.event.device.DeviceEvent;
 import com.superredrock.usbthief.core.event.device.VolumeEvent;
 import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
 import com.superredrock.usbthief.core.event.index.IndexEvent;
-import com.superredrock.usbthief.core.event.index.IndexSavedEvent;
-import com.superredrock.usbthief.core.event.index.IndexLoadedEvent;
 import com.superredrock.usbthief.core.event.storage.StorageLowEvent;
 import com.superredrock.usbthief.core.event.storage.StorageRecoveredEvent;
 import com.superredrock.usbthief.core.event.storage.FilesRecycledEvent;
@@ -413,7 +411,6 @@ public class SnifferDebugDialog extends JDialog {
             QueueManager.getDeviceManager(),
             SnifferLifecycleManager.getInstance(),
             TaskScheduler.getInstance(),
-            Index.getInstance(),
             RecyclerService.getInstance()
         };
     }
@@ -535,7 +532,7 @@ public class SnifferDebugDialog extends JDialog {
         return switch (filter) {
             case "Device" -> event instanceof DeviceEvent || event instanceof VolumeEvent;
             case "Copy" -> event instanceof FileDiscoveredEvent || event instanceof CopyCompletedEvent || event instanceof DuplicateDetectedEvent;
-            case "Index" -> event instanceof IndexEvent || event instanceof IndexSavedEvent || event instanceof IndexLoadedEvent;
+            case "Index" -> event instanceof IndexEvent;
             case "Storage" -> event instanceof StorageLowEvent || event instanceof StorageRecoveredEvent || event instanceof FilesRecycledEvent || event instanceof EmptyFoldersDeletedEvent;
             default -> true;
         };
@@ -560,7 +557,7 @@ public class SnifferDebugDialog extends JDialog {
         } else if (event instanceof FileDiscoveredEvent || event instanceof CopyCompletedEvent || event instanceof DuplicateDetectedEvent) {
             category = "COPY";
             catColor = ThemeManager.ACCENT_SUCCESS;
-        } else if (event instanceof IndexEvent || event instanceof IndexSavedEvent || event instanceof IndexLoadedEvent) {
+        } else if (event instanceof IndexEvent) {
             category = "INDEX";
             catColor = ThemeManager.ACCENT_PRIMARY;
         } else if (event instanceof StorageLowEvent || event instanceof StorageRecoveredEvent || event instanceof FilesRecycledEvent || event instanceof EmptyFoldersDeletedEvent) {

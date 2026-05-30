@@ -149,7 +149,7 @@ public class ConfigDialog extends JDialog {
         JSpinner spinner;
         if (value instanceof Integer) {
             int intValue = (Integer) value;
-            // Use 0 as minimum to allow 0 for COPY_RATE_LIMIT (no limit)
+            // Use 0 as minimum to allow 0 for rate limits (no limit)
             SpinnerNumberModel intModel = new SpinnerNumberModel(
                     intValue,           // value
                     0,                  // minimum
@@ -162,7 +162,7 @@ public class ConfigDialog extends JDialog {
             spinner.setEditor(editor);
         } else {
             long longValue = (Long) value;
-            // Use 0 as minimum to allow 0 for COPY_RATE_LIMIT (no limit)
+            // Use 0 as minimum to allow 0 for rate limits (no limit)
             SpinnerNumberModel longModel = new SpinnerNumberModel(
                     longValue,          // value
                     0L,                 // minimum

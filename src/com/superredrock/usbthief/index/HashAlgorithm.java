@@ -5,6 +5,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
+import java.util.function.LongConsumer;
 import java.util.zip.Checksum;
 
 /**
@@ -41,27 +42,29 @@ public enum HashAlgorithm {
         return SHA_256;
     }
 
-    /**
-     * Compute a file checksum using this algorithm.
-     */
     public CheckSum compute(Path path, ByteBuffer buffer) throws java.io.IOException {
+        return compute(path, buffer, null);
+    }
+
+    public CheckSum compute(Path path, ByteBuffer buffer, LongConsumer byteRecorder) throws java.io.IOException {
         byte[] hash = switch (this) {
-            case SHA_256, MD5 -> computeMessageDigest(path, buffer);
-            case CRC_8 -> computeWithChecksum(path, buffer, new CRC8());
-            case CRC_16 -> computeWithChecksum(path, buffer, new CRC16());
-            case CRC_32 -> computeWithChecksum(path, buffer, new CRC32J());
-            case CRC_64 -> computeWithChecksum(path, buffer, new CRC64());
+            case SHA_256, MD5 -> computeMessageDigest(path, buffer, byteRecorder);
+            case CRC_8 -> computeWithChecksum(path, buffer, new CRC8(), byteRecorder);
+            case CRC_16 -> computeWithChecksum(path, buffer, new CRC16(), byteRecorder);
+            case CRC_32 -> computeWithChecksum(path, buffer, new CRC32J(), byteRecorder);
+            case CRC_64 -> computeWithChecksum(path, buffer, new CRC64(), byteRecorder);
         };
         return new CheckSum(hash);
     }
 
-    private byte[] computeMessageDigest(Path path, ByteBuffer buffer) throws java.io.IOException {
+    private byte[] computeMessageDigest(Path path, ByteBuffer buffer, LongConsumer byteRecorder) throws java.io.IOException {
         try {
             MessageDigest digest = MessageDigest.getInstance(id);
             try (FileChannel ch = FileChannel.open(path, StandardOpenOption.READ)) {
                 while (ch.read(buffer) != -1) {
                     if (Thread.interrupted()) throw new java.io.IOException("Hash computation interrupted");
                     buffer.flip();
+                    if (byteRecorder != null) byteRecorder.accept(buffer.remaining());
                     digest.update(buffer);
                     buffer.clear();
                 }
@@ -72,11 +75,12 @@ public enum HashAlgorithm {
         }
     }
 
-    private byte[] computeWithChecksum(Path path, ByteBuffer buffer, Checksum checksum) throws java.io.IOException {
+    private byte[] computeWithChecksum(Path path, ByteBuffer buffer, Checksum checksum, LongConsumer byteRecorder) throws java.io.IOException {
         try (FileChannel ch = FileChannel.open(path, StandardOpenOption.READ)) {
             while (ch.read(buffer) != -1) {
                 if (Thread.interrupted()) throw new java.io.IOException("Hash computation interrupted");
                 buffer.flip();
+                if (byteRecorder != null) byteRecorder.accept(buffer.remaining());
                 if (buffer.hasArray()) {
                     checksum.update(buffer.array(), buffer.arrayOffset(), buffer.limit());
                 } else {

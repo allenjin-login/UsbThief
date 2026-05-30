@@ -1,6 +1,5 @@
 package com.superredrock.usbthief.worker;
 
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -65,13 +64,14 @@ public class RateLimiter {
     private void refillTokens() {
         long now = System.nanoTime();
         long elapsedNanos = now - lastRefillTimestamp;
-        long elapsedSeconds = TimeUnit.NANOSECONDS.toSeconds(elapsedNanos);
 
-        if (elapsedSeconds > 0) {
+        if (elapsedNanos > 0) {
             long currentRateLimit = rateLimitBytesPerSecond;
-            long newTokens = elapsedSeconds * currentRateLimit;
-            tokens = Math.min(burstSize, tokens + newTokens);
-            lastRefillTimestamp = now;
+            long newTokens = elapsedNanos * currentRateLimit / 1_000_000_000L;
+            if (newTokens > 0) {
+                tokens = Math.min(burstSize, tokens + newTokens);
+                lastRefillTimestamp = now;
+            }
         }
     }
 
@@ -80,7 +80,6 @@ public class RateLimiter {
         long deficit = bytes - tokens;
         long currentRateLimit = rateLimitBytesPerSecond;
         if (currentRateLimit <= 0) return 0;
-        long waitSeconds = (deficit + currentRateLimit - 1) / currentRateLimit;
-        return TimeUnit.SECONDS.toNanos(waitSeconds);
+        return (deficit * 1_000_000_000L + currentRateLimit - 1) / currentRateLimit;
     }
 }

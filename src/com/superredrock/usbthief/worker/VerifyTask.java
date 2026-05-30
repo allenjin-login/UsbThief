@@ -8,6 +8,7 @@ import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
 import com.superredrock.usbthief.index.CheckSum;
 import com.superredrock.usbthief.index.HashAlgorithm;
+import com.superredrock.usbthief.index.IndexKey;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -15,6 +16,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.concurrent.Callable;
+
+import com.superredrock.usbthief.statistics.SpeedProbe;
+import com.superredrock.usbthief.statistics.Statistics;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -26,9 +30,12 @@ public class VerifyTask implements Callable<CopyResult> {
     private final Path processingPath;
     private final String deviceSerial;
 
+    private final SpeedProbe readProbe;
+
     public VerifyTask(Path path, String deviceSerial) {
         this.processingPath = path;
         this.deviceSerial = deviceSerial != null ? deviceSerial : "";
+        this.readProbe = Statistics.getInstance().getSpeedCollector().createReadProbe("Verify" + "-read");
     }
 
     public static CheckSum verify(Path path) throws IOException {
@@ -75,9 +82,17 @@ public class VerifyTask implements Callable<CopyResult> {
                 TaskScheduler.getInstance().submit(new CopyTask(processingPath, deviceSerial, null));
                 return CopyResult.SKIPPED;
             }
-            CheckSum hash = verify(processingPath);
+            HashAlgorithm algorithm = HashAlgorithm.fromId(
+                    ConfigManager.getInstance().get(ConfigSchema.HASH_ALGORITHM));
+            ByteBuffer buffer = bufferThreadLocal.get();
+            CheckSum hash;
+            try {
+                hash = algorithm.compute(processingPath, buffer, readProbe::record);
+            } finally {
+                buffer.clear();
+            }
 
-            if (QueueManager.getIndex().checkDuplicate(processingPath, hash)) {
+            if (QueueManager.getIndex().checkDuplicate(new IndexKey(deviceSerial, processingPath), hash)) {
                 logger.info("Path Ignore (verify): {}", processingPath);
                 result = CopyResult.SKIPPED;
             } else {

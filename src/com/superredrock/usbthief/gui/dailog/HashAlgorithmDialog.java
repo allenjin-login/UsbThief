@@ -135,7 +135,6 @@ public class HashAlgorithmDialog extends JDialog implements I18nManager.LocaleCh
 
             QueueManager.getIndex().clear();
             ConfigManager.getInstance().set(ConfigSchema.HASH_ALGORITHM, newAlgo);
-            ConfigManager.getInstance().set(ConfigSchema.HASH_ALGORITHM_LAST, newAlgo);
 
             JOptionPane.showMessageDialog(this,
                     i18n.getMessage("hash.success.cleared"),

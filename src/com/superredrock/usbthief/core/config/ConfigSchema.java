@@ -1,267 +1,57 @@
 package com.superredrock.usbthief.core.config;
 
+import com.superredrock.usbthief.core.config.configs.*;
+
+import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
-import static com.superredrock.usbthief.core.config.ConfigEntry.*;
+import java.util.stream.Collectors;
 
 /**
  * Schema containing all configuration entries for the application.
  * This class acts as a registry for all configuration keys and their metadata.
  */
 public class ConfigSchema {
-    // Thread pool configuration
-    public static final ConfigEntry<Integer> CORE_POOL_SIZE =
-            intEntry("corePoolSize", "Minimum number of threads in the thread pool", 2, "Thread Pool");
-
-    public static final ConfigEntry<Integer> MAX_POOL_SIZE =
-            intEntry("maxPoolSize", "Maximum number of threads in the thread pool", Runtime.getRuntime().availableProcessors(), "Thread Pool");
-
-    public static final ConfigEntry<Integer> KEEP_ALIVE_TIME_SECONDS =
-            intEntry("keepAliveTimeSeconds", "Idle thread keep-alive time in seconds", 60, "Thread Pool");
-
-    public static final ConfigEntry<Integer> TASK_QUEUE_CAPACITY =
-            intEntry("taskQueueCapacity", "Maximum number of tasks in the queue", 1024, "Thread Pool");
-
-    // Device scanner configuration
-    public static final ConfigEntry<Integer> INITIAL_DELAY_SECONDS =
-            intEntry("initialDelaySeconds", "Initial delay before first device scan (seconds)", 10, "Device Scanner");
-
-    public static final ConfigEntry<Integer> DELAY_SECONDS =
-            intEntry("delaySeconds", "Interval between device scans (seconds)", 500, "Device Scanner");
-
-    // Index management configuration
-    public static final ConfigEntry<Integer> SAVE_INITIAL_DELAY_SECONDS =
-            intEntry("saveInitialDelaySeconds", "Initial delay before first index save (seconds)", 30, "Index Management");
-
-    public static final ConfigEntry<Integer> SAVE_DELAY_SECONDS =
-            intEntry("saveDelaySeconds", "Interval between index saves (seconds)", 60, "Index Management");
-
-    public static final ConfigEntry<String> INDEX_PATH =
-            stringEntry("indexPath", "Path to the index file (relative or absolute)", "index.obj", "Index Management");
-
-    public static final ConfigEntry<Integer> INDEX_CACHE_SIZE =
-            intEntry("indexCacheSize", "Maximum number of entries in the in-memory index cache", 10_000, "Index Management");
-
-    // File copy configuration
-    public static final ConfigEntry<Integer> BUFFER_SIZE =
-            intEntry("bufferSize", "Buffer size for file copying (bytes)", 16 * 1024, "File Copy");
-
-    public static final ConfigEntry<Integer> HASH_BUFFER_SIZE =
-            intEntry("hashBufferSize", "Buffer size for hash calculation (bytes)", 1024, "File Copy");
-
-    public static final ConfigEntry<Integer> MAX_FILE_SIZE =
-            intEntry("maxFileSize", "Maximum file size to copy (bytes)", 1000 * 1024 * 1024, "File Copy");
-
-    public static final ConfigEntry<Integer> RETRY_COUNT =
-            intEntry("retryCount", "Number of retry attempts for failed operations", 5, "File Copy");
-
-    public static final ConfigEntry<Long> TIMEOUT_MILLIS =
-            longEntry("timeoutMillis", "Timeout for retry queue polling (milliseconds)", 100L, "File Copy");
-
-    public static final ConfigEntry<Boolean> COPY_VERIFY_ENABLED =
-            booleanEntry("copyVerifyEnabled", "Enable pre-copy verification (checksum + dedup before copy)", true, "File Copy");
-
-    public static final ConfigEntry<String> HASH_ALGORITHM =
-            stringEntry("hashAlgorithm", "Hash algorithm: SHA-256, MD5, CRC-8, CRC-16, CRC-32, CRC-64", "SHA-256", "File Copy");
-
-    public static final ConfigEntry<String> HASH_ALGORITHM_LAST =
-            stringEntry("hashAlgorithmLast", "Previous hash algorithm (internal, for detecting changes)", "SHA-256", "File Copy");
-
-    // File watch configuration
-    public static final ConfigEntry<Boolean> WATCH_ENABLED =
-            booleanEntry("watchEnabled", "Enable/disable real-time file monitoring", true, "File Watch");
-
-    public static final ConfigEntry<Integer> WATCH_THRESHOLD =
-            intEntry("watchThreshold", "Number of file changes before triggering copy", 10, "File Watch");
-
-    public static final ConfigEntry<Integer> WATCH_RESET_INTERVAL_SECONDS =
-            intEntry("watchResetIntervalSeconds", "Interval to reset change counter (seconds)", 60, "File Watch");
-
-    // Copy rate limiting configuration
-    public static final ConfigEntry<Long> COPY_RATE_LIMIT =
-            longEntry("copyRateLimit", "Copy rate limit in bytes per second (0 = no limit)", 0L, "Rate Limiting");
-
-    public static final ConfigEntry<Long> COPY_RATE_BURST_SIZE =
-            longEntry("copyRateBurstSize", "Copy rate burst size in bytes", 16L * 1024 * 1024, "Rate Limiting");
-
-    public static final ConfigEntry<Long> COPY_RATE_LIMIT_BASE =
-            longEntry("copyRateLimitBase", "Base copy rate limit in bytes per second (0 = no limit)", 0L, "Rate Limiting");
-
-    // Path configuration
-    public static final ConfigEntry<String> WORK_PATH =
-            stringEntry("workPath", "Working directory for storing copied files", "devices", "Paths");
-
-    // UI configuration
-    public static final ConfigEntry<Integer> FILE_HISTORY_MAX_ENTRIES =
-            intEntry("fileHistoryMaxEntries", "Maximum number of file history entries to keep in memory", 10000, "UI");
-
-    // Window visibility configuration
-    public static final ConfigEntry<Boolean> START_HIDDEN =
-            booleanEntry("gui.startHidden", "Start application with window hidden (runs in background)", false, "Window");
-
-    public static final ConfigEntry<Boolean> AUTO_START_ENABLED =
-            booleanEntry("gui.autoStartEnabled", "Start application automatically on Windows login", false, "Window");
-
-    public static final ConfigEntry<Boolean> SHOW_IN_TASKBAR =
-            booleanEntry("gui.showInTaskbar", "Show window in taskbar", true, "Window");
-
-
-    public static final ConfigEntry<String> CLOSE_ACTION =
-            stringEntry("gui.closeAction", "Action when closing: ASK, MINIMIZE_TO_TRAY, EXIT", "ASK", "Window");
-
-    public static final ConfigEntry<Boolean> CLOSE_ACTION_REMEMBER =
-            booleanEntry("gui.closeActionRemember", "Remember the close action choice", false, "Window");
-
-    // Blacklist configuration
-    public static final ConfigEntry<List<String>> DEVICE_BLACKLIST =
-            listEntry("deviceBlacklist", "Device blacklist by path (deprecated, use deviceBlacklistBySerial)", List.of(), "Blacklist");
-
-    public static final ConfigEntry<List<String>> DEVICE_BLACKLIST_BY_SERIAL =
-            listEntry("deviceBlacklistBySerial", "Device blacklist by serial number", List.of(), "Blacklist");
-
-
-    // File filter configuration
-    public static final ConfigEntry<Long> FILE_FILTER_MAX_SIZE =
-            longEntry("fileFilter.maxSize", "Maximum file size to copy (bytes)", 100L * 1024 * 1024, "File Filter");
-
-    public static final ConfigEntry<Boolean> FILE_FILTER_MAX_SIZE_ENABLED =
-            booleanEntry("fileFilter.maxSizeEnabled", "Enable maximum file size filter", true, "File Filter");
-
-    public static final ConfigEntry<Boolean> FILE_FILTER_TIME_ENABLED =
-            booleanEntry("fileFilter.timeEnabled", "Enable time-based file filtering", false, "File Filter");
-
-    public static final ConfigEntry<Long> FILE_FILTER_TIME_VALUE =
-            longEntry("fileFilter.timeValue", "Time filter value (combined with timeUnit)", 24L, "File Filter");
-
-    public static final ConfigEntry<String> FILE_FILTER_TIME_UNIT =
-            stringEntry("fileFilter.timeUnit", "Time filter unit: HOURS, DAYS, WEEKS, MONTHS, YEARS", "HOURS", "File Filter");
-
-    public static final ConfigEntry<Boolean> FILE_FILTER_INCLUDE_HIDDEN =
-            booleanEntry("fileFilter.includeHidden", "Include hidden files in copy", false, "File Filter");
-
-    public static final ConfigEntry<Boolean> FILE_FILTER_SKIP_SYMLINKS =
-            booleanEntry("fileFilter.skipSymlinks", "Skip symbolic links during copy", true, "File Filter");
-
-    public static final ConfigEntry<Boolean> FILE_FILTER_ALLOW_NO_EXT =
-            booleanEntry("fileFilter.allowNoExtension", "Allow files without extension", true, "File Filter");
-
-    // Suffix filter configuration
-    public static final ConfigEntry<String> SUFFIX_FILTER_MODE =
-            stringEntry("suffixFilter.mode", "Suffix filter mode: NONE, WHITELIST, or BLACKLIST", "NONE", "Suffix Filter");
-
-    public static final ConfigEntry<List<String>> SUFFIX_FILTER_WHITELIST =
-            listEntry("suffixFilter.whitelist", "Whitelist of file extensions (without dot)", List.of(), "Suffix Filter");
-
-    public static final ConfigEntry<List<String>> SUFFIX_FILTER_BLACKLIST =
-            listEntry("suffixFilter.blacklist", "Blacklist of file extensions (without dot)", List.of(), "Suffix Filter");
-
-    public static final ConfigEntry<String> SUFFIX_FILTER_PRESET =
-            stringEntry("suffixFilter.preset", "Selected preset name (empty string for none)", "", "Suffix Filter");
-
-    // Storage management configuration
-    public static final ConfigEntry<Long> STORAGE_RESERVED_BYTES =
-            longEntry("storage.reservedBytes", "Minimum free space to preserve (bytes)", 10L * 1024 * 1024 * 1024, "Storage Management");
-
-    public static final ConfigEntry<Long> STORAGE_MAX_BYTES =
-            longEntry("storage.maxBytes", "Maximum space for copied files (bytes)", 100L * 1024 * 1024 * 1024, "Storage Management");
-
-    public static final ConfigEntry<Integer> SNIFFER_WAIT_NORMAL_MINUTES =
-            intEntry("sniffer.waitNormalMinutes", "Wait time after normal completion (minutes)", 30, "Storage Management");
-
-    public static final ConfigEntry<Integer> SNIFFER_WAIT_ERROR_MINUTES =
-            intEntry("sniffer.waitErrorMinutes", "Wait time after error (minutes)", 5, "Storage Management");
-
-    public static final ConfigEntry<String> RECYCLER_STRATEGY =
-            stringEntry("recycler.strategy", "Recycler strategy: TIME_FIRST, SIZE_FIRST, or AUTO", "AUTO", "Storage Management");
-
-    public static final ConfigEntry<Integer> RECYCLER_PROTECTED_AGE_HOURS =
-            intEntry("recycler.protectedAgeHours", "Protect files newer than X hours from deletion", 1, "Storage Management");
-
-    public static final ConfigEntry<Boolean> STORAGE_WARNING_ENABLED =
-            booleanEntry("storage.warningEnabled", "Log warning when storage space is critical", true, "Storage Management");
-
-    public static final ConfigEntry<Boolean> STORAGE_ENABLED =
-            booleanEntry("storage.enabled", "Enable storage management (monitoring, recycling, space checks)", true, "Storage Management");
-
-    // Statistics API configuration
-    public static final ConfigEntry<Boolean> STATS_API_ENABLED =
-            booleanEntry("stats.api.enabled", "Enable/disable HTTP API for statistics", false, "Statistics API");
-
-    public static final ConfigEntry<Integer> STATS_API_PORT =
-            intEntry("stats.api.port", "HTTP API port number", 8421, "Statistics API");
-
-    // All entries registry
     private static final Map<String, ConfigEntry<?>> ALL_ENTRIES = new ConcurrentHashMap<>();
 
     static {
-        registerEntry(CORE_POOL_SIZE);
-        registerEntry(MAX_POOL_SIZE);
-        registerEntry(KEEP_ALIVE_TIME_SECONDS);
-        registerEntry(TASK_QUEUE_CAPACITY);
-        registerEntry(INITIAL_DELAY_SECONDS);
-        registerEntry(DELAY_SECONDS);
-        registerEntry(SAVE_INITIAL_DELAY_SECONDS);
-        registerEntry(SAVE_DELAY_SECONDS);
-        registerEntry(INDEX_PATH);
-        registerEntry(INDEX_CACHE_SIZE);
-        registerEntry(BUFFER_SIZE);
-        registerEntry(HASH_BUFFER_SIZE);
-        registerEntry(MAX_FILE_SIZE);
-        registerEntry(RETRY_COUNT);
-        registerEntry(TIMEOUT_MILLIS);
-        registerEntry(COPY_VERIFY_ENABLED);
-        registerEntry(HASH_ALGORITHM);
-        registerEntry(HASH_ALGORITHM_LAST);
-        registerEntry(WATCH_ENABLED);
-        registerEntry(WATCH_THRESHOLD);
-        registerEntry(WATCH_RESET_INTERVAL_SECONDS);
-        registerEntry(COPY_RATE_LIMIT);
-        registerEntry(COPY_RATE_BURST_SIZE);
-        registerEntry(COPY_RATE_LIMIT_BASE);
-        registerEntry(WORK_PATH);
-        registerEntry(FILE_HISTORY_MAX_ENTRIES);
-        registerEntry(DEVICE_BLACKLIST);
-        registerEntry(DEVICE_BLACKLIST_BY_SERIAL);
-        registerEntry(START_HIDDEN);
-        registerEntry(SHOW_IN_TASKBAR);
-        registerEntry(AUTO_START_ENABLED);
-        registerEntry(CLOSE_ACTION);
-        registerEntry(CLOSE_ACTION_REMEMBER);
-        registerEntry(FILE_FILTER_MAX_SIZE);
-        registerEntry(FILE_FILTER_MAX_SIZE_ENABLED);
-        registerEntry(FILE_FILTER_TIME_ENABLED);
-        registerEntry(FILE_FILTER_TIME_VALUE);
-        registerEntry(FILE_FILTER_TIME_UNIT);
-        registerEntry(FILE_FILTER_INCLUDE_HIDDEN);
-        registerEntry(FILE_FILTER_SKIP_SYMLINKS);
-        registerEntry(FILE_FILTER_ALLOW_NO_EXT);
-        registerEntry(SUFFIX_FILTER_MODE);
-        registerEntry(SUFFIX_FILTER_WHITELIST);
-        registerEntry(SUFFIX_FILTER_BLACKLIST);
-        registerEntry(SUFFIX_FILTER_PRESET);
-        registerEntry(STORAGE_RESERVED_BYTES);
-        registerEntry(STORAGE_MAX_BYTES);
-        registerEntry(SNIFFER_WAIT_NORMAL_MINUTES);
-        registerEntry(SNIFFER_WAIT_ERROR_MINUTES);
-        registerEntry(RECYCLER_STRATEGY);
-        registerEntry(RECYCLER_PROTECTED_AGE_HOURS);
-        registerEntry(STORAGE_WARNING_ENABLED);
-        registerEntry(STORAGE_ENABLED);
-        registerEntry(STATS_API_ENABLED);
-        registerEntry(STATS_API_PORT);
+        registerClass(ThreadPoolConfig.class);
+        registerClass(DeviceScannerConfig.class);
+        registerClass(IndexConfig.class);
+        registerClass(FileCopyConfig.class);
+        registerClass(FileWatchConfig.class);
+        registerClass(RateLimitConfig.class);
+        registerClass(PathConfig.class);
+        registerClass(UIConfig.class);
+        registerClass(WindowConfig.class);
+        registerClass(BlacklistConfig.class);
+        registerClass(FileFilterConfig.class);
+        registerClass(SuffixFilterConfig.class);
+        registerClass(StorageConfig.class);
+        registerClass(StatisticsApiConfig.class);
     }
 
     private ConfigSchema() {
         // Static utility class
     }
 
-    /**
-     * Register a configuration entry.
-     */
-    private static void registerEntry(ConfigEntry<?> entry) {
-        ALL_ENTRIES.put(entry.key(), entry);
+    private static void registerClass(Class<?> clazz) {
+        for (Field field : clazz.getDeclaredFields()) {
+            if (java.lang.reflect.Modifier.isStatic(field.getModifiers())
+                    && java.lang.reflect.Modifier.isFinal(field.getModifiers())
+                    && ConfigEntry.class.isAssignableFrom(field.getType())) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    ConfigEntry<?> entry = (ConfigEntry<?>) field.get(null);
+                    if (entry != null) {
+                        ALL_ENTRIES.put(entry.key(), entry);
+                    }
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException("Failed to access config entry: " + field.getName(), e);
+                }
+            }
+        }
     }
 
     /**
@@ -276,7 +66,7 @@ public class ConfigSchema {
      */
     public static Map<String, List<ConfigEntry<?>>> getEntriesByCategory() {
         return ALL_ENTRIES.values().stream()
-                .collect(java.util.stream.Collectors.groupingBy(ConfigEntry::category));
+                .collect(Collectors.groupingBy(ConfigEntry::category));
     }
 
     /**

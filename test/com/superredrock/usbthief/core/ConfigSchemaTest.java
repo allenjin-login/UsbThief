@@ -72,23 +72,22 @@ class ConfigSchemaTest {
 
     @Test
     void indexManagementEntries() {
-        assertEquals(60, ConfigSchema.SAVE_DELAY_SECONDS.defaultValue());
-        assertEquals("index.obj", ConfigSchema.INDEX_PATH.defaultValue());
-        assertEquals(10_000, ConfigSchema.INDEX_CACHE_SIZE.defaultValue());
-        assertEquals(ConfigType.STRING, ConfigSchema.INDEX_PATH.type());
+        assertEquals(2000, ConfigSchema.INDEX_CACHE_SIZE.defaultValue());
+        assertEquals(ConfigType.INT, ConfigSchema.INDEX_CACHE_SIZE.type());
     }
 
     @Test
     void rateLimitingEntries() {
-        assertEquals(0L, ConfigSchema.COPY_RATE_LIMIT.defaultValue());
+        assertEquals(0L, ConfigSchema.COPY_READ_RATE_LIMIT.defaultValue());
+        assertEquals(0L, ConfigSchema.COPY_WRITE_RATE_LIMIT.defaultValue());
         assertEquals(16L * 1024 * 1024, ConfigSchema.COPY_RATE_BURST_SIZE.defaultValue());
-        assertEquals(ConfigType.LONG, ConfigSchema.COPY_RATE_LIMIT.type());
+        assertEquals(ConfigType.LONG, ConfigSchema.COPY_READ_RATE_LIMIT.type());
+        assertEquals(ConfigType.LONG, ConfigSchema.COPY_WRITE_RATE_LIMIT.type());
     }
 
     @Test
     void booleanEntries() {
-        assertEquals(true, ConfigSchema.WATCH_ENABLED.defaultValue());
-        assertEquals(false, ConfigSchema.START_HIDDEN.defaultValue());
+        assertEquals(false, ConfigSchema.WATCH_ENABLED.defaultValue());
         assertEquals(true, ConfigSchema.STORAGE_ENABLED.defaultValue());
         assertEquals(ConfigType.BOOLEAN, ConfigSchema.WATCH_ENABLED.type());
     }

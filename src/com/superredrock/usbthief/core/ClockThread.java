@@ -1,10 +1,13 @@
 package com.superredrock.usbthief.core;
 
+import org.jspecify.annotations.NonNull;
+
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Delayed;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class ClockThread extends Thread {
+public class ClockThread extends Thread implements Delayed {
 
     private static final AtomicInteger counter = new AtomicInteger(0);
 
@@ -57,10 +60,11 @@ public class ClockThread extends Thread {
                 completeExceptionally(e);
                 return;
             }
-
-            if (!paused && !cancelled) {
-                long elapsed = unit.convert(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS);
-                remaining -= elapsed;
+            synchronized (this){
+                if (!paused && !cancelled) {
+                    long elapsed = unit.convert(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS);
+                    remaining -= elapsed;
+                }
             }
         }
 
@@ -107,5 +111,18 @@ public class ClockThread extends Thread {
 
     public boolean isCancelled() {
         return cancelled;
+    }
+
+    @Override
+    public long getDelay(@NonNull TimeUnit unit) {
+        return this.getRemaining(unit);
+    }
+
+    @Override
+    public int compareTo(@NonNull Delayed o) {
+        if (o instanceof ClockThread){
+            return Long.compare(this.remaining,((ClockThread) o).remaining);
+        }
+        return 0;
     }
 }

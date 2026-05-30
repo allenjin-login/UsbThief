@@ -7,8 +7,6 @@ import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeStateChangedEvent;
 import com.superredrock.usbthief.core.event.index.DuplicateDetectedEvent;
 import com.superredrock.usbthief.core.event.index.FileIndexedEvent;
-import com.superredrock.usbthief.core.event.index.IndexLoadedEvent;
-import com.superredrock.usbthief.core.event.index.IndexSavedEvent;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -155,8 +153,6 @@ public class LogPanel extends JPanel {
         // Index events
         eventBus.register(FileIndexedEvent.class, this::onFileIndexed);
         eventBus.register(DuplicateDetectedEvent.class, this::onDuplicateDetected);
-        eventBus.register(IndexLoadedEvent.class, this::onIndexLoaded);
-        eventBus.register(IndexSavedEvent.class, this::onIndexSaved);
 
         // Volume events
         eventBus.register(VolumeInsertedEvent.class, this::onVolumeInserted);
@@ -176,16 +172,6 @@ public class LogPanel extends JPanel {
     private void onDuplicateDetected(DuplicateDetectedEvent event) {
         String message = i18n.getMessage("log.message.duplicate", event.filePath().getFileName());
         log(message, LogLevel.WARNING);
-    }
-
-    private void onIndexLoaded(IndexLoadedEvent event) {
-        String message = i18n.getMessage("log.message.indexLoaded", event.loadedCount());
-        log(message, LogLevel.INFO);
-    }
-
-    private void onIndexSaved(IndexSavedEvent event) {
-        String message = i18n.getMessage("log.message.indexSaved", event.savedCount());
-        log(message, LogLevel.INFO);
     }
 
     // Volume event handlers

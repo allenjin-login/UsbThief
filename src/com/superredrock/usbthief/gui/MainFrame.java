@@ -6,11 +6,13 @@ import com.superredrock.usbthief.Main;
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.SizeFormatter;
 import com.superredrock.usbthief.core.Version;
+import com.superredrock.usbthief.core.config.ConfigEntry;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.gui.dailog.*;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.statistics.Statistics;
+import com.superredrock.usbthief.statistics.collector.SpeedCollector;
 import com.superredrock.usbthief.worker.TaskScheduler;
 
 import javax.swing.*;
@@ -44,6 +46,8 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
     private JLabel filesLabel;
     private JLabel foldersLabel;
     private JLabel queueLabel;
+    private JLabel readSpeedLabel;
+    private JLabel writeSpeedLabel;
 
     // Window visibility state
     private boolean windowVisible = true;
@@ -52,8 +56,8 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
     public MainFrame() {
         setTitle(i18n.getMessage("main.title") + " v" + Version.getVersion());
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-        setSize(500, 400);
-        setMinimumSize(new Dimension(400, 600));
+        setSize(500, 800);
+        setMinimumSize(new Dimension(500, 800));
         setLocationRelativeTo(null);
         setResizable(false);
 
@@ -145,13 +149,15 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
     }
 
     private JPanel createCompactStatsBar() {
-        JPanel panel = new JPanel(new GridLayout(1, 4, 4, 0));
+        JPanel panel = new JPanel(new GridLayout(1, 8, 4, 0));
         panel.setOpaque(false);
 
         totalLabel = new JLabel("0 B", SwingConstants.CENTER);
         filesLabel = new JLabel("0", SwingConstants.CENTER);
         foldersLabel = new JLabel("0", SwingConstants.CENTER);
         queueLabel = new JLabel("0", SwingConstants.CENTER);
+        readSpeedLabel = new JLabel("0.0", SwingConstants.CENTER);
+        writeSpeedLabel = new JLabel("0.0", SwingConstants.CENTER);
 
         Font statFont = new Font(Font.SANS_SERIF, Font.BOLD, 11);
         Font labelFont = new Font(Font.SANS_SERIF, Font.PLAIN, 8);
@@ -159,18 +165,51 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         for (var entry : new Object[][]{
                 {i18n.getMessage("chart.stats.total"), totalLabel},
                 {i18n.getMessage("chart.stats.files"), filesLabel},
-                {"Folders", foldersLabel},
+                {i18n.getMessage("chart.stats.folders"), foldersLabel},
                 {i18n.getMessage("chart.stats.queue"), queueLabel}
         }) {
-            JPanel card = getCard(entry, labelFont, statFont);
-            panel.add(card);
+            panel.add(getCard(entry, labelFont, statFont));
         }
-
-        // Timer to update stats
         Timer statsTimer = new Timer(1000, _ -> updateCompactStats());
         statsTimer.start();
 
         return panel;
+    }
+
+    private JSpinner createRateLimitSpinner(ConfigEntry<Long> configEntry) {
+        JSpinner spinner = new JSpinner(new SpinnerNumberModel(0L, 0L, Long.MAX_VALUE, 1024 * 1024L));
+        spinner.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+        spinner.setOpaque(false);
+        long currentValue = ConfigManager.getInstance().get(configEntry);
+        spinner.setValue(currentValue);
+        spinner.addChangeListener(_ -> {
+            long newValue = ((Number) spinner.getValue()).longValue();
+            ConfigManager.getInstance().set(configEntry, newValue);
+        });
+        return spinner;
+    }
+
+    private static JPanel getSpinnerCard(String labelText, JSpinner spinner, Font labelFont) {
+        JPanel card = new JPanel(new BorderLayout(2, 0));
+        card.setOpaque(false);
+        card.setBorder(BorderFactory.createLineBorder(Color.BLACK, 1, true));
+
+        JLabel lbl = new JLabel(labelText, SwingConstants.CENTER);
+        lbl.setFont(labelFont);
+        lbl.setForeground(ThemeManager.TEXT_MUTED);
+        card.add(lbl, BorderLayout.NORTH);
+
+        JPanel spinnerPanel = new JPanel(new BorderLayout(2, 0));
+        spinnerPanel.setOpaque(false);
+        spinnerPanel.add(spinner, BorderLayout.CENTER);
+
+        JLabel unitLabel = new JLabel("MB/s", SwingConstants.CENTER);
+        unitLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 7));
+        unitLabel.setForeground(Color.GRAY);
+        spinnerPanel.add(unitLabel, BorderLayout.EAST);
+
+        card.add(spinnerPanel, BorderLayout.CENTER);
+        return card;
     }
 
     private static JPanel getCard(Object[] entry, Font labelFont, Font statFont) {
@@ -189,10 +228,13 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
 
     private void updateCompactStats() {
         Statistics stats = Statistics.getInstance();
+        SpeedCollector speedCollector = stats.getSpeedCollector();
         totalLabel.setText(SizeFormatter.format(stats.getSessionBytesCopied()));
         filesLabel.setText(String.valueOf(stats.getSessionFilesCopied()));
         foldersLabel.setText(String.valueOf(stats.getSessionFoldersCopied()));
         queueLabel.setText(String.valueOf(TaskScheduler.getInstance().getQueueDepth()));
+        readSpeedLabel.setText(String.format("%.1f", speedCollector.getReadProbeGroup().getTotalSpeed()));
+        writeSpeedLabel.setText(String.format("%.1f", speedCollector.getWriteProbeGroup().getTotalSpeed()));
     }
 
     private void setWindowIcon() {
@@ -224,10 +266,6 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
 
     private void createMenus() {
         JMenu actionMenu = new JMenu(i18n.getMessage("menu.action"));
-
-        JMenuItem saveIndexItem = new JMenuItem(i18n.getMessage("menu.action.saveIndex"));
-        saveIndexItem.addActionListener(_ -> saveIndex());
-        actionMenu.add(saveIndexItem);
 
         actionMenu.addSeparator();
 
@@ -293,13 +331,6 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         filterConfigItem.addActionListener(_ -> FilterConfigDialog.showFilterConfigDialog(this));
         configMenu.add(filterConfigItem);
 
-        JMenuItem rateLimitItem = new JMenuItem(i18n.getMessage("menu.settings.ratelimit"));
-        rateLimitItem.addActionListener(_ -> {
-            RateLimitConfigDialog dialog = new RateLimitConfigDialog(this);
-            dialog.setVisible(true);
-        });
-        configMenu.add(rateLimitItem);
-
         JMenuItem hashAlgoItem = new JMenuItem(i18n.getMessage("menu.config.hashAlgorithm"));
         hashAlgoItem.addActionListener(_ -> HashAlgorithmDialog.showDialog(this));
         configMenu.add(hashAlgoItem);
@@ -316,13 +347,6 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         );
         autoStartItem.addActionListener(_ -> toggleAutoStart(autoStartItem));
         configMenu.add(autoStartItem);
-
-        JCheckBoxMenuItem startHiddenItem = new JCheckBoxMenuItem(
-            i18n.getMessage("starthidden.toggle"),
-            ConfigManager.getInstance().get(ConfigSchema.START_HIDDEN)
-        );
-        startHiddenItem.addActionListener(_ -> toggleStartHidden(startHiddenItem));
-        configMenu.add(startHiddenItem);
 
         JMenu helpMenu = new JMenu(i18n.getMessage("menu.help"));
         JMenuItem aboutItem = new JMenuItem(i18n.getMessage("menu.help.about"));
@@ -443,33 +467,6 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         }
     }
 
-    private void toggleStartHidden(JCheckBoxMenuItem item) {
-        boolean enabled = item.isSelected();
-        ConfigManager.getInstance().set(ConfigSchema.START_HIDDEN, enabled);
-        String status = enabled ?
-            i18n.getMessage("starthidden.enabled") :
-            i18n.getMessage("starthidden.disabled");
-        updateStatusBar(status);
-        logger.info("Start hidden setting changed to: {}", enabled);
-    }
-
-    private void saveIndex() {
-        updateStatusBar(i18n.getMessage("status.savingIndex"));
-
-        SwingUtilities.invokeLater(() -> {
-            try {
-                QueueManager.getIndex().save();
-                updateStatusBar(i18n.getMessage("status.indexSaved"));
-            } catch (Exception e) {
-                updateStatusBar(i18n.getMessage("status.indexSaveFailed"));
-                JOptionPane.showMessageDialog(this,
-                        i18n.getMessage("message.saveIndexFailed", e.getMessage()),
-                        i18n.getMessage("common.error"),
-                        JOptionPane.ERROR_MESSAGE);
-            }
-        });
-    }
-
     private void clearStatistics() {
         int confirm = JOptionPane.showConfirmDialog(
                 this,
@@ -540,8 +537,9 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         int poolQueueSize = TaskScheduler.getInstance().getPool().getQueue().size();
         String poolQueueInfo = i18n.getMessage("status.poolQueue.format", poolQueueSize);
 
-        double speed = Statistics.getInstance().getSpeedCollector().getProbeGroup().getTotalSpeed();
-        String speedInfo = i18n.getMessage("status.speed.format", speed);
+        double readSpeed = Statistics.getInstance().getSpeedCollector().getReadProbeGroup().getTotalSpeed();
+        double writeSpeed = Statistics.getInstance().getSpeedCollector().getWriteProbeGroup().getTotalSpeed();
+        String speedInfo = i18n.getMessage("status.speed.format",readSpeed,writeSpeed);
 
         String workPath = ConfigManager.getInstance().get(ConfigSchema.WORK_PATH);
         String pathInfo = i18n.getMessage("status.path.format", workPath.isEmpty() ? i18n.getMessage("status.currentDir") : workPath);
@@ -551,17 +549,11 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
     }
 
     private void applyWindowSettings() {
-        boolean startHidden = ConfigManager.getInstance().get(ConfigSchema.START_HIDDEN);
         boolean showInTaskbar = ConfigManager.getInstance().get(ConfigSchema.SHOW_IN_TASKBAR);
 
-        if (startHidden) {
-            windowVisible = false;
-            setVisible(false);
-            logger.info("Application started hidden (startHidden=%s)".formatted(true));
-        } else {
-            windowVisible = true;
-            setVisible(true);
-        }
+        windowVisible = false;
+        setVisible(false);
+        logger.info("Application started hidden");
 
         if (!showInTaskbar) {
             logger.info("Taskbar visibility setting requires JNA (not implemented)");
@@ -736,7 +728,6 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         SwingUtilities.invokeLater(() -> {
             MainFrame frame = new MainFrame();
             frame.updateStatusBar();
-            frame.setVisible(true);
 
             WelcomeDialog.showIfFirstRun(frame);
         });
