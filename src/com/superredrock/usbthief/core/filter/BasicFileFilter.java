@@ -1,7 +1,7 @@
 package com.superredrock.usbthief.core.filter;
 
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.FileFilterConfig;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -141,7 +141,7 @@ public class BasicFileFilter implements FileFilter {
      * @return the maximum file size in bytes
      */
     protected long getMaxFileSize() {
-        return configManager.get(ConfigSchema.FILE_FILTER_MAX_SIZE);
+        return configManager.get(FileFilterConfig.FILE_FILTER_MAX_SIZE);
     }
 
     /**
@@ -150,7 +150,7 @@ public class BasicFileFilter implements FileFilter {
      * @return true if max size filter should be applied
      */
     protected boolean isMaxSizeFilterEnabled() {
-        return configManager.get(ConfigSchema.FILE_FILTER_MAX_SIZE_ENABLED);
+        return configManager.get(FileFilterConfig.FILE_FILTER_MAX_SIZE_ENABLED);
     }
 
     /**
@@ -159,7 +159,7 @@ public class BasicFileFilter implements FileFilter {
      * @return true if time filter should be applied
      */
     protected boolean isTimeFilterEnabled() {
-        return configManager.get(ConfigSchema.FILE_FILTER_TIME_ENABLED);
+        return configManager.get(FileFilterConfig.FILE_FILTER_TIME_ENABLED);
     }
 
     /**
@@ -168,7 +168,7 @@ public class BasicFileFilter implements FileFilter {
      * @return the numeric value for the time filter
      */
     protected long getTimeFilterValue() {
-        return configManager.get(ConfigSchema.FILE_FILTER_TIME_VALUE);
+        return configManager.get(FileFilterConfig.FILE_FILTER_TIME_VALUE);
     }
 
     /**
@@ -177,7 +177,7 @@ public class BasicFileFilter implements FileFilter {
      * @return the time unit (HOURS, DAYS, WEEKS, MONTHS, or YEARS)
      */
     protected String getTimeFilterUnit() {
-        return configManager.get(ConfigSchema.FILE_FILTER_TIME_UNIT);
+        return configManager.get(FileFilterConfig.FILE_FILTER_TIME_UNIT);
     }
 
     /**
@@ -186,7 +186,7 @@ public class BasicFileFilter implements FileFilter {
      * @return true if hidden files should be processed
      */
     protected boolean shouldIncludeHidden() {
-        return configManager.get(ConfigSchema.FILE_FILTER_INCLUDE_HIDDEN);
+        return configManager.get(FileFilterConfig.FILE_FILTER_INCLUDE_HIDDEN);
     }
 
     /**
@@ -195,6 +195,6 @@ public class BasicFileFilter implements FileFilter {
      * @return true if symlinks should be skipped
      */
     protected boolean shouldSkipSymlinks() {
-        return configManager.get(ConfigSchema.FILE_FILTER_SKIP_SYMLINKS);
+        return configManager.get(FileFilterConfig.FILE_FILTER_SKIP_SYMLINKS);
     }
 }

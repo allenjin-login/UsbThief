@@ -1,5 +1,6 @@
 package com.superredrock.usbthief.core.config;
 
+import com.superredrock.usbthief.core.config.configs.BlacklistConfig;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -44,31 +45,31 @@ public class ConfigManager {
         if (serialNumber == null || serialNumber.isEmpty()) {
             return false;
         }
-        return get(ConfigSchema.DEVICE_BLACKLIST_BY_SERIAL).contains(serialNumber);
+        return get(BlacklistConfig.DEVICE_BLACKLIST_BY_SERIAL).contains(serialNumber);
     }
 
     public void addToDeviceBlacklistBySerial(String serialNumber) {
         if (serialNumber == null || serialNumber.trim().isEmpty()) {
             return;
         }
-        List<String> blacklist = new java.util.ArrayList<>(get(ConfigSchema.DEVICE_BLACKLIST_BY_SERIAL));
+        List<String> blacklist = new java.util.ArrayList<>(get(BlacklistConfig.DEVICE_BLACKLIST_BY_SERIAL));
         if (!blacklist.contains(serialNumber.trim())) {
             blacklist.add(serialNumber.trim());
-            set(ConfigSchema.DEVICE_BLACKLIST_BY_SERIAL, blacklist);
+            set(BlacklistConfig.DEVICE_BLACKLIST_BY_SERIAL, blacklist);
         }
     }
 
     public void setDeviceBlacklistBySerial(List<String> blacklist) {
-        set(ConfigSchema.DEVICE_BLACKLIST_BY_SERIAL, blacklist != null ? blacklist : new java.util.ArrayList<>());
+        set(BlacklistConfig.DEVICE_BLACKLIST_BY_SERIAL, blacklist != null ? blacklist : new java.util.ArrayList<>());
     }
 
     public void removeFromDeviceBlacklistBySerial(String serialNumber) {
         if (serialNumber == null || serialNumber.trim().isEmpty()) {
             return;
         }
-        List<String> blacklist = new java.util.ArrayList<>(get(ConfigSchema.DEVICE_BLACKLIST_BY_SERIAL));
+        List<String> blacklist = new java.util.ArrayList<>(get(BlacklistConfig.DEVICE_BLACKLIST_BY_SERIAL));
         if (blacklist.remove(serialNumber.trim())) {
-            set(ConfigSchema.DEVICE_BLACKLIST_BY_SERIAL, blacklist);
+            set(BlacklistConfig.DEVICE_BLACKLIST_BY_SERIAL, blacklist);
         }
     }
 

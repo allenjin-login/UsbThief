@@ -5,7 +5,7 @@ import com.superredrock.usbthief.core.Service;
 import com.superredrock.usbthief.core.ServiceState;
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.ThreadPoolConfig;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -20,11 +20,11 @@ public class TaskScheduler extends Service {
 
 
     private final ThreadPoolExecutor pool = new ThreadPoolExecutor(
-            ConfigManager.getInstance().get(ConfigSchema.CORE_POOL_SIZE),
-            ConfigManager.getInstance().get(ConfigSchema.MAX_POOL_SIZE),
-            ConfigManager.getInstance().get(ConfigSchema.KEEP_ALIVE_TIME_SECONDS),
+            ConfigManager.getInstance().get(ThreadPoolConfig.CORE_POOL_SIZE),
+            ConfigManager.getInstance().get(ThreadPoolConfig.MAX_POOL_SIZE),
+            ConfigManager.getInstance().get(ThreadPoolConfig.KEEP_ALIVE_TIME_SECONDS),
             TimeUnit.SECONDS,
-            new ArrayBlockingQueue<>(ConfigManager.getInstance().get(ConfigSchema.TASK_QUEUE_CAPACITY)));
+            new ArrayBlockingQueue<>(ConfigManager.getInstance().get(ThreadPoolConfig.TASK_QUEUE_CAPACITY)));
 
     private final PriorityBlockingQueue<PriorityTask<?, ?>> priorityQueue;
     private final PriorityRule priorityRule;

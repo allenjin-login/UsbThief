@@ -5,7 +5,7 @@ import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.Service;
 import com.superredrock.usbthief.core.Volume;
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.StorageConfig;
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.device.VolumeInsertedEvent;
@@ -257,9 +257,9 @@ public class SnifferLifecycleManager extends Service {
         ConfigManager config = ConfigManager.getInstance();
         return switch (reason) {
             case NORMAL_COMPLETION ->
-                TimeUnit.MINUTES.toMillis(config.get(ConfigSchema.SNIFFER_WAIT_NORMAL_MINUTES));
+                TimeUnit.MINUTES.toMillis(config.get(StorageConfig.SNIFFER_WAIT_NORMAL_MINUTES));
             case ERROR ->
-                TimeUnit.MINUTES.toMillis(config.get(ConfigSchema.SNIFFER_WAIT_ERROR_MINUTES));
+                TimeUnit.MINUTES.toMillis(config.get(StorageConfig.SNIFFER_WAIT_ERROR_MINUTES));
             case STORAGE_PAUSE -> 0;
         };
     }

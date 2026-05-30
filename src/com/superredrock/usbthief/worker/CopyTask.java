@@ -4,7 +4,9 @@ import com.superredrock.usbthief.core.Volume;
 
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.FileCopyConfig;
+import com.superredrock.usbthief.core.config.configs.PathConfig;
+import com.superredrock.usbthief.core.config.configs.RateLimitConfig;
 import com.superredrock.usbthief.core.DeviceUtils;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
@@ -31,7 +33,7 @@ public class CopyTask implements Callable<CopyResult> {
 
     protected static final Logger logger = LogManager.getLogger(CopyTask.class);
 
-    private static final ThreadLocal<ByteBuffer> bufferThreadLocal = ThreadLocal.withInitial(() -> ByteBuffer.allocate(ConfigManager.getInstance().get(ConfigSchema.BUFFER_SIZE)));
+    private static final ThreadLocal<ByteBuffer> bufferThreadLocal = ThreadLocal.withInitial(() -> ByteBuffer.allocate(ConfigManager.getInstance().get(FileCopyConfig.BUFFER_SIZE)));
 
     protected final Path processingPath;
     private final String deviceSerial;
@@ -73,8 +75,8 @@ public class CopyTask implements Callable<CopyResult> {
 
     private static RateLimiter getReadRateLimiter() {
         RateLimiter current = readRateLimiter;
-        long limit = ConfigManager.getInstance().get(ConfigSchema.COPY_READ_RATE_LIMIT);
-        long burst = ConfigManager.getInstance().get(ConfigSchema.COPY_RATE_BURST_SIZE);
+        long limit = ConfigManager.getInstance().get(RateLimitConfig.COPY_READ_RATE_LIMIT);
+        long burst = ConfigManager.getInstance().get(RateLimitConfig.COPY_RATE_BURST_SIZE);
 
         if (current == null || limit != current.getRateLimitBytesPerSecond()
                 || burst != current.getBurstSize()) {
@@ -91,8 +93,8 @@ public class CopyTask implements Callable<CopyResult> {
 
     private static RateLimiter getWriteRateLimiter() {
         RateLimiter current = writeRateLimiter;
-        long limit = ConfigManager.getInstance().get(ConfigSchema.COPY_WRITE_RATE_LIMIT);
-        long burst = ConfigManager.getInstance().get(ConfigSchema.COPY_RATE_BURST_SIZE);
+        long limit = ConfigManager.getInstance().get(RateLimitConfig.COPY_WRITE_RATE_LIMIT);
+        long burst = ConfigManager.getInstance().get(RateLimitConfig.COPY_RATE_BURST_SIZE);
 
         if (current == null || limit != current.getRateLimitBytesPerSecond()
                 || burst != current.getBurstSize()) {
@@ -244,7 +246,7 @@ public class CopyTask implements Callable<CopyResult> {
     }
 
     private static Path getPath(Path target) throws IOException {
-        Path workPath = Paths.get(ConfigManager.getInstance().get(ConfigSchema.WORK_PATH));
+        Path workPath = Paths.get(ConfigManager.getInstance().get(PathConfig.WORK_PATH));
         return DeviceUtils.getPath(workPath, target);
     }
 

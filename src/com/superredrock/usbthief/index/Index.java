@@ -1,7 +1,7 @@
 package com.superredrock.usbthief.index;
 
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.IndexConfig;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.index.DuplicateDetectedEvent;
 import com.superredrock.usbthief.core.event.index.FileIndexedEvent;
@@ -23,7 +23,7 @@ public class Index {
     private final AtomicInteger totalEntries = new AtomicInteger(0);
 
     private Index() {
-        int maxSize = ConfigManager.getInstance().get(ConfigSchema.INDEX_CACHE_SIZE);
+        int maxSize = ConfigManager.getInstance().get(IndexConfig.INDEX_CACHE_SIZE);
         this.cache = Caffeine.newBuilder()
                 .maximumSize(maxSize)
                 .recordStats()

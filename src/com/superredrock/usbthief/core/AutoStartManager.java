@@ -1,7 +1,7 @@
 package com.superredrock.usbthief.core;
 
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.WindowConfig;
 
 import java.io.IOException;
 import org.apache.logging.log4j.LogManager;
@@ -85,7 +85,7 @@ public final class AutoStartManager {
             
             if (exitCode == 0) {
                 logger.info("Auto-start enabled: {}", command);
-                ConfigManager.getInstance().set(ConfigSchema.AUTO_START_ENABLED, true);
+                ConfigManager.getInstance().set(WindowConfig.AUTO_START_ENABLED, true);
                 return true;
             } else {
                 logger.warn("Failed to enable auto-start: {}", output);
@@ -117,7 +117,7 @@ public final class AutoStartManager {
             // Exit code 0 = deleted, 1 = didn't exist (both OK for disable)
             if (exitCode == 0 || exitCode == 1) {
                 logger.info("Auto-start disabled");
-                ConfigManager.getInstance().set(ConfigSchema.AUTO_START_ENABLED, false);
+                ConfigManager.getInstance().set(WindowConfig.AUTO_START_ENABLED, false);
                 return true;
             } else {
                 logger.warn("Failed to disable auto-start: {}", output);

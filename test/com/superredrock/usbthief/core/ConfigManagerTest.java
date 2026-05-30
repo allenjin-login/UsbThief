@@ -1,7 +1,12 @@
 package com.superredrock.usbthief.core;
 
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.BlacklistConfig;
+import com.superredrock.usbthief.core.config.configs.FileCopyConfig;
+import com.superredrock.usbthief.core.config.configs.FileWatchConfig;
+import com.superredrock.usbthief.core.config.configs.IndexConfig;
+import com.superredrock.usbthief.core.config.configs.RateLimitConfig;
+import com.superredrock.usbthief.core.config.configs.ThreadPoolConfig;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;
@@ -35,52 +40,52 @@ class ConfigManagerTest {
 
     @Test
     void getDefault() {
-        assertEquals(2, manager.get(ConfigSchema.CORE_POOL_SIZE));
-        assertEquals(2000, manager.get(ConfigSchema.INDEX_CACHE_SIZE));
+        assertEquals(2, manager.get(ThreadPoolConfig.CORE_POOL_SIZE));
+        assertEquals(2000, manager.get(IndexConfig.INDEX_CACHE_SIZE));
     }
 
     @Test
     void getAfterSet() {
-        manager.set(ConfigSchema.CORE_POOL_SIZE, 8);
-        assertEquals(8, manager.get(ConfigSchema.CORE_POOL_SIZE));
+        manager.set(ThreadPoolConfig.CORE_POOL_SIZE, 8);
+        assertEquals(8, manager.get(ThreadPoolConfig.CORE_POOL_SIZE));
     }
 
     @Test
     void getLongType() {
-        assertEquals(0L, manager.get(ConfigSchema.COPY_READ_RATE_LIMIT));
-        manager.set(ConfigSchema.COPY_READ_RATE_LIMIT, 1024L);
-        assertEquals(1024L, manager.get(ConfigSchema.COPY_READ_RATE_LIMIT));
+        assertEquals(0L, manager.get(RateLimitConfig.COPY_READ_RATE_LIMIT));
+        manager.set(RateLimitConfig.COPY_READ_RATE_LIMIT, 1024L);
+        assertEquals(1024L, manager.get(RateLimitConfig.COPY_READ_RATE_LIMIT));
     }
 
     @Test
     void getBooleanType() {
-        assertFalse(manager.get(ConfigSchema.WATCH_ENABLED));
-        manager.set(ConfigSchema.WATCH_ENABLED, true);
-        assertTrue(manager.get(ConfigSchema.WATCH_ENABLED));
+        assertFalse(manager.get(FileWatchConfig.WATCH_ENABLED));
+        manager.set(FileWatchConfig.WATCH_ENABLED, true);
+        assertTrue(manager.get(FileWatchConfig.WATCH_ENABLED));
     }
 
     @Test
     void getStringType() {
-        assertEquals("SHA-256", manager.get(ConfigSchema.HASH_ALGORITHM));
-        manager.set(ConfigSchema.HASH_ALGORITHM, "MD5");
-        assertEquals("MD5", manager.get(ConfigSchema.HASH_ALGORITHM));
+        assertEquals("SHA-256", manager.get(FileCopyConfig.HASH_ALGORITHM));
+        manager.set(FileCopyConfig.HASH_ALGORITHM, "MD5");
+        assertEquals("MD5", manager.get(FileCopyConfig.HASH_ALGORITHM));
     }
 
     @Test
     void setThenClear() {
-        manager.set(ConfigSchema.CORE_POOL_SIZE, 16);
-        assertEquals(16, manager.get(ConfigSchema.CORE_POOL_SIZE));
-        manager.clear(ConfigSchema.CORE_POOL_SIZE);
-        assertEquals(2, manager.get(ConfigSchema.CORE_POOL_SIZE)); // back to default
+        manager.set(ThreadPoolConfig.CORE_POOL_SIZE, 16);
+        assertEquals(16, manager.get(ThreadPoolConfig.CORE_POOL_SIZE));
+        manager.clear(ThreadPoolConfig.CORE_POOL_SIZE);
+        assertEquals(2, manager.get(ThreadPoolConfig.CORE_POOL_SIZE)); // back to default
     }
 
     @Test
     void resetToDefaults() {
-        manager.set(ConfigSchema.CORE_POOL_SIZE, 99);
-        manager.set(ConfigSchema.WATCH_ENABLED, true);
+        manager.set(ThreadPoolConfig.CORE_POOL_SIZE, 99);
+        manager.set(FileWatchConfig.WATCH_ENABLED, true);
         manager.resetToDefaults();
-        assertEquals(2, manager.get(ConfigSchema.CORE_POOL_SIZE));
-        assertFalse(manager.get(ConfigSchema.WATCH_ENABLED));
+        assertEquals(2, manager.get(ThreadPoolConfig.CORE_POOL_SIZE));
+        assertFalse(manager.get(FileWatchConfig.WATCH_ENABLED));
     }
 
     @Test
@@ -108,14 +113,14 @@ class ConfigManagerTest {
     void addToDeviceBlacklistBySerialDuplicate() {
         manager.addToDeviceBlacklistBySerial("abc");
         manager.addToDeviceBlacklistBySerial("abc");
-        List<String> list = manager.get(ConfigSchema.DEVICE_BLACKLIST_BY_SERIAL);
+        List<String> list = manager.get(BlacklistConfig.DEVICE_BLACKLIST_BY_SERIAL);
         assertEquals(1, list.size());
     }
 
     @Test
     void addToDeviceBlacklistBySerialNull() {
         manager.addToDeviceBlacklistBySerial(null);
-        List<String> list = manager.get(ConfigSchema.DEVICE_BLACKLIST_BY_SERIAL);
+        List<String> list = manager.get(BlacklistConfig.DEVICE_BLACKLIST_BY_SERIAL);
         assertTrue(list.isEmpty());
     }
 
@@ -129,7 +134,7 @@ class ConfigManagerTest {
     @Test
     void setDeviceBlacklistBySerialNull() {
         manager.setDeviceBlacklistBySerial(null);
-        List<String> list = manager.get(ConfigSchema.DEVICE_BLACKLIST_BY_SERIAL);
+        List<String> list = manager.get(BlacklistConfig.DEVICE_BLACKLIST_BY_SERIAL);
         assertTrue(list.isEmpty());
     }
 
@@ -147,17 +152,17 @@ class ConfigManagerTest {
 
     @Test
     void exportToXmlAndImportFromXml() throws IOException {
-        manager.set(ConfigSchema.CORE_POOL_SIZE, 16);
+        manager.set(ThreadPoolConfig.CORE_POOL_SIZE, 16);
         Path xmlFile = Files.createTempFile("config-test", ".xml");
         try {
             manager.exportToXml(xmlFile);
             assertTrue(Files.size(xmlFile) > 0);
 
-            manager.set(ConfigSchema.CORE_POOL_SIZE, 4);
-            assertEquals(4, manager.get(ConfigSchema.CORE_POOL_SIZE));
+            manager.set(ThreadPoolConfig.CORE_POOL_SIZE, 4);
+            assertEquals(4, manager.get(ThreadPoolConfig.CORE_POOL_SIZE));
 
             manager.importFromXml(xmlFile);
-            assertEquals(16, manager.get(ConfigSchema.CORE_POOL_SIZE));
+            assertEquals(16, manager.get(ThreadPoolConfig.CORE_POOL_SIZE));
         } finally {
             Files.deleteIfExists(xmlFile);
         }

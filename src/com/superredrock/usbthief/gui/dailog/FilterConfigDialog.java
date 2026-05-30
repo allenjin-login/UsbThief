@@ -1,7 +1,8 @@
 package com.superredrock.usbthief.gui.dailog;
 
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.FileFilterConfig;
+import com.superredrock.usbthief.core.config.configs.SuffixFilterConfig;
 import com.superredrock.usbthief.core.filter.FilterPreset;
 import com.superredrock.usbthief.gui.I18nManager;
 
@@ -517,11 +518,11 @@ public class FilterConfigDialog extends JDialog implements I18nManager.LocaleCha
      */
     private void loadSettings() {
         // Basic filter settings - Size
-        boolean maxSizeEnabled = configManager.get(ConfigSchema.FILE_FILTER_MAX_SIZE_ENABLED);
+        boolean maxSizeEnabled = configManager.get(FileFilterConfig.FILE_FILTER_MAX_SIZE_ENABLED);
         maxSizeEnabledCheckBox.setSelected(maxSizeEnabled);
         updateSizeControlsState();
 
-        long maxSizeBytes = configManager.get(ConfigSchema.FILE_FILTER_MAX_SIZE);
+        long maxSizeBytes = configManager.get(FileFilterConfig.FILE_FILTER_MAX_SIZE);
 
         // Determine if MB or GB
         long maxSizeGB = maxSizeBytes / (1024L * 1024 * 1024);
@@ -539,11 +540,11 @@ public class FilterConfigDialog extends JDialog implements I18nManager.LocaleCha
         }
 
         // Time filter settings
-        boolean timeEnabled = configManager.get(ConfigSchema.FILE_FILTER_TIME_ENABLED);
+        boolean timeEnabled = configManager.get(FileFilterConfig.FILE_FILTER_TIME_ENABLED);
         timeEnabledCheckBox.setSelected(timeEnabled);
 
-        long timeValue = configManager.get(ConfigSchema.FILE_FILTER_TIME_VALUE);
-        String timeUnit = configManager.get(ConfigSchema.FILE_FILTER_TIME_UNIT);
+        long timeValue = configManager.get(FileFilterConfig.FILE_FILTER_TIME_VALUE);
+        String timeUnit = configManager.get(FileFilterConfig.FILE_FILTER_TIME_UNIT);
 
         int timeUnitIndex = switch (timeUnit.toUpperCase(Locale.ROOT)) {
             case "HOURS" -> 0;
@@ -561,11 +562,11 @@ public class FilterConfigDialog extends JDialog implements I18nManager.LocaleCha
         timeSlider.setValue(timeValueInt);
         timeSpinner.setValue(timeValueInt);
 
-        includeHiddenCheckBox.setSelected(configManager.get(ConfigSchema.FILE_FILTER_INCLUDE_HIDDEN));
-        skipSymlinksCheckBox.setSelected(configManager.get(ConfigSchema.FILE_FILTER_SKIP_SYMLINKS));
+        includeHiddenCheckBox.setSelected(configManager.get(FileFilterConfig.FILE_FILTER_INCLUDE_HIDDEN));
+        skipSymlinksCheckBox.setSelected(configManager.get(FileFilterConfig.FILE_FILTER_SKIP_SYMLINKS));
 
         // Suffix filter settings
-        String mode = configManager.get(ConfigSchema.SUFFIX_FILTER_MODE);
+        String mode = configManager.get(SuffixFilterConfig.SUFFIX_FILTER_MODE);
         int modeIndex = switch (mode.toUpperCase(Locale.ROOT)) {
             case "NONE" -> 0;
             case "WHITELIST" -> 1;
@@ -574,15 +575,15 @@ public class FilterConfigDialog extends JDialog implements I18nManager.LocaleCha
         };
         modeComboBox.setSelectedIndex(modeIndex);
 
-        allowNoExtCheckBox.setSelected(configManager.get(ConfigSchema.FILE_FILTER_ALLOW_NO_EXT));
+        allowNoExtCheckBox.setSelected(configManager.get(FileFilterConfig.FILE_FILTER_ALLOW_NO_EXT));
 
         // Load extensions
         extensionListModel.clear();
         List<String> extensions;
         if (mode.equalsIgnoreCase("WHITELIST")) {
-            extensions = configManager.get(ConfigSchema.SUFFIX_FILTER_WHITELIST);
+            extensions = configManager.get(SuffixFilterConfig.SUFFIX_FILTER_WHITELIST);
         } else if (mode.equalsIgnoreCase("BLACKLIST")) {
-            extensions = configManager.get(ConfigSchema.SUFFIX_FILTER_BLACKLIST);
+            extensions = configManager.get(SuffixFilterConfig.SUFFIX_FILTER_BLACKLIST);
         } else {
             extensions = List.of();
         }
@@ -591,7 +592,7 @@ public class FilterConfigDialog extends JDialog implements I18nManager.LocaleCha
         }
 
         // Load preset
-        String preset = configManager.get(ConfigSchema.SUFFIX_FILTER_PRESET);
+        String preset = configManager.get(SuffixFilterConfig.SUFFIX_FILTER_PRESET);
         if (!preset.isEmpty()) {
             try {
                 FilterPreset filterPreset = FilterPreset.valueOf(preset.toUpperCase(Locale.ROOT));
@@ -607,18 +608,18 @@ public class FilterConfigDialog extends JDialog implements I18nManager.LocaleCha
      */
     private void saveSettings() {
         // Basic filter settings - Size
-        configManager.set(ConfigSchema.FILE_FILTER_MAX_SIZE_ENABLED, maxSizeEnabledCheckBox.isSelected());
+        configManager.set(FileFilterConfig.FILE_FILTER_MAX_SIZE_ENABLED, maxSizeEnabledCheckBox.isSelected());
 
         int sizeValue = (Integer) maxSizeSpinner.getValue();
         int sizeUnitIndex = sizeUnitComboBox.getSelectedIndex();
         long maxSizeBytes = sizeValue * SIZE_MULTIPLIERS[sizeUnitIndex];
-        configManager.set(ConfigSchema.FILE_FILTER_MAX_SIZE, maxSizeBytes);
+        configManager.set(FileFilterConfig.FILE_FILTER_MAX_SIZE, maxSizeBytes);
 
         // Time filter settings
-        configManager.set(ConfigSchema.FILE_FILTER_TIME_ENABLED, timeEnabledCheckBox.isSelected());
+        configManager.set(FileFilterConfig.FILE_FILTER_TIME_ENABLED, timeEnabledCheckBox.isSelected());
 
         int timeValue = (Integer) timeSpinner.getValue();
-        configManager.set(ConfigSchema.FILE_FILTER_TIME_VALUE, (long) timeValue);
+        configManager.set(FileFilterConfig.FILE_FILTER_TIME_VALUE, (long) timeValue);
 
         int timeUnitIndex = timeUnitComboBox.getSelectedIndex();
         String timeUnit = switch (timeUnitIndex) {
@@ -629,10 +630,10 @@ public class FilterConfigDialog extends JDialog implements I18nManager.LocaleCha
             case 4 -> "YEARS";
             default -> "HOURS";
         };
-        configManager.set(ConfigSchema.FILE_FILTER_TIME_UNIT, timeUnit);
+        configManager.set(FileFilterConfig.FILE_FILTER_TIME_UNIT, timeUnit);
 
-        configManager.set(ConfigSchema.FILE_FILTER_INCLUDE_HIDDEN, includeHiddenCheckBox.isSelected());
-        configManager.set(ConfigSchema.FILE_FILTER_SKIP_SYMLINKS, skipSymlinksCheckBox.isSelected());
+        configManager.set(FileFilterConfig.FILE_FILTER_INCLUDE_HIDDEN, includeHiddenCheckBox.isSelected());
+        configManager.set(FileFilterConfig.FILE_FILTER_SKIP_SYMLINKS, skipSymlinksCheckBox.isSelected());
 
         // Suffix filter settings
         int modeIndex = modeComboBox.getSelectedIndex();
@@ -642,9 +643,9 @@ public class FilterConfigDialog extends JDialog implements I18nManager.LocaleCha
             case 2 -> "BLACKLIST";
             default -> "NONE";
         };
-        configManager.set(ConfigSchema.SUFFIX_FILTER_MODE, mode);
+        configManager.set(SuffixFilterConfig.SUFFIX_FILTER_MODE, mode);
 
-        configManager.set(ConfigSchema.FILE_FILTER_ALLOW_NO_EXT, allowNoExtCheckBox.isSelected());
+        configManager.set(FileFilterConfig.FILE_FILTER_ALLOW_NO_EXT, allowNoExtCheckBox.isSelected());
 
         // Save extensions to appropriate list
         List<String> extensions = new ArrayList<>();
@@ -653,14 +654,14 @@ public class FilterConfigDialog extends JDialog implements I18nManager.LocaleCha
         }
 
         if (mode.equalsIgnoreCase("WHITELIST")) {
-            configManager.set(ConfigSchema.SUFFIX_FILTER_WHITELIST, extensions);
-            configManager.set(ConfigSchema.SUFFIX_FILTER_BLACKLIST, List.of());
+            configManager.set(SuffixFilterConfig.SUFFIX_FILTER_WHITELIST, extensions);
+            configManager.set(SuffixFilterConfig.SUFFIX_FILTER_BLACKLIST, List.of());
         } else if (mode.equalsIgnoreCase("BLACKLIST")) {
-            configManager.set(ConfigSchema.SUFFIX_FILTER_BLACKLIST, extensions);
-            configManager.set(ConfigSchema.SUFFIX_FILTER_WHITELIST, List.of());
+            configManager.set(SuffixFilterConfig.SUFFIX_FILTER_BLACKLIST, extensions);
+            configManager.set(SuffixFilterConfig.SUFFIX_FILTER_WHITELIST, List.of());
         } else {
-            configManager.set(ConfigSchema.SUFFIX_FILTER_WHITELIST, List.of());
-            configManager.set(ConfigSchema.SUFFIX_FILTER_BLACKLIST, List.of());
+            configManager.set(SuffixFilterConfig.SUFFIX_FILTER_WHITELIST, List.of());
+            configManager.set(SuffixFilterConfig.SUFFIX_FILTER_BLACKLIST, List.of());
         }
 
         // Save preset
@@ -668,10 +669,10 @@ public class FilterConfigDialog extends JDialog implements I18nManager.LocaleCha
         if (presetIndex > 0) {
             FilterPreset[] presets = FilterPreset.values();
             if (presetIndex - 1 < presets.length) {
-                configManager.set(ConfigSchema.SUFFIX_FILTER_PRESET, presets[presetIndex - 1].name());
+                configManager.set(SuffixFilterConfig.SUFFIX_FILTER_PRESET, presets[presetIndex - 1].name());
             }
         } else {
-            configManager.set(ConfigSchema.SUFFIX_FILTER_PRESET, "");
+            configManager.set(SuffixFilterConfig.SUFFIX_FILTER_PRESET, "");
         }
 
         JOptionPane.showMessageDialog(

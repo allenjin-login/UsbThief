@@ -1,7 +1,7 @@
 package com.superredrock.usbthief.gui;
 
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.UIConfig;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
 import com.superredrock.usbthief.core.SizeFormatter;
@@ -37,7 +37,7 @@ public class FileHistoryPanel extends JPanel {
         setLayout(new BorderLayout());
 
         // Read max entries configuration
-        int maxEntries = ConfigManager.getInstance().get(ConfigSchema.FILE_HISTORY_MAX_ENTRIES);
+        int maxEntries = ConfigManager.getInstance().get(UIConfig.FILE_HISTORY_MAX_ENTRIES);
 
         // Table model
         tableModel = new HistoryTableModel(maxEntries);

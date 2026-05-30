@@ -2,7 +2,7 @@ package com.superredrock.usbthief.statistics.api;
 
 import com.sun.net.httpserver.HttpServer;
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.StatisticsApiConfig;
 import com.superredrock.usbthief.statistics.MetricRegistry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,12 +22,12 @@ public final class StatsHttpServer {
     private volatile boolean running;
 
     public void start(MetricRegistry registry) {
-        if (!ConfigManager.getInstance().get(ConfigSchema.STATS_API_ENABLED)) {
+        if (!ConfigManager.getInstance().get(StatisticsApiConfig.STATS_API_ENABLED)) {
             logger.info("Stats HTTP API disabled");
             return;
         }
 
-        int port = ConfigManager.getInstance().get(ConfigSchema.STATS_API_PORT);
+        int port = ConfigManager.getInstance().get(StatisticsApiConfig.STATS_API_PORT);
         handler = new StatsEventHandler(registry);
 
         try {

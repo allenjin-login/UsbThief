@@ -1,7 +1,7 @@
 package com.superredrock.usbthief.gui.dailog;
 
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.BlacklistConfig;
 import com.superredrock.usbthief.gui.I18nManager;
 
 import javax.swing.*;
@@ -124,7 +124,7 @@ public class BlacklistDialog extends JDialog {
      */
     private void loadBlacklist() {
         listModel.clear();
-        List<String> blacklist = ConfigManager.getInstance().get(ConfigSchema.DEVICE_BLACKLIST_BY_SERIAL);
+        List<String> blacklist = ConfigManager.getInstance().get(BlacklistConfig.DEVICE_BLACKLIST_BY_SERIAL);
         for (String serialNumber : blacklist) {
             listModel.addElement(serialNumber);
         }

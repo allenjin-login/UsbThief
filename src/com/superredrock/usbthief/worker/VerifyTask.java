@@ -3,7 +3,7 @@ package com.superredrock.usbthief.worker;
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.Volume;
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.FileCopyConfig;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
 import com.superredrock.usbthief.index.CheckSum;
@@ -25,7 +25,7 @@ import org.apache.logging.log4j.Logger;
 public class VerifyTask implements Callable<CopyResult> {
 
     private static final Logger logger = LogManager.getLogger(VerifyTask.class);
-    private static final ThreadLocal<ByteBuffer> bufferThreadLocal = ThreadLocal.withInitial(() -> ByteBuffer.allocate(ConfigManager.getInstance().get(ConfigSchema.HASH_BUFFER_SIZE)));
+    private static final ThreadLocal<ByteBuffer> bufferThreadLocal = ThreadLocal.withInitial(() -> ByteBuffer.allocate(ConfigManager.getInstance().get(FileCopyConfig.HASH_BUFFER_SIZE)));
 
     private final Path processingPath;
     private final String deviceSerial;
@@ -40,7 +40,7 @@ public class VerifyTask implements Callable<CopyResult> {
 
     public static CheckSum verify(Path path) throws IOException {
         HashAlgorithm algorithm = HashAlgorithm.fromId(
-                ConfigManager.getInstance().get(ConfigSchema.HASH_ALGORITHM));
+                ConfigManager.getInstance().get(FileCopyConfig.HASH_ALGORITHM));
         ByteBuffer buffer = bufferThreadLocal.get();
         try {
             return algorithm.compute(path, buffer);
@@ -83,7 +83,7 @@ public class VerifyTask implements Callable<CopyResult> {
                 return CopyResult.SKIPPED;
             }
             HashAlgorithm algorithm = HashAlgorithm.fromId(
-                    ConfigManager.getInstance().get(ConfigSchema.HASH_ALGORITHM));
+                    ConfigManager.getInstance().get(FileCopyConfig.HASH_ALGORITHM));
             ByteBuffer buffer = bufferThreadLocal.get();
             CheckSum hash;
             try {

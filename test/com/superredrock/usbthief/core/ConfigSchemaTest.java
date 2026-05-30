@@ -3,6 +3,12 @@ package com.superredrock.usbthief.core;
 import com.superredrock.usbthief.core.config.ConfigEntry;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.config.ConfigType;
+import com.superredrock.usbthief.core.config.configs.BlacklistConfig;
+import com.superredrock.usbthief.core.config.configs.FileWatchConfig;
+import com.superredrock.usbthief.core.config.configs.IndexConfig;
+import com.superredrock.usbthief.core.config.configs.RateLimitConfig;
+import com.superredrock.usbthief.core.config.configs.StorageConfig;
+import com.superredrock.usbthief.core.config.configs.ThreadPoolConfig;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -64,38 +70,38 @@ class ConfigSchemaTest {
 
     @Test
     void threadPoolEntries() {
-        assertEquals(2, ConfigSchema.CORE_POOL_SIZE.defaultValue());
-        assertEquals(60, ConfigSchema.KEEP_ALIVE_TIME_SECONDS.defaultValue());
-        assertEquals(1024, ConfigSchema.TASK_QUEUE_CAPACITY.defaultValue());
-        assertEquals(ConfigType.INT, ConfigSchema.CORE_POOL_SIZE.type());
+        assertEquals(2, ThreadPoolConfig.CORE_POOL_SIZE.defaultValue());
+        assertEquals(60, ThreadPoolConfig.KEEP_ALIVE_TIME_SECONDS.defaultValue());
+        assertEquals(1024, ThreadPoolConfig.TASK_QUEUE_CAPACITY.defaultValue());
+        assertEquals(ConfigType.INT, ThreadPoolConfig.CORE_POOL_SIZE.type());
     }
 
     @Test
     void indexManagementEntries() {
-        assertEquals(2000, ConfigSchema.INDEX_CACHE_SIZE.defaultValue());
-        assertEquals(ConfigType.INT, ConfigSchema.INDEX_CACHE_SIZE.type());
+        assertEquals(2000, IndexConfig.INDEX_CACHE_SIZE.defaultValue());
+        assertEquals(ConfigType.INT, IndexConfig.INDEX_CACHE_SIZE.type());
     }
 
     @Test
     void rateLimitingEntries() {
-        assertEquals(0L, ConfigSchema.COPY_READ_RATE_LIMIT.defaultValue());
-        assertEquals(0L, ConfigSchema.COPY_WRITE_RATE_LIMIT.defaultValue());
-        assertEquals(16L * 1024 * 1024, ConfigSchema.COPY_RATE_BURST_SIZE.defaultValue());
-        assertEquals(ConfigType.LONG, ConfigSchema.COPY_READ_RATE_LIMIT.type());
-        assertEquals(ConfigType.LONG, ConfigSchema.COPY_WRITE_RATE_LIMIT.type());
+        assertEquals(0L, RateLimitConfig.COPY_READ_RATE_LIMIT.defaultValue());
+        assertEquals(0L, RateLimitConfig.COPY_WRITE_RATE_LIMIT.defaultValue());
+        assertEquals(16L * 1024 * 1024, RateLimitConfig.COPY_RATE_BURST_SIZE.defaultValue());
+        assertEquals(ConfigType.LONG, RateLimitConfig.COPY_READ_RATE_LIMIT.type());
+        assertEquals(ConfigType.LONG, RateLimitConfig.COPY_WRITE_RATE_LIMIT.type());
     }
 
     @Test
     void booleanEntries() {
-        assertEquals(false, ConfigSchema.WATCH_ENABLED.defaultValue());
-        assertEquals(true, ConfigSchema.STORAGE_ENABLED.defaultValue());
-        assertEquals(ConfigType.BOOLEAN, ConfigSchema.WATCH_ENABLED.type());
+        assertEquals(false, FileWatchConfig.WATCH_ENABLED.defaultValue());
+        assertEquals(true, StorageConfig.STORAGE_ENABLED.defaultValue());
+        assertEquals(ConfigType.BOOLEAN, FileWatchConfig.WATCH_ENABLED.type());
     }
 
     @Test
     void listEntries() {
-        assertEquals(List.of(), ConfigSchema.DEVICE_BLACKLIST_BY_SERIAL.defaultValue());
-        assertEquals(ConfigType.STRING_LIST, ConfigSchema.DEVICE_BLACKLIST_BY_SERIAL.type());
+        assertEquals(List.of(), BlacklistConfig.DEVICE_BLACKLIST_BY_SERIAL.defaultValue());
+        assertEquals(ConfigType.STRING_LIST, BlacklistConfig.DEVICE_BLACKLIST_BY_SERIAL.type());
     }
 
     @Test

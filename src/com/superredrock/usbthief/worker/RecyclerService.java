@@ -2,7 +2,8 @@ package com.superredrock.usbthief.worker;
 
 import com.superredrock.usbthief.core.Service;
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.PathConfig;
+import com.superredrock.usbthief.core.config.configs.StorageConfig;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.storage.EmptyFoldersDeletedEvent;
 import com.superredrock.usbthief.core.event.storage.FilesRecycledEvent;
@@ -76,7 +77,7 @@ public class RecyclerService extends Service {
     protected void tick() {
         try {
             // Skip recycling if storage management is disabled
-            if (!configManager.get(ConfigSchema.STORAGE_ENABLED)) {
+            if (!configManager.get(StorageConfig.STORAGE_ENABLED)) {
                 scanWorkSize();
                 return;
             }
@@ -127,7 +128,7 @@ public class RecyclerService extends Service {
      * <p>Dispatches {@link EmptyFoldersDeletedEvent} if any folders are deleted.
      */
     private void deleteEmptyFolders() {
-        Path workPath = Path.of(configManager.get(ConfigSchema.WORK_PATH));
+        Path workPath = Path.of(configManager.get(PathConfig.WORK_PATH));
 
         try {
             // Collect empty folders (deepest first)
@@ -199,7 +200,7 @@ public class RecyclerService extends Service {
      * @param strategy the recycling strategy to use
      */
     private void recycleFiles(RecycleStrategy strategy) {
-        Path workPath = Path.of(configManager.get(ConfigSchema.WORK_PATH));
+        Path workPath = Path.of(configManager.get(PathConfig.WORK_PATH));
 
         if (!Files.exists(workPath)) {
             logger.warn("Work path does not exist: {}", workPath);
@@ -208,8 +209,8 @@ public class RecyclerService extends Service {
 
         try {
             // Get configuration
-            int protectedAgeHours = configManager.get(ConfigSchema.RECYCLER_PROTECTED_AGE_HOURS);
-            String configStrategy = configManager.get(ConfigSchema.RECYCLER_STRATEGY);
+            int protectedAgeHours = configManager.get(StorageConfig.RECYCLER_PROTECTED_AGE_HOURS);
+            String configStrategy = configManager.get(StorageConfig.RECYCLER_STRATEGY);
 
             // Determine actual strategy (use config if AUTO)
             RecycleStrategy actualStrategy = strategy;
@@ -318,7 +319,7 @@ public class RecyclerService extends Service {
     }
 
     private void scanWorkSize(){
-        Path workPath = Path.of(ConfigManager.getInstance().get(ConfigSchema.WORK_PATH));
+        Path workPath = Path.of(ConfigManager.getInstance().get(PathConfig.WORK_PATH));
 
         try (Stream<Path> paths = Files.find(workPath,Integer.MAX_VALUE,(path,_)-> Files.isRegularFile(path)).parallel()) {
             LongSummaryStatistics resultsum = paths.map(path -> {

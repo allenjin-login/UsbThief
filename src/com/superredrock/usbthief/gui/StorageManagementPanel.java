@@ -1,7 +1,7 @@
 package com.superredrock.usbthief.gui;
 
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.StorageConfig;
 import com.superredrock.usbthief.core.event.storage.StorageLevel;
 import com.superredrock.usbthief.worker.StorageController;
 import com.superredrock.usbthief.worker.StorageController.StorageStatus;
@@ -409,33 +409,33 @@ public class StorageManagementPanel extends JPanel implements I18nManager.Locale
         ConfigManager config = ConfigManager.getInstance();
 
         // Reserved Space (convert bytes to GB)
-        long reservedBytes = config.get(ConfigSchema.STORAGE_RESERVED_BYTES);
+        long reservedBytes = config.get(StorageConfig.STORAGE_RESERVED_BYTES);
         int reservedGB = (int) (reservedBytes / (1024 * 1024 * 1024));
         reservedSpaceSlider.setValue(Math.min(reservedGB, reservedSpaceSlider.getMaximum()));
         reservedSpaceValueLabel.setText(reservedSpaceSlider.getValue() + " " + i18n.getMessage("storage.unit.gb"));
 
         // Max Copy Space (convert bytes to GB)
-        long maxBytes = config.get(ConfigSchema.STORAGE_MAX_BYTES);
+        long maxBytes = config.get(StorageConfig.STORAGE_MAX_BYTES);
         int maxGB = (int) (maxBytes / (1024 * 1024 * 1024));
         maxSpaceSlider.setValue(Math.min(maxGB, maxSpaceSlider.getMaximum()));
         maxSpaceValueLabel.setText(maxSpaceSlider.getValue() + " " + i18n.getMessage("storage.unit.gb"));
 
         // Wait times (minutes)
-        normalWaitSpinner.setValue(config.get(ConfigSchema.SNIFFER_WAIT_NORMAL_MINUTES));
-        errorWaitSpinner.setValue(config.get(ConfigSchema.SNIFFER_WAIT_ERROR_MINUTES));
+        normalWaitSpinner.setValue(config.get(StorageConfig.SNIFFER_WAIT_NORMAL_MINUTES));
+        errorWaitSpinner.setValue(config.get(StorageConfig.SNIFFER_WAIT_ERROR_MINUTES));
 
         // Recycler Strategy
-        String strategy = config.get(ConfigSchema.RECYCLER_STRATEGY);
+        String strategy = config.get(StorageConfig.RECYCLER_STRATEGY);
         updateStrategyComboBox(strategy);
 
         // Protected Age (hours)
-        protectedAgeSpinner.setValue(config.get(ConfigSchema.RECYCLER_PROTECTED_AGE_HOURS));
+        protectedAgeSpinner.setValue(config.get(StorageConfig.RECYCLER_PROTECTED_AGE_HOURS));
 
         // Warning Enabled
-        warningEnabledCheckBox.setSelected(config.get(ConfigSchema.STORAGE_WARNING_ENABLED));
+        warningEnabledCheckBox.setSelected(config.get(StorageConfig.STORAGE_WARNING_ENABLED));
 
         // Storage Enabled
-        storageEnabledCheckBox.setSelected(config.get(ConfigSchema.STORAGE_ENABLED));
+        storageEnabledCheckBox.setSelected(config.get(StorageConfig.STORAGE_ENABLED));
         updateConfigControlsState();
     }
 
@@ -576,14 +576,14 @@ public class StorageManagementPanel extends JPanel implements I18nManager.Locale
         ConfigManager config = ConfigManager.getInstance();
 
         // Reserved Space (convert GB to bytes)
-        config.set(ConfigSchema.STORAGE_RESERVED_BYTES, reservedBytes);
+        config.set(StorageConfig.STORAGE_RESERVED_BYTES, reservedBytes);
 
         // Max Copy Space (convert GB to bytes)
-        config.set(ConfigSchema.STORAGE_MAX_BYTES, maxBytes);
+        config.set(StorageConfig.STORAGE_MAX_BYTES, maxBytes);
 
         // Wait times
-        config.set(ConfigSchema.SNIFFER_WAIT_NORMAL_MINUTES, ((Number) normalWaitSpinner.getValue()).intValue());
-        config.set(ConfigSchema.SNIFFER_WAIT_ERROR_MINUTES, ((Number) errorWaitSpinner.getValue()).intValue());
+        config.set(StorageConfig.SNIFFER_WAIT_NORMAL_MINUTES, ((Number) normalWaitSpinner.getValue()).intValue());
+        config.set(StorageConfig.SNIFFER_WAIT_ERROR_MINUTES, ((Number) errorWaitSpinner.getValue()).intValue());
 
         // Recycler Strategy
         int strategyIndex = strategyComboBox.getSelectedIndex();
@@ -593,16 +593,16 @@ public class StorageManagementPanel extends JPanel implements I18nManager.Locale
             case 2 -> "AUTO";
             default -> "AUTO";
         };
-        config.set(ConfigSchema.RECYCLER_STRATEGY, strategy);
+        config.set(StorageConfig.RECYCLER_STRATEGY, strategy);
 
         // Protected Age
-        config.set(ConfigSchema.RECYCLER_PROTECTED_AGE_HOURS, ((Number) protectedAgeSpinner.getValue()).intValue());
+        config.set(StorageConfig.RECYCLER_PROTECTED_AGE_HOURS, ((Number) protectedAgeSpinner.getValue()).intValue());
 
         // Warning Enabled
-        config.set(ConfigSchema.STORAGE_WARNING_ENABLED, warningEnabledCheckBox.isSelected());
+        config.set(StorageConfig.STORAGE_WARNING_ENABLED, warningEnabledCheckBox.isSelected());
 
         // Storage Enabled
-        config.set(ConfigSchema.STORAGE_ENABLED, storageEnabledCheckBox.isSelected());
+        config.set(StorageConfig.STORAGE_ENABLED, storageEnabledCheckBox.isSelected());
 
         JOptionPane.showMessageDialog(this,
                 i18n.getMessage("config.success"),
@@ -626,14 +626,14 @@ public class StorageManagementPanel extends JPanel implements I18nManager.Locale
         if (confirm == JOptionPane.YES_OPTION) {
             ConfigManager config = ConfigManager.getInstance();
             // Reset only storage-related config keys, not all config
-            config.clear(ConfigSchema.STORAGE_RESERVED_BYTES);
-            config.clear(ConfigSchema.STORAGE_MAX_BYTES);
-            config.clear(ConfigSchema.SNIFFER_WAIT_NORMAL_MINUTES);
-            config.clear(ConfigSchema.SNIFFER_WAIT_ERROR_MINUTES);
-            config.clear(ConfigSchema.RECYCLER_STRATEGY);
-            config.clear(ConfigSchema.RECYCLER_PROTECTED_AGE_HOURS);
-            config.clear(ConfigSchema.STORAGE_WARNING_ENABLED);
-            config.clear(ConfigSchema.STORAGE_ENABLED);
+            config.clear(StorageConfig.STORAGE_RESERVED_BYTES);
+            config.clear(StorageConfig.STORAGE_MAX_BYTES);
+            config.clear(StorageConfig.SNIFFER_WAIT_NORMAL_MINUTES);
+            config.clear(StorageConfig.SNIFFER_WAIT_ERROR_MINUTES);
+            config.clear(StorageConfig.RECYCLER_STRATEGY);
+            config.clear(StorageConfig.RECYCLER_PROTECTED_AGE_HOURS);
+            config.clear(StorageConfig.STORAGE_WARNING_ENABLED);
+            config.clear(StorageConfig.STORAGE_ENABLED);
 
             loadCurrentConfig();
             updateStorageStatus();

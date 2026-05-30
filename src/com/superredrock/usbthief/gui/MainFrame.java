@@ -8,7 +8,8 @@ import com.superredrock.usbthief.core.SizeFormatter;
 import com.superredrock.usbthief.core.Version;
 import com.superredrock.usbthief.core.config.ConfigEntry;
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.PathConfig;
+import com.superredrock.usbthief.core.config.configs.WindowConfig;
 import com.superredrock.usbthief.gui.dailog.*;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.statistics.Statistics;
@@ -541,7 +542,7 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         double writeSpeed = Statistics.getInstance().getSpeedCollector().getWriteProbeGroup().getTotalSpeed();
         String speedInfo = i18n.getMessage("status.speed.format",readSpeed,writeSpeed);
 
-        String workPath = ConfigManager.getInstance().get(ConfigSchema.WORK_PATH);
+        String workPath = ConfigManager.getInstance().get(PathConfig.WORK_PATH);
         String pathInfo = i18n.getMessage("status.path.format", workPath.isEmpty() ? i18n.getMessage("status.currentDir") : workPath);
 
         String message = i18n.getMessage("status.combined", queueInfo, poolQueueInfo, speedInfo, pathInfo);
@@ -549,7 +550,7 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
     }
 
     private void applyWindowSettings() {
-        boolean showInTaskbar = ConfigManager.getInstance().get(ConfigSchema.SHOW_IN_TASKBAR);
+        boolean showInTaskbar = ConfigManager.getInstance().get(WindowConfig.SHOW_IN_TASKBAR);
 
         windowVisible = false;
         setVisible(false);
@@ -590,8 +591,8 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
 
     private void handleWindowClose() {
         ConfigManager config = ConfigManager.getInstance();
-        String closeAction = config.get(ConfigSchema.CLOSE_ACTION);
-        boolean rememberChoice = config.get(ConfigSchema.CLOSE_ACTION_REMEMBER);
+        String closeAction = config.get(WindowConfig.CLOSE_ACTION);
+        boolean rememberChoice = config.get(WindowConfig.CLOSE_ACTION_REMEMBER);
 
         if (rememberChoice) {
             if ("MINIMIZE_TO_TRAY".equals(closeAction)) {
@@ -647,8 +648,8 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
 
             if (shouldRemember) {
                 ConfigManager config = ConfigManager.getInstance();
-                config.set(ConfigSchema.CLOSE_ACTION, shouldMinimize ? "MINIMIZE_TO_TRAY" : "EXIT");
-                config.set(ConfigSchema.CLOSE_ACTION_REMEMBER, true);
+                config.set(WindowConfig.CLOSE_ACTION, shouldMinimize ? "MINIMIZE_TO_TRAY" : "EXIT");
+                config.set(WindowConfig.CLOSE_ACTION_REMEMBER, true);
                 logger.info("Close action saved: {}", (shouldMinimize ? "MINIMIZE_TO_TRAY" : "EXIT"));
             }
 

@@ -1,7 +1,8 @@
 package com.superredrock.usbthief.core.filter;
 
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.FileFilterConfig;
+import com.superredrock.usbthief.core.config.configs.SuffixFilterConfig;
 
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -169,7 +170,7 @@ public class SuffixFilter implements FileFilter {
      * @return the mode (NONE, WHITELIST, or BLACKLIST)
      */
     protected String getFilterMode() {
-        return configManager.get(ConfigSchema.SUFFIX_FILTER_MODE);
+        return configManager.get(SuffixFilterConfig.SUFFIX_FILTER_MODE);
     }
 
     /**
@@ -178,7 +179,7 @@ public class SuffixFilter implements FileFilter {
      * @return list of extensions in the whitelist
      */
     protected List<String> getWhitelist() {
-        return configManager.get(ConfigSchema.SUFFIX_FILTER_WHITELIST);
+        return configManager.get(SuffixFilterConfig.SUFFIX_FILTER_WHITELIST);
     }
 
     /**
@@ -187,7 +188,7 @@ public class SuffixFilter implements FileFilter {
      * @return list of extensions in the blacklist
      */
     protected List<String> getBlacklist() {
-        return configManager.get(ConfigSchema.SUFFIX_FILTER_BLACKLIST);
+        return configManager.get(SuffixFilterConfig.SUFFIX_FILTER_BLACKLIST);
     }
 
     /**
@@ -196,7 +197,7 @@ public class SuffixFilter implements FileFilter {
      * @return the preset name, or empty string if none selected
      */
     protected String getPreset() {
-        return configManager.get(ConfigSchema.SUFFIX_FILTER_PRESET);
+        return configManager.get(SuffixFilterConfig.SUFFIX_FILTER_PRESET);
     }
 
     /**
@@ -205,6 +206,6 @@ public class SuffixFilter implements FileFilter {
      * @return true if files without extension should pass the filter
      */
     protected boolean shouldAllowNoExtension() {
-        return configManager.get(ConfigSchema.FILE_FILTER_ALLOW_NO_EXT);
+        return configManager.get(FileFilterConfig.FILE_FILTER_ALLOW_NO_EXT);
     }
 }

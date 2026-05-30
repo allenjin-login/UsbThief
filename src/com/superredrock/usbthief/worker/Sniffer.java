@@ -2,7 +2,8 @@ package com.superredrock.usbthief.worker;
 
 import com.superredrock.usbthief.core.Volume;
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.FileCopyConfig;
+import com.superredrock.usbthief.core.config.configs.FileWatchConfig;
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.worker.FileDiscoveredEvent;
@@ -71,7 +72,7 @@ public class Sniffer extends Thread implements Closeable {
             return;
         }
 
-        if (!ConfigManager.getInstance().get(ConfigSchema.WATCH_ENABLED)) {
+        if (!ConfigManager.getInstance().get(FileWatchConfig.WATCH_ENABLED)) {
             logger.info("File monitoring disabled, scanner finished");
             completionFuture.complete(null);
             return;
@@ -148,7 +149,7 @@ public class Sniffer extends Thread implements Closeable {
 
 
     private void submitCopyTask(Path path) {
-        Callable<CopyResult> task = ConfigManager.getInstance().get(ConfigSchema.COPY_VERIFY_ENABLED)
+        Callable<CopyResult> task = ConfigManager.getInstance().get(FileCopyConfig.COPY_VERIFY_ENABLED)
                 ? new VerifyTask(path, volume.getSerialNumber())
                 : new CopyTask(path, volume.getSerialNumber());
         TaskScheduler.getInstance().submit(task);
@@ -255,7 +256,7 @@ public class Sniffer extends Thread implements Closeable {
         Thread resetThread = new Thread(() -> {
             while (running) {
                 try {
-                    TimeUnit.SECONDS.sleep(ConfigManager.getInstance().get(ConfigSchema.WATCH_RESET_INTERVAL_SECONDS));
+                    TimeUnit.SECONDS.sleep(ConfigManager.getInstance().get(FileWatchConfig.WATCH_RESET_INTERVAL_SECONDS));
                     int count = changeCount.getAndSet(0);
                     lastResetTime = Instant.now();
                     if (count > 0) {
@@ -288,8 +289,8 @@ public class Sniffer extends Thread implements Closeable {
         int newCount = changeCount.incrementAndGet();
         logger.debug("File event: {} on {} (count: {})", kind, fullPath, newCount);
 
-        if (newCount >= ConfigManager.getInstance().get(ConfigSchema.WATCH_THRESHOLD)) {
-            int threshold = ConfigManager.getInstance().get(ConfigSchema.WATCH_THRESHOLD);
+        if (newCount >= ConfigManager.getInstance().get(FileWatchConfig.WATCH_THRESHOLD)) {
+            int threshold = ConfigManager.getInstance().get(FileWatchConfig.WATCH_THRESHOLD);
             logger.info("Change threshold reached ({}), triggering copy", threshold);
             changeCount.set(0);
             handleChangedPath(fullPath, kind);
@@ -353,7 +354,7 @@ public class Sniffer extends Thread implements Closeable {
     public SnifferDebugSnapshot getDebugSnapshot() {
         ConfigManager config = ConfigManager.getInstance();
         Instant resetTime = this.lastResetTime;
-        int intervalSec = config.get(ConfigSchema.WATCH_RESET_INTERVAL_SECONDS);
+        int intervalSec = config.get(FileWatchConfig.WATCH_RESET_INTERVAL_SECONDS);
         long elapsedSec = Duration.between(resetTime, Instant.now()).getSeconds();
         int untilReset = Math.max(0, intervalSec - (int) elapsedSec);
 
@@ -362,7 +363,7 @@ public class Sniffer extends Thread implements Closeable {
             volume.getSerialNumber(),
             phase,
             changeCount.get(),
-            config.get(ConfigSchema.WATCH_THRESHOLD),
+            config.get(FileWatchConfig.WATCH_THRESHOLD),
             untilReset,
             intervalSec,
             watchKeys.size(),

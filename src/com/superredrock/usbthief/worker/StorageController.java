@@ -1,7 +1,8 @@
 package com.superredrock.usbthief.worker;
 
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.PathConfig;
+import com.superredrock.usbthief.core.config.configs.StorageConfig;
 import com.superredrock.usbthief.core.event.storage.StorageLevel;
 
 import java.io.IOException;
@@ -118,7 +119,7 @@ public class StorageController {
      * @return the work directory path
      */
     public Path getWorkDirectory() {
-        String workPath = ConfigManager.getInstance().get(ConfigSchema.WORK_PATH);
+        String workPath = ConfigManager.getInstance().get(PathConfig.WORK_PATH);
         return Paths.get(workPath);
     }
 
@@ -155,12 +156,12 @@ public class StorageController {
      */
     private StorageLevel calculateStorageLevel(long freeBytes) {
         ConfigManager config = ConfigManager.getInstance();
-        if (!config.get(ConfigSchema.STORAGE_ENABLED)) {
+        if (!config.get(StorageConfig.STORAGE_ENABLED)) {
             return StorageLevel.OK;
         }
 
-        long reservedBytes = config.get(ConfigSchema.STORAGE_RESERVED_BYTES);
-        long maxBytes = config.get(ConfigSchema.STORAGE_MAX_BYTES);
+        long reservedBytes = config.get(StorageConfig.STORAGE_RESERVED_BYTES);
+        long maxBytes = config.get(StorageConfig.STORAGE_MAX_BYTES);
 
         // CRITICAL: free space at or below reserved threshold
         if (freeBytes <= reservedBytes) {

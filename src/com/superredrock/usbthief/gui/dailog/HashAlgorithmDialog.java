@@ -2,7 +2,7 @@ package com.superredrock.usbthief.gui.dailog;
 
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.FileCopyConfig;
 import com.superredrock.usbthief.gui.I18nManager;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.index.HashAlgorithm;
@@ -106,7 +106,7 @@ public class HashAlgorithmDialog extends JDialog implements I18nManager.LocaleCh
     }
 
     private void loadSettings() {
-        String current = ConfigManager.getInstance().get(ConfigSchema.HASH_ALGORITHM);
+        String current = ConfigManager.getInstance().get(FileCopyConfig.HASH_ALGORITHM);
         HashAlgorithm algo = HashAlgorithm.fromId(current);
         algorithmCombo.setSelectedItem(algo);
     }
@@ -124,7 +124,7 @@ public class HashAlgorithmDialog extends JDialog implements I18nManager.LocaleCh
         if (selected != null) {
             newAlgo = selected.id();
         }
-        String currentAlgo = ConfigManager.getInstance().get(ConfigSchema.HASH_ALGORITHM);
+        String currentAlgo = ConfigManager.getInstance().get(FileCopyConfig.HASH_ALGORITHM);
 
         if (newAlgo != null && !newAlgo.equals(currentAlgo)) {
             int confirm = JOptionPane.showConfirmDialog(this,
@@ -134,7 +134,7 @@ public class HashAlgorithmDialog extends JDialog implements I18nManager.LocaleCh
             if (confirm != JOptionPane.YES_OPTION) return;
 
             QueueManager.getIndex().clear();
-            ConfigManager.getInstance().set(ConfigSchema.HASH_ALGORITHM, newAlgo);
+            ConfigManager.getInstance().set(FileCopyConfig.HASH_ALGORITHM, newAlgo);
 
             JOptionPane.showMessageDialog(this,
                     i18n.getMessage("hash.success.cleared"),

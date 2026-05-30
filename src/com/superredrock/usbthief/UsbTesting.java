@@ -6,7 +6,7 @@ import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.SizeFormatter;
 import com.superredrock.usbthief.core.Volume;
 import com.superredrock.usbthief.core.config.ConfigManager;
-import com.superredrock.usbthief.core.config.ConfigSchema;
+import com.superredrock.usbthief.core.config.configs.PathConfig;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.device.DeviceArrivalEvent;
 import com.superredrock.usbthief.core.event.device.DeviceRemovalEvent;
@@ -87,7 +87,7 @@ public class UsbTesting {
 
     private static void initializeWorkDirectory() {
         try {
-            String workPathStr = ConfigManager.getInstance().get(ConfigSchema.WORK_PATH);
+            String workPathStr = ConfigManager.getInstance().get(PathConfig.WORK_PATH);
             if (workPathStr != null && !workPathStr.isEmpty()) {
                 Path workPath = Paths.get(workPathStr);
                 if (!Files.exists(workPath)) Files.createDirectories(workPath);
