@@ -71,7 +71,8 @@
       "Bash(java -Dlog4j2.debug=true --module-path \"target/classes;$\\(cat cp.txt\\)\" -m UsbThief/com.superredrock.usbthief.Main --enable-preview)",
       "Bash(taskkill //PID 28224 //F)",
       "Bash(taskkill //PID 12336 //F)",
-      "Bash(taskkill //F //IM java.exe)"
+      "Bash(taskkill //F //IM java.exe)",
+      "PowerShell(mvn compile *)"
     ]
   }
 }
