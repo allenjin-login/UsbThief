@@ -612,7 +612,7 @@ public class ConfigDialog extends JDialog {
     /**
      * Create text area for string list values.
      */
-    private JTextArea createTextArea(List<String> values, String description) {
+    private JComponent createTextArea(List<String> values, String description) {
         JTextArea textArea = new JTextArea(values != null ? String.join(";", values) : "", 5, 30);
         textArea.setToolTipText(description + " (" + i18n.getMessage("config.tooltip.separator") + ")");
         textArea.setLineWrap(true);
@@ -620,7 +620,7 @@ public class ConfigDialog extends JDialog {
         JScrollPane scrollPane = new JScrollPane(textArea);
         scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        return textArea;
+        return scrollPane;
     }
 
     /**
@@ -665,7 +665,10 @@ public class ConfigDialog extends JDialog {
                         } else if (entry.type() == ConfigType.STRING) {
                             newValue = ((JTextField) component).getText();
                         } else if (entry.type() == ConfigType.STRING_LIST) {
-                            String text = ((JTextArea) component).getText();
+                            JTextArea textArea = (component instanceof JScrollPane scroll)
+                                ? (JTextArea) scroll.getViewport().getView()
+                                : (JTextArea) component;
+                            String text = textArea.getText();
                             List<String> list = new ArrayList<>();
                             for (String part : text.split(";")) {
                                 String trimmed = part.trim();
