@@ -47,7 +47,11 @@ public class LoggingConfig {
 
     public static void initialize() {
         try {
-            Files.createDirectories(Path.of("logs"));
+            Path logsDir = AppPaths.resolve("logs");
+            Files.createDirectories(logsDir);
+            // Archive previous session logs by renaming with startup timestamp
+            archiveIfExists(logsDir, "lastest.log");
+            archiveIfExists(logsDir, "debug.log");
         } catch (IOException e) {
             if (!(e instanceof FileAlreadyExistsException)) {
                 return;
@@ -72,12 +76,14 @@ public class LoggingConfig {
                     .withConfiguration(config)
                     .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%level] [%logger{1.}] %msg%n")
                     .build();
-            RollingFileAppender file = createRollingAppender(config, "File", "logs/lastest.log",
-                    "logs/info-%d{yyyy-MM-dd}.log", fileLayout);
+            RollingFileAppender file = createRollingAppender(config, "File",
+                    AppPaths.resolve("logs/lastest.log").toString(),
+                    AppPaths.resolve("logs").resolve("info-%d{yyyy-MM-dd}.log").toString(), fileLayout);
             config.addAppender(file);
 
-            RollingFileAppender debugFile = createRollingAppender(config, "DebugFile", "logs/debug.log",
-                    "logs/debug-%d{yyyy-MM-dd}.log", fileLayout);
+            RollingFileAppender debugFile = createRollingAppender(config, "DebugFile",
+                    AppPaths.resolve("logs/debug.log").toString(),
+                    AppPaths.resolve("logs").resolve("debug-%d{yyyy-MM-dd}.log").toString(), fileLayout);
             config.addAppender(debugFile);
 
             LoggerConfig root = config.getRootLogger();
@@ -94,6 +100,29 @@ public class LoggingConfig {
         } catch (Exception e) {
             System.err.println("Failed to configure logging: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+    private static final java.time.format.DateTimeFormatter ARCHIVE_FORMAT =
+            java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+
+    /**
+     * Rename an existing log file to include a timestamp, preserving previous session logs.
+     * e.g. lastest.log → lastest_20260531_143022.log
+     */
+    private static void archiveIfExists(Path logsDir, String fileName) {
+        Path logFile = logsDir.resolve(fileName);
+        if (!Files.exists(logFile)) return;
+        String baseName = fileName.contains(".") ?
+                fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
+        String ext = fileName.contains(".") ?
+                fileName.substring(fileName.lastIndexOf('.')) : "";
+        String timestamp = java.time.LocalDateTime.now().format(ARCHIVE_FORMAT);
+        Path archived = logsDir.resolve(baseName + "_" + timestamp + ext);
+        try {
+            Files.move(logFile, archived);
+        } catch (IOException e) {
+            System.err.println("Failed to archive log file: " + logFile + " -> " + archived);
         }
     }
 }

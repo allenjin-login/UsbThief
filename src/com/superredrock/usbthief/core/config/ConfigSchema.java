@@ -30,6 +30,7 @@ public class ConfigSchema {
         registerClass(SuffixFilterConfig.class);
         registerClass(StorageConfig.class);
         registerClass(StatisticsApiConfig.class);
+        registerClass(OverwriteConfig.class);
     }
 
     private ConfigSchema() {

@@ -1,5 +1,6 @@
 package com.superredrock.usbthief.worker;
 
+import com.superredrock.usbthief.core.AppPaths;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.configs.PathConfig;
 import com.superredrock.usbthief.core.config.configs.StorageConfig;
@@ -120,7 +121,7 @@ public class StorageController {
      */
     public Path getWorkDirectory() {
         String workPath = ConfigManager.getInstance().get(PathConfig.WORK_PATH);
-        return Paths.get(workPath);
+        return AppPaths.resolve(workPath);
     }
 
     /**
@@ -141,7 +142,7 @@ public class StorageController {
                 Files.createDirectories(workPath);
             } catch (IOException e) {
                 // Fall back to current working directory
-                workPath = Paths.get(".");
+                workPath = AppPaths.getAppHome();
             }
         }
         

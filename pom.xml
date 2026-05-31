@@ -276,6 +276,7 @@
                         </goals>
                         <configuration>
                             <headerType>gui</headerType>
+                            <chdir>.</chdir>
                             <outfile>${project.build.directory}/UsbThief-${project.version}.exe</outfile>
                             <errTitle>UsbThief</errTitle>
                             <icon>src/com/superredrock/usbthief/gui/App.ico</icon>

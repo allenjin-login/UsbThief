@@ -1,5 +1,6 @@
 package com.superredrock.usbthief.worker;
 
+import com.superredrock.usbthief.core.AppPaths;
 import com.superredrock.usbthief.core.Service;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.configs.PathConfig;
@@ -128,7 +129,7 @@ public class RecyclerService extends Service {
      * <p>Dispatches {@link EmptyFoldersDeletedEvent} if any folders are deleted.
      */
     private void deleteEmptyFolders() {
-        Path workPath = Path.of(configManager.get(PathConfig.WORK_PATH));
+        Path workPath = AppPaths.resolve(configManager.get(PathConfig.WORK_PATH));
 
         try {
             // Collect empty folders (deepest first)
@@ -200,7 +201,7 @@ public class RecyclerService extends Service {
      * @param strategy the recycling strategy to use
      */
     private void recycleFiles(RecycleStrategy strategy) {
-        Path workPath = Path.of(configManager.get(PathConfig.WORK_PATH));
+        Path workPath = AppPaths.resolve(configManager.get(PathConfig.WORK_PATH));
 
         if (!Files.exists(workPath)) {
             logger.warn("Work path does not exist: {}", workPath);
@@ -319,7 +320,7 @@ public class RecyclerService extends Service {
     }
 
     private void scanWorkSize(){
-        Path workPath = Path.of(ConfigManager.getInstance().get(PathConfig.WORK_PATH));
+        Path workPath = AppPaths.resolve(ConfigManager.getInstance().get(PathConfig.WORK_PATH));
 
         try (Stream<Path> paths = Files.find(workPath,Integer.MAX_VALUE,(path,_)-> Files.isRegularFile(path)).parallel()) {
             LongSummaryStatistics resultsum = paths.map(path -> {

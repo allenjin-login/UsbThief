@@ -1,10 +1,12 @@
 package com.superredrock.usbthief.worker;
 
+import com.superredrock.usbthief.core.AppPaths;
 import com.superredrock.usbthief.core.Volume;
 
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.configs.FileCopyConfig;
+import com.superredrock.usbthief.core.config.configs.OverwriteConfig;
 import com.superredrock.usbthief.core.config.configs.PathConfig;
 import com.superredrock.usbthief.core.config.configs.RateLimitConfig;
 import com.superredrock.usbthief.core.DeviceUtils;
@@ -137,12 +139,33 @@ public class CopyTask implements Callable<CopyResult> {
                     logger.warn("File too large for available space (size: {}, available with buffer: {}), skipping copy: {}", size, availableWithBuffer, processingPath);
                     result = CopyResult.SKIPPED;
                 } else {
-                    // File fits - proceed with copy
-                    if (Files.isDirectory(processingPath)){
-                        Files.createDirectories(destinationPath);
-                    }else {
-                        doCopy(processingPath, destinationPath, size, preVerifiedHash, buffer, volume);
-                        bytesCopied = size;
+                    // Overwrite strategy check — must happen before doCopy
+                    if (!Files.isDirectory(processingPath) && Files.exists(destinationPath)) {
+                        OverwriteStrategy strategy = OverwriteStrategy.safeValueOf(
+                                ConfigManager.getInstance().get(OverwriteConfig.OVERWRITE_STRATEGY));
+                        if (strategy.shouldOverwrite(processingPath, destinationPath)) {
+                            Files.deleteIfExists(destinationPath);
+                        } else {
+                            Path resolved = strategy.resolveTarget(destinationPath);
+                            if (resolved.equals(destinationPath)) {
+                                // TIME_COMPARE: source is older — skip entirely
+                                logger.info("Skipping older file: {}", processingPath);
+                                result = CopyResult.SKIPPED;
+                            } else {
+                                // RENAME: use new path with timestamp
+                                destinationPath = resolved;
+                            }
+                        }
+                    }
+
+                    // Proceed with copy (unless strategy decided to skip)
+                    if (result != CopyResult.SKIPPED) {
+                        if (Files.isDirectory(processingPath)){
+                            Files.createDirectories(destinationPath);
+                        }else {
+                            doCopy(processingPath, destinationPath, size, preVerifiedHash, buffer, volume);
+                            bytesCopied = size;
+                        }
                     }
                 }
             }
@@ -221,11 +244,12 @@ public class CopyTask implements Callable<CopyResult> {
             FileTime lastAccess = sourceAttrs.lastAccessTime();
             FileTime creation = sourceAttrs.creationTime();
 
-            Files.setAttribute(destination, "basic:lastModifiedTime", lastModified);
-            Files.setAttribute(destination, "basic:lastAccessTime", lastAccess);
+//          Files.setAttribute(destination, "basic:lastModifiedTime", lastModified);
+//          Files.setAttribute(destination, "basic:lastAccessTime", lastAccess);
+//          Files.setAttribute(destination, "basic:creationTime", creation);
             // Note: creationTime is not set as it requires elevated privileges on some filesystems
 
-            logger.debug("Copied timestamps: modified={}, access={}, creation={}", lastModified, lastAccess, creation);
+//            logger.debug("Copied timestamps: modified={}, access={}, creation={}", lastModified, lastAccess, creation);
 
             // Try to copy DOS attributes (Windows)
             try {
@@ -246,7 +270,7 @@ public class CopyTask implements Callable<CopyResult> {
     }
 
     private static Path getPath(Path target) throws IOException {
-        Path workPath = Paths.get(ConfigManager.getInstance().get(PathConfig.WORK_PATH));
+        Path workPath = AppPaths.resolve(ConfigManager.getInstance().get(PathConfig.WORK_PATH));
         return DeviceUtils.getPath(workPath, target);
     }
 

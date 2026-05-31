@@ -405,7 +405,7 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
             }
         });
 
-        dialog.setSize(500, 600);
+        dialog.setSize(500, 650);
         dialog.setLocationRelativeTo(this);
         dialog.setVisible(true);
     }

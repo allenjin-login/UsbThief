@@ -149,9 +149,7 @@ public class Sniffer extends Thread implements Closeable {
 
 
     private void submitCopyTask(Path path) {
-        Callable<CopyResult> task = ConfigManager.getInstance().get(FileCopyConfig.COPY_VERIFY_ENABLED)
-                ? new VerifyTask(path, volume.getSerialNumber())
-                : new CopyTask(path, volume.getSerialNumber());
+        Callable<CopyResult> task = new CopyTask(path, volume.getSerialNumber());
         TaskScheduler.getInstance().submit(task);
     }
 

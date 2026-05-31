@@ -74,7 +74,12 @@ public class ConfigDialog extends JDialog {
         JButton cancelButton = new JButton(i18n.getMessage("config.button.cancel"));
         cancelButton.addActionListener(e -> dispose());
 
+        JButton resetButton = new JButton(i18n.getMessage("config.button.reset"));
+        resetButton.addActionListener(e -> resetAllToDefaults());
+
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        buttonPanel.add(resetButton);
+        buttonPanel.add(Box.createHorizontalStrut(10));
         buttonPanel.add(okButton);
         buttonPanel.add(cancelButton);
 
@@ -130,7 +135,8 @@ public class ConfigDialog extends JDialog {
             i18n.getMessage("config.category.fileCopy"), "config.category.fileCopy",
             i18n.getMessage("config.category.fileWatch"), "config.category.fileWatch",
             i18n.getMessage("config.category.fileFilter"), "config.category.fileFilter",
-            i18n.getMessage("config.category.suffixFilter"), "config.category.suffixFilter"
+            i18n.getMessage("config.category.suffixFilter"), "config.category.suffixFilter",
+            i18n.getMessage("config.category.overwriteStrategy"), "config.category.overwriteStrategy"
         );
 
         addGroupNode(i18n.getMessage("config.group.index"),
@@ -309,7 +315,8 @@ public class ConfigDialog extends JDialog {
             i18n.getMessage("config.category.fileCopy"), "config.category.fileCopy",
             i18n.getMessage("config.category.fileWatch"), "config.category.fileWatch",
             i18n.getMessage("config.category.fileFilter"), "config.category.fileFilter",
-            i18n.getMessage("config.category.suffixFilter"), "config.category.suffixFilter"
+            i18n.getMessage("config.category.suffixFilter"), "config.category.suffixFilter",
+            i18n.getMessage("config.category.overwriteStrategy"), "config.category.overwriteStrategy"
         );
 
         addGroupNode(i18n.getMessage("config.group.index"),
@@ -485,6 +492,7 @@ public class ConfigDialog extends JDialog {
             case "config.category.suffixFilter" -> SuffixFilterConfig.CATEGORY;
             case "config.category.storage" -> StorageConfig.CATEGORY;
             case "config.category.statisticsApi" -> StatisticsApiConfig.CATEGORY;
+            case "config.category.overwriteStrategy" -> OverwriteConfig.CATEGORY;
             default -> throw new IllegalArgumentException("Unknown category key: " + i18nKey);
         };
     }
@@ -556,6 +564,8 @@ public class ConfigDialog extends JDialog {
             return createCheckBox((Boolean) currentValue, entry.description());
         } else if (entry.type() == ConfigType.STRING) {
             return createTextField((String) currentValue, entry.description());
+        } else if (entry.type() == ConfigType.ENUM) {
+            return createComboBox((String) currentValue, entry.options(), entry.description());
         } else if (entry.type() == ConfigType.STRING_LIST) {
             return createTextArea((List<String>) currentValue, entry.description());
         }
@@ -605,6 +615,16 @@ public class ConfigDialog extends JDialog {
         JTextField textField = new JTextField(value != null ? value : "", 30);
         textField.setToolTipText(description);
         return textField;
+    }
+
+    /**
+     * Create combo box for enum values.
+     */
+    private JComboBox<String> createComboBox(String currentValue, java.util.List<String> options, String description) {
+        JComboBox<String> comboBox = new JComboBox<>(options.toArray(new String[0]));
+        comboBox.setSelectedItem(currentValue);
+        comboBox.setToolTipText(description);
+        return comboBox;
     }
 
     /**
@@ -662,6 +682,8 @@ public class ConfigDialog extends JDialog {
                             newValue = ((JCheckBox) component).isSelected();
                         } else if (entry.type() == ConfigType.STRING) {
                             newValue = ((JTextField) component).getText();
+                        } else if (entry.type() == ConfigType.ENUM) {
+                            newValue = ((JComboBox<String>) component).getSelectedItem();
                         } else if (entry.type() == ConfigType.STRING_LIST) {
                             JTextArea textArea = (component instanceof JScrollPane scroll)
                                 ? (JTextArea) scroll.getViewport().getView()
@@ -696,6 +718,39 @@ public class ConfigDialog extends JDialog {
                 JOptionPane.ERROR_MESSAGE);
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Reset all configuration to default values and refresh the UI.
+     */
+    private void resetAllToDefaults() {
+        int confirmed = JOptionPane.showConfirmDialog(this,
+            i18n.getMessage("config.reset.confirm"),
+            i18n.getMessage("config.button.reset"),
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.WARNING_MESSAGE);
+
+        if (confirmed != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        configManager.resetToDefaults();
+
+        // Clear caches so panels rebuild with default values
+        categoryPanelCache.clear();
+        allCategoryComponents.clear();
+
+        // Re-show current category (or first leaf)
+        if (currentCategoryKey != null) {
+            // Force rebuild by selecting a different node then back
+            currentCategoryKey = null;
+        }
+        selectFirstLeaf();
+
+        JOptionPane.showMessageDialog(this,
+            i18n.getMessage("config.reset.success"),
+            i18n.getMessage("common.success"),
+            JOptionPane.INFORMATION_MESSAGE);
     }
 
     /**

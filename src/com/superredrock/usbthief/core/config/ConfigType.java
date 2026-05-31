@@ -78,6 +78,17 @@ public enum ConfigType {
                 prefs.put(key, String.join(DELIMITER, list));
             }
         }
+    },
+    ENUM {
+        @Override
+        public Object get(Preferences prefs, String key, Object defaultValue) {
+            return prefs.get(key, (String) defaultValue);
+        }
+
+        @Override
+        public void put(Preferences prefs, String key, Object value) {
+            prefs.put(key, (String) value);
+        }
     };
 
     /**

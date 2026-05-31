@@ -1,5 +1,6 @@
 package com.superredrock.usbthief;
 
+import com.superredrock.usbthief.core.AppPaths;
 import com.superredrock.usbthief.core.Device;
 import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.QueueManager;
@@ -89,7 +90,7 @@ public class UsbTesting {
         try {
             String workPathStr = ConfigManager.getInstance().get(PathConfig.WORK_PATH);
             if (workPathStr != null && !workPathStr.isEmpty()) {
-                Path workPath = Paths.get(workPathStr);
+                Path workPath = AppPaths.resolve(workPathStr);
                 if (!Files.exists(workPath)) Files.createDirectories(workPath);
             }
         } catch (Exception e) {
