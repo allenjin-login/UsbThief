@@ -225,6 +225,9 @@
                                 <!-- No header files and man pages -->
                                 <argument>--no-header-files</argument>
                                 <argument>--no-man-pages</argument>
+                                <!-- Remove runtime-unnecessary files: link-time libs, legal notices, unused native libs -->
+                                <argument>--exclude-files</argument>
+                                <argument>**.lib,**/legal/**,**/splashscreen.dll,**/jsound.dll</argument>
                             </arguments>
                         </configuration>
                     </execution>

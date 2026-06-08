@@ -38,7 +38,7 @@ public final class AppPaths {
      * </ol>
      */
     private static Path detectAppHome() {
-        // 1. Process command — most reliable for native launchers
+        // 1. Process command — most reliable for native launchers (Launch4j EXE)
         Optional<String> command = ProcessHandle.current().info().command();
         if (command.isPresent()) {
             Path exePath = Paths.get(command.get());
@@ -55,21 +55,43 @@ public final class AppPaths {
             }
         }
 
-        // 2. Code source location — works for JAR and classpath
+        // 2. Launch4j EXE path (set via -Dlaunch4j.exefile="%EXEFILE%")
+        String launch4jExe = System.getProperty("launch4j.exefile");
+        if (launch4jExe != null && !launch4jExe.isEmpty()) {
+            Path parent = Paths.get(launch4jExe).getParent();
+            if (parent != null) {
+                return parent;
+            }
+        }
+
+        // 3. jlink runtime — java.home points to the runtime image directory;
+        //    the app home is its parent (where the EXE or launcher script lives)
+        String javaHome = System.getProperty("java.home");
+        if (javaHome != null) {
+            Path jh = Paths.get(javaHome);
+            if (Files.exists(jh.resolve("lib").resolve("modules"))) {
+                return jh.getParent();
+            }
+        }
+
+        // 4. Code source location — works for JAR on classpath (development mode)
         try {
             var location = AppPaths.class.getProtectionDomain()
                     .getCodeSource().getLocation();
-            Path codePath = Paths.get(location.toURI());
-            // If it's a JAR or directory, get its parent
-            Path home = Files.isDirectory(codePath) ? codePath : codePath.getParent();
-            if (home != null) {
-                return home;
+            // Skip jrt:/ URIs — they represent modules inside the runtime image
+            // and cannot be used as regular filesystem paths
+            if (!"jrt".equalsIgnoreCase(location.getProtocol())) {
+                Path codePath = Paths.get(location.toURI());
+                Path home = Files.isDirectory(codePath) ? codePath : codePath.getParent();
+                if (home != null) {
+                    return home;
+                }
             }
         } catch (URISyntaxException | SecurityException | NullPointerException e) {
             logger.debug("Code source detection failed", e);
         }
 
-        // 3. Last resort: user.dir
+        // 5. Last resort: user.dir
         String userDir = System.getProperty("user.dir");
         logger.warn("Falling back to user.dir for app home: {}", userDir);
         return Paths.get(userDir);
