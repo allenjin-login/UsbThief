@@ -21,13 +21,37 @@ public final class StatsHttpServer {
     private StatsEventHandler handler;
     private volatile boolean running;
 
+    private final ConfigManager configManager;
+
+    /**
+     * Creates a server that reads its settings from the application-wide {@link ConfigManager}.
+     * Construction binds no socket; the port is bound by {@link #start(MetricRegistry)} only.
+     */
+    public StatsHttpServer() {
+        this(ConfigManager.getInstance());
+    }
+
+    /**
+     * Creates a server that reads its settings from the given configuration manager.
+     *
+     * <p>Constructor injection (same pattern as {@code BasicFileFilter(ConfigManager)}): the
+     * dependency is explicit instead of being pulled from a static accessor inside {@code start()},
+     * which makes the class testable with a different configuration without touching the global
+     * one.
+     *
+     * @param configManager the configuration to read {@code stats.api.*} from
+     */
+    public StatsHttpServer(ConfigManager configManager) {
+        this.configManager = configManager;
+    }
+
     public void start(MetricRegistry registry) {
-        if (!ConfigManager.getInstance().get(StatisticsApiConfig.STATS_API_ENABLED)) {
+        if (!configManager.get(StatisticsApiConfig.STATS_API_ENABLED)) {
             logger.info("Stats HTTP API disabled");
             return;
         }
 
-        int port = ConfigManager.getInstance().get(StatisticsApiConfig.STATS_API_PORT);
+        int port = configManager.get(StatisticsApiConfig.STATS_API_PORT);
         handler = new StatsEventHandler(registry);
 
         try {

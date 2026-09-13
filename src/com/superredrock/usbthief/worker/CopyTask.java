@@ -63,9 +63,31 @@ public class CopyTask implements Callable<CopyResult>, DeviceBoundTask {
     private static final Object readRateLimiterLock = new Object();
     private static final Object writeRateLimiterLock = new Object();
 
-    private static final SpeedCollector speedCollector = Statistics.getInstance().getSpeedCollector();
+    /**
+     * Shared speed collector, resolved on first use instead of during class initialisation.
+     *
+     * <p>This used to be a static initialiser ({@code Statistics.getInstance().getSpeedCollector()}),
+     * so merely <em>loading</em> {@code CopyTask} pulled in {@code Statistics} - which then loaded
+     * the persisted metrics and bound the statistics HTTP port as a side effect of class loading.
+     * The lookup is now deferred to the first copy; the collector instance is still resolved once
+     * and cached, so nothing about which collector is used has changed.
+     */
+    private static volatile SpeedCollector speedCollector;
+
     private static final AtomicLong lastLogTime = new AtomicLong(0);
     private static final long LOG_INTERVAL_MS = 1000;
+
+    /**
+     * @return the shared speed collector, resolving and caching it on the first call
+     */
+    private static SpeedCollector speedCollector() {
+        SpeedCollector collector = speedCollector;
+        if (collector == null) {
+            collector = Statistics.getInstance().getSpeedCollector();
+            speedCollector = collector;
+        }
+        return collector;
+    }
 
     public CopyTask(Path path, String deviceSerial){
         this(path, deviceSerial, null, null);
@@ -231,8 +253,9 @@ public class CopyTask implements Callable<CopyResult>, DeviceBoundTask {
         Files.createDirectories(dest.getParent());
         ByteBuffer buffer = acquireBuffer(settings.bufferSize);
         // Reusable per-thread probes: no allocation per file, no leak of one probe pair per task.
-        SpeedProbe readProbe = speedCollector.getThreadReadProbe();
-        SpeedProbe writeProbe = speedCollector.getThreadWriteProbe();
+        SpeedCollector collector = speedCollector();
+        SpeedProbe readProbe = collector.getThreadReadProbe();
+        SpeedProbe writeProbe = collector.getThreadWriteProbe();
         // Limiters are resolved once per file from the snapshot; null when the matching rate is 0,
         // which makes the per-chunk limiter call disappear entirely.
         RateLimiter readLimiter = settings.readLimit > 0
@@ -273,8 +296,8 @@ public class CopyTask implements Callable<CopyResult>, DeviceBoundTask {
                 long lastLog = lastLogTime.get();
                 if (now - lastLog >= LOG_INTERVAL_MS) {
                     if (lastLogTime.compareAndSet(lastLog, now)) {
-                        double readSpeed = speedCollector.getReadProbeGroup().getTotalSpeed();
-                        double writeSpeed = speedCollector.getWriteProbeGroup().getTotalSpeed();
+                        double readSpeed = collector.getReadProbeGroup().getTotalSpeed();
+                        double writeSpeed = collector.getWriteProbeGroup().getTotalSpeed();
                         logger.debug("Copying: {} - Read: {} MB/s, Write: {} MB/s",
                             source.getFileName(), String.format("%.2f", readSpeed), String.format("%.2f", writeSpeed));
                     }

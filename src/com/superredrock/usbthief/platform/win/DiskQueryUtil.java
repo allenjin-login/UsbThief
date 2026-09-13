@@ -1,4 +1,4 @@
-package com.superredrock.usbthief.core;
+package com.superredrock.usbthief.platform.win;
 
 import com.sun.jna.Memory;
 import com.sun.jna.Native;
