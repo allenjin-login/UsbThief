@@ -5,6 +5,7 @@ import com.superredrock.usbthief.statistics.collector.MetricWriteBatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
@@ -84,12 +85,10 @@ public final class PreferencesMetricStore implements MetricStore {
         try {
             String[] stored = prefs.keys();
             Set<String> result = new LinkedHashSet<>(Math.max(16, stored.length * 2));
-            for (String key : stored) {
-                result.add(key);
-            }
+            result.addAll(Arrays.asList(stored));
             return result;
         } catch (Exception e) {
-            logger.warn("Failed to get preference keys: {}", e.getMessage());
+            logger.warn("Failed to read preference key set: {}", e.getMessage());
             return new LinkedHashSet<>();
         }
     }

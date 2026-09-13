@@ -105,6 +105,7 @@ public class RateLimiter {
                             iterations, bytes, tokens, burstSize);
                     break;
                 }
+                // noinspection ResultOfMethodCallIgnored - loop re-evaluates waiting time after refill
                 condition.awaitNanos(waitNanos);
                 refillTokens();
                 waitNanos = calculateWaitTime(bytes);

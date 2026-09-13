@@ -221,9 +221,7 @@ public class FilterConfigDialog extends JDialog implements I18nManager.LocaleCha
         warningLabel.setVisible(false);
         gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 4;
         gbc.weightx = 1.0;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.anchor = GridBagConstraints.WEST;
-        panel.add(warningLabel, gbc);
+        panel.add(warningLabel, gbc);   // fill/anchor already set at panel init (Qodana DataFlowIssue)
 
         // === Max file size section ===
         row++;

@@ -140,8 +140,7 @@ public class BlacklistDialog extends JDialog {
             text.setForeground(muted);
         }
 
-        gbc.gridy = 0;
-        panel.add(title, gbc);
+        panel.add(title, gbc);   // gridy already 0 (Qodana DataFlowIssue)
         gbc.gridy = 1;
         panel.add(text, gbc);
         return panel;
