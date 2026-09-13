@@ -55,6 +55,26 @@ public class RateLimiter {
         this.rateLimitBytesPerSecond = bytesPerSecond;
     }
 
+    /**
+     * Fast path used by the copy hot loop with a rate value sampled once per file.
+     *
+     * <p>When the sampled rate is {@code 0} (the default: no limiting) this returns without
+     * touching the lock, the clock or the token state, so an unlimited copy pays no per-chunk
+     * rate-limiter cost at all. Otherwise the call is delegated to {@link #acquire(long)}; the
+     * caller is responsible for having resolved {@code rateSnapshot} from the shared limiter
+     * configuration.</p>
+     *
+     * @param bytes        number of bytes about to be transferred
+     * @param rateSnapshot rate limit in bytes per second sampled by the caller ({@code 0} = unlimited)
+     * @throws InterruptedException if the thread is interrupted while waiting for tokens
+     */
+    public void acquire(long bytes, long rateSnapshot) throws InterruptedException {
+        if (bytes <= 0 || rateSnapshot <= 0) {
+            return;
+        }
+        acquire(bytes);
+    }
+
     public void acquire(long bytes) throws InterruptedException {
         if (bytes <= 0 || rateLimitBytesPerSecond <= 0) return;
 
@@ -85,6 +105,7 @@ public class RateLimiter {
                             iterations, bytes, tokens, burstSize);
                     break;
                 }
+                // noinspection ResultOfMethodCallIgnored - loop re-evaluates waiting time after refill
                 condition.awaitNanos(waitNanos);
                 refillTokens();
                 waitNanos = calculateWaitTime(bytes);

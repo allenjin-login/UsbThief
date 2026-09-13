@@ -1,18 +1,24 @@
 package com.superredrock.usbthief.core;
 
 import com.superredrock.usbthief.core.event.AsyncEventListener;
+import com.superredrock.usbthief.core.event.Event;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.EventListener;
+import com.superredrock.usbthief.core.event.device.DeviceEvent;
+import com.superredrock.usbthief.core.event.device.VolumeEvent;
+import com.superredrock.usbthief.core.event.device.VolumeStateChangedEvent;
 import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
 import com.superredrock.usbthief.core.event.worker.FileDiscoveredEvent;
 import com.superredrock.usbthief.worker.CopyResult;
 import org.junit.jupiter.api.*;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -265,6 +271,131 @@ class EventBusTest {
                 new FileDiscoveredEvent(Path.of("E:\\a.txt"), 10, "s1"), String.class);
         List<String> results = future.get(2, TimeUnit.SECONDS);
         assertTrue(results.isEmpty());
+    }
+
+    // ========== sequential dispatch (PF-12) and typed listener index (AR-08) ==========
+
+    @Test
+    void dispatchRunsOnCallingThread() {
+        Thread caller = Thread.currentThread();
+        AtomicReference<Thread> observedThread = new AtomicReference<>();
+        AtomicInteger count = new AtomicInteger(0);
+
+        bus.register(FileDiscoveredEvent.class, e -> {
+            observedThread.set(Thread.currentThread());
+            count.incrementAndGet();
+        });
+
+        bus.dispatch(new FileDiscoveredEvent(Path.of("E:\\test.txt"), 10, "s1"));
+
+        assertSame(caller, observedThread.get(), "listener must run on the dispatching thread");
+        // Dispatch is synchronous: the listener has already run when dispatch() returns
+        assertEquals(1, count.get());
+    }
+
+    @Test
+    void dispatchFollowsRegistrationOrder() {
+        List<String> order = new ArrayList<>();
+
+        bus.register(FileDiscoveredEvent.class, e -> order.add("first"));
+        bus.register(FileDiscoveredEvent.class, e -> order.add("second"));
+        bus.register(FileDiscoveredEvent.class, e -> order.add("third"));
+
+        bus.dispatch(new FileDiscoveredEvent(Path.of("E:\\a.txt"), 10, "s1"));
+
+        assertEquals(List.of("first", "second", "third"), order);
+    }
+
+    @Test
+    void baseClassSubscriptionReceivesSubclassEvent() {
+        AtomicInteger volumeEvents = new AtomicInteger(0);
+        AtomicInteger deviceEvents = new AtomicInteger(0);
+
+        bus.register(VolumeEvent.class, e -> volumeEvents.incrementAndGet());
+        bus.register(DeviceEvent.class, e -> deviceEvents.incrementAndGet());
+
+        Volume volume = new Volume(Path.of("X:\\nonexistent\\" + System.nanoTime()), "serial1");
+        bus.dispatch(new VolumeStateChangedEvent(volume, Volume.VolumeState.IDLE, Volume.VolumeState.DISABLED));
+
+        assertEquals(1, volumeEvents.get(), "subscriber of the base class must receive the subclass event");
+        assertEquals(0, deviceEvents.get(), "unrelated base class subscriber must not receive it");
+    }
+
+    @Test
+    void interfaceSubscriptionReceivesImplementingEvents() {
+        AtomicInteger allEvents = new AtomicInteger(0);
+        AtomicInteger copies = new AtomicInteger(0);
+
+        bus.register(Event.class, e -> allEvents.incrementAndGet());
+        bus.register(CopyCompletedEvent.class, e -> copies.incrementAndGet());
+
+        bus.dispatch(new FileDiscoveredEvent(Path.of("E:\\a.txt"), 10, "s1"));
+        bus.dispatch(new CopyCompletedEvent(Path.of("E:\\a.txt"), Path.of("out"), 10, 10, CopyResult.SUCCESS, "s1"));
+
+        assertEquals(2, allEvents.get(), "Event.class subscriber must receive every event");
+        assertEquals(1, copies.get());
+    }
+
+    @Test
+    void dispatchOrderSpansInterfaceAndConcreteSubscriptions() {
+        List<String> order = new ArrayList<>();
+
+        bus.register(Event.class, e -> order.add("all"));
+        bus.register(FileDiscoveredEvent.class, e -> order.add("file1"));
+        bus.register(FileDiscoveredEvent.class, e -> order.add("file2"));
+
+        bus.dispatch(new FileDiscoveredEvent(Path.of("E:\\a.txt"), 10, "s1"));
+
+        // Registration order is global, regardless of which index entry matched
+        assertEquals(List.of("all", "file1", "file2"), order);
+    }
+
+    @Test
+    void unregisterFromBaseClassStopsSubclassEvents() {
+        AtomicInteger volumeEvents = new AtomicInteger(0);
+        EventListener<VolumeEvent> listener = e -> volumeEvents.incrementAndGet();
+
+        bus.register(VolumeEvent.class, listener);
+
+        Volume volume = new Volume(Path.of("X:\\nonexistent\\" + System.nanoTime()), "serial1");
+        bus.dispatch(new VolumeStateChangedEvent(volume, Volume.VolumeState.IDLE, Volume.VolumeState.DISABLED));
+        assertEquals(1, volumeEvents.get());
+
+        bus.unregister(VolumeEvent.class, listener);
+        bus.dispatch(new VolumeStateChangedEvent(volume, Volume.VolumeState.IDLE, Volume.VolumeState.DISABLED));
+        assertEquals(1, volumeEvents.get(), "unregistered base class listener must stop receiving");
+    }
+
+    @Test
+    void dispatchWithoutMatchingListenersIsNoop() {
+        AtomicInteger count = new AtomicInteger(0);
+        bus.register(FileDiscoveredEvent.class, e -> count.incrementAndGet());
+
+        assertDoesNotThrow(() -> bus.dispatch(new SubTestEvent()));
+        assertEquals(0, count.get());
+    }
+
+    private static class BaseTestEvent implements Event {
+
+        private final long timestamp = System.currentTimeMillis();
+
+        @Override
+        public long timestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public String description() {
+            return "base";
+        }
+    }
+
+    private static final class SubTestEvent extends BaseTestEvent {
+
+        @Override
+        public String description() {
+            return "sub";
+        }
     }
 
     private static await await() {

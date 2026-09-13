@@ -35,11 +35,28 @@ public class CopyTask implements Callable<CopyResult> {
 
     protected static final Logger logger = LogManager.getLogger(CopyTask.class);
 
-    private static final ThreadLocal<ByteBuffer> bufferThreadLocal = ThreadLocal.withInitial(() -> ByteBuffer.allocate(ConfigManager.getInstance().get(FileCopyConfig.BUFFER_SIZE)));
+    /** Lowest chunk size accepted from configuration (guards against degenerate values). */
+    static final int MIN_BUFFER_SIZE = 4 * 1024;
+    /** Highest chunk size accepted from configuration (guards against accidental OOM). */
+    static final int MAX_BUFFER_SIZE = 16 * 1024 * 1024;
+    /** Above this chunk size the reusable per-thread buffer is allocated off-heap. */
+    private static final int DIRECT_BUFFER_THRESHOLD = 32 * 1024;
+
+    /**
+     * Reusable per-thread copy buffer.
+     *
+     * <p>The buffer used to be fetched from a {@code ThreadLocal.withInitial(...)} whose stored
+     * value was never replaced, so a later configuration change was ignored; it is now sized from
+     * the per-file configuration snapshot and only reallocated when that size changes. Reusing the
+     * allocation keeps large chunks (1 MB by default) out of the GC path.</p>
+     */
+    private static final ThreadLocal<ByteBuffer> bufferThreadLocal = new ThreadLocal<>();
 
     protected final Path processingPath;
     private final String deviceSerial;
     private final CheckSum preVerifiedHash;
+    /** Volume that owns {@link #processingPath}; may be {@code null} for ad-hoc copies. */
+    private final Volume volume;
 
     private static volatile RateLimiter readRateLimiter;
     private static volatile RateLimiter writeRateLimiter;
@@ -50,20 +67,30 @@ public class CopyTask implements Callable<CopyResult> {
     private static final AtomicLong lastLogTime = new AtomicLong(0);
     private static final long LOG_INTERVAL_MS = 1000;
 
-    private final SpeedProbe readProbe;
-    private final SpeedProbe writeProbe;
-
     public CopyTask(Path path, String deviceSerial){
-        this(path, deviceSerial, null);
+        this(path, deviceSerial, null, null);
     }
 
     public CopyTask(Path path, String deviceSerial, CheckSum preVerifiedHash){
+        this(path, deviceSerial, null, preVerifiedHash);
+    }
+
+    /**
+     * Creates a copy task for a path owned by a known volume.
+     *
+     * <p>Passing the volume lets {@link #getPath(Path)} derive the destination folder from
+     * {@link Volume#getVolumeName()} instead of querying the file store for every file.</p>
+     *
+     * @param path the file or directory to copy
+     * @param deviceSerial serial number of the owning device
+     * @param volume the owning volume, or {@code null} to resolve it through the device manager
+     * @param preVerifiedHash checksum already computed for this file, or {@code null}
+     */
+    public CopyTask(Path path, String deviceSerial, Volume volume, CheckSum preVerifiedHash){
         this.processingPath = path;
         this.deviceSerial = deviceSerial != null ? deviceSerial : "";
+        this.volume = volume;
         this.preVerifiedHash = preVerifiedHash;
-        String probeName = "CopyTask-" + path.getFileName();
-        this.readProbe = speedCollector.createReadProbe(probeName + "-read");
-        this.writeProbe = speedCollector.createWriteProbe(probeName + "-write");
     }
 
     public Path getProcessingPath() {
@@ -75,10 +102,8 @@ public class CopyTask implements Callable<CopyResult> {
     }
 
 
-    private static RateLimiter getReadRateLimiter() {
+    private static RateLimiter getReadRateLimiter(long limit, long burst) {
         RateLimiter current = readRateLimiter;
-        long limit = ConfigManager.getInstance().get(RateLimitConfig.COPY_READ_RATE_LIMIT);
-        long burst = ConfigManager.getInstance().get(RateLimitConfig.COPY_RATE_BURST_SIZE);
 
         if (current == null || limit != current.getRateLimitBytesPerSecond()
                 || burst != current.getBurstSize()) {
@@ -93,10 +118,8 @@ public class CopyTask implements Callable<CopyResult> {
         return readRateLimiter;
     }
 
-    private static RateLimiter getWriteRateLimiter() {
+    private static RateLimiter getWriteRateLimiter(long limit, long burst) {
         RateLimiter current = writeRateLimiter;
-        long limit = ConfigManager.getInstance().get(RateLimitConfig.COPY_WRITE_RATE_LIMIT);
-        long burst = ConfigManager.getInstance().get(RateLimitConfig.COPY_RATE_BURST_SIZE);
 
         if (current == null || limit != current.getRateLimitBytesPerSecond()
                 || burst != current.getBurstSize()) {
@@ -115,55 +138,66 @@ public class CopyTask implements Callable<CopyResult> {
 
     @Override
     public CopyResult call() {
-        ByteBuffer buffer = bufferThreadLocal.get();
+        // PF-02: snapshot the copy-relevant configuration once per file. The hot loop below uses
+        // these locals instead of re-reading Preferences four times per chunk.
+        CopySettings settings = CopySettings.snapshot();
+
         long bytesCopied = 0;
         long size = 0;
         Path destinationPath = null;
         CopyResult result = CopyResult.SUCCESS;
 
         try {
-            // Space check at start - skip copy if storage is CRITICAL
-            StorageController storage = StorageController.getInstance();
-            if (storage.isStorageCritical()) {
-                logger.warn("Storage critical, skipping copy: {}", processingPath);
-                result = CopyResult.SKIPPED;
-            } else {
-                Volume volume = QueueManager.getDeviceManager().getVolume(processingPath);
-                size = Files.size(processingPath);
-                destinationPath = getPath(processingPath);
+            // PF-05: a single readAttributes() replaces Files.size() plus the two
+            // Files.isDirectory() calls this method used to make.
+            BasicFileAttributes attributes =
+                    Files.readAttributes(processingPath, BasicFileAttributes.class);
+            size = attributes.size();
+            destinationPath = getPath(processingPath);
 
-                // Check if file fits in available space with 10% buffer
-                StorageController.StorageStatus status = storage.getStorageStatus();
-                long availableWithBuffer = (long) (status.freeBytes() * 0.9);
-                if (size > availableWithBuffer) {
-                    logger.warn("File too large for available space (size: {}, available with buffer: {}), skipping copy: {}", size, availableWithBuffer, processingPath);
+            // PF-06: directories are a lightweight task - create the folder and stop. They skip
+            // the storage gate, the space check and all speed probes. The completion event below
+            // is still dispatched so folder counters and GUI listeners see exactly what they saw
+            // before.
+            if (attributes.isDirectory()) {
+                Files.createDirectories(destinationPath);
+            } else {
+                // Space check at start - skip copy if storage is CRITICAL. Both calls below are
+                // served from StorageController's one-second status cache.
+                StorageController storage = StorageController.getInstance();
+                if (storage.isStorageCritical()) {
+                    logger.warn("Storage critical, skipping copy: {}", processingPath);
                     result = CopyResult.SKIPPED;
                 } else {
-                    // Overwrite strategy check — must happen before doCopy
-                    if (!Files.isDirectory(processingPath) && Files.exists(destinationPath)) {
-                        OverwriteStrategy strategy = OverwriteStrategy.safeValueOf(
-                                ConfigManager.getInstance().get(OverwriteConfig.OVERWRITE_STRATEGY));
-                        if (strategy.shouldOverwrite(processingPath, destinationPath)) {
-                            Files.deleteIfExists(destinationPath);
-                        } else {
-                            Path resolved = strategy.resolveTarget(destinationPath);
-                            if (resolved.equals(destinationPath)) {
-                                // TIME_COMPARE: source is older — skip entirely
-                                logger.info("Skipping older file: {}", processingPath);
-                                result = CopyResult.SKIPPED;
+                    // Check if file fits in available space with 10% buffer
+                    StorageController.StorageStatus status = storage.getStorageStatus();
+                    long availableWithBuffer = (long) (status.freeBytes() * 0.9);
+                    if (size > availableWithBuffer) {
+                        logger.warn("File too large for available space (size: {}, available with buffer: {}), skipping copy: {}", size, availableWithBuffer, processingPath);
+                        result = CopyResult.SKIPPED;
+                    } else {
+                        // Overwrite strategy check — must happen before doCopy
+                        if (Files.exists(destinationPath)) {
+                            OverwriteStrategy strategy = OverwriteStrategy.safeValueOf(
+                                    ConfigManager.getInstance().get(OverwriteConfig.OVERWRITE_STRATEGY));
+                            if (strategy.shouldOverwrite(processingPath, destinationPath)) {
+                                Files.deleteIfExists(destinationPath);
                             } else {
-                                // RENAME: use new path with timestamp
-                                destinationPath = resolved;
+                                Path resolved = strategy.resolveTarget(destinationPath);
+                                if (resolved.equals(destinationPath)) {
+                                    // TIME_COMPARE: source is older — skip entirely
+                                    logger.info("Skipping older file: {}", processingPath);
+                                    result = CopyResult.SKIPPED;
+                                } else {
+                                    // RENAME: use new path with timestamp
+                                    destinationPath = resolved;
+                                }
                             }
                         }
-                    }
 
-                    // Proceed with copy (unless strategy decided to skip)
-                    if (result != CopyResult.SKIPPED) {
-                        if (Files.isDirectory(processingPath)){
-                            Files.createDirectories(destinationPath);
-                        }else {
-                            doCopy(processingPath, destinationPath, size, preVerifiedHash, buffer, volume);
+                        // Proceed with copy (unless strategy decided to skip)
+                        if (result != CopyResult.SKIPPED) {
+                            doCopy(processingPath, destinationPath, size, preVerifiedHash, settings, attributes);
                             bytesCopied = size;
                         }
                     }
@@ -173,7 +207,6 @@ public class CopyTask implements Callable<CopyResult> {
             result = CopyResult.FAIL;
             logger.warn("Fail Copy" ,e);
         } finally {
-            buffer.clear();
             // Dispatch CopyCompletedEvent - ALWAYS dispatch, even for SKIPPED
             EventBus.getInstance().dispatch(new CopyCompletedEvent(
                     processingPath,
@@ -193,25 +226,48 @@ public class CopyTask implements Callable<CopyResult> {
         return result;
     }
 
-    private void doCopy(Path source, Path dest, long size, CheckSum hash, ByteBuffer buffer, Volume volume) throws IOException, InterruptedException {
+    private void doCopy(Path source, Path dest, long size, CheckSum hash, CopySettings settings,
+                        BasicFileAttributes attributes) throws IOException, InterruptedException {
         Files.createDirectories(dest.getParent());
-        BasicFileAttributes attributes = Files.readAttributes(source, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        ByteBuffer buffer = acquireBuffer(settings.bufferSize);
+        // Reusable per-thread probes: no allocation per file, no leak of one probe pair per task.
+        SpeedProbe readProbe = speedCollector.getThreadReadProbe();
+        SpeedProbe writeProbe = speedCollector.getThreadWriteProbe();
+        // Limiters are resolved once per file from the snapshot; null when the matching rate is 0,
+        // which makes the per-chunk limiter call disappear entirely.
+        RateLimiter readLimiter = settings.readLimit > 0
+                ? getReadRateLimiter(settings.readLimit, settings.burstSize) : null;
+        RateLimiter writeLimiter = settings.writeLimit > 0
+                ? getWriteRateLimiter(settings.writeLimit, settings.burstSize) : null;
+
         try (FileChannel readChannel = FileChannel.open(source, StandardOpenOption.READ);
              FileChannel writeChannel = FileChannel.open(dest, StandardOpenOption.WRITE, StandardOpenOption.CREATE)) {
             logger.debug("Copying:{} to {}", source, dest);
-            while (readChannel.read(buffer) != -1) {
+            while (true) {
+                buffer.clear();
+                int read = readChannel.read(buffer);
+                if (read == -1) {
+                    break;
+                }
+                if (read == 0) {
+                    continue;
+                }
                 if (Thread.currentThread().isInterrupted()){
                     throw new InterruptedException("Copy cancelled");
                 }
                 buffer.flip();
 
                 int bytesRead = buffer.remaining();
-                getReadRateLimiter().acquire(bytesRead);
+                if (readLimiter != null) {
+                    readLimiter.acquire(bytesRead, settings.readLimit);
+                }
                 readProbe.record(bytesRead);
 
                 int bytesWritten = writeChannel.write(buffer);
                 writeProbe.record(bytesWritten);
-                getWriteRateLimiter().acquire(bytesWritten);
+                if (writeLimiter != null) {
+                    writeLimiter.acquire(bytesWritten, settings.writeLimit);
+                }
 
                 long now = System.currentTimeMillis();
                 long lastLog = lastLogTime.get();
@@ -223,14 +279,31 @@ public class CopyTask implements Callable<CopyResult> {
                             source.getFileName(), String.format("%.2f", readSpeed), String.format("%.2f", writeSpeed));
                     }
                 }
-
-                buffer.clear();
             }
         }
         copyFileAttributes(source, dest, attributes);
         if (hash != null){
             QueueManager.getIndex().addFile(hash, new IndexKey(deviceSerial, source), size);
         }
+    }
+
+    /**
+     * Returns the reusable buffer for the calling thread, resizing it when the configured chunk
+     * size changed since the previous copy on this thread.
+     *
+     * @param bufferSize chunk size in bytes
+     * @return a cleared buffer with the requested capacity
+     */
+    private static ByteBuffer acquireBuffer(int bufferSize) {
+        ByteBuffer buffer = bufferThreadLocal.get();
+        if (buffer == null || buffer.capacity() != bufferSize) {
+            buffer = bufferSize >= DIRECT_BUFFER_THRESHOLD
+                    ? ByteBuffer.allocateDirect(bufferSize)
+                    : ByteBuffer.allocate(bufferSize);
+            bufferThreadLocal.set(buffer);
+        }
+        buffer.clear();
+        return buffer;
     }
 
     /**
@@ -269,10 +342,60 @@ public class CopyTask implements Callable<CopyResult> {
         }
     }
 
-    private static Path getPath(Path target) throws IOException {
+    private Path getPath(Path target) throws IOException {
         Path workPath = AppPaths.resolve(ConfigManager.getInstance().get(PathConfig.WORK_PATH));
-        return DeviceUtils.getPath(workPath, target);
+        // PF-05: the owning volume is injected by the submitter, so the destination folder comes
+        // from the cached volume name instead of a per-file Files.getFileStore(target).name().
+        return DeviceUtils.getPath(workPath, target, volume);
     }
 
+    /**
+     * Clamps a configured chunk size into a sane range.
+     *
+     * @param configured configured buffer size in bytes
+     * @return usable chunk size
+     */
+    static int clampBufferSize(int configured) {
+        if (configured < MIN_BUFFER_SIZE) {
+            return MIN_BUFFER_SIZE;
+        }
+        if (configured > MAX_BUFFER_SIZE) {
+            return MAX_BUFFER_SIZE;
+        }
+        return configured;
+    }
 
+    /**
+     * Immutable per-file snapshot of the copy-related configuration.
+     *
+     * <p>Read once at the start of {@link #call()} so the copy loop never asks
+     * {@link ConfigManager} (and therefore {@code Preferences}) for a value again.</p>
+     */
+    static final class CopySettings {
+        final int bufferSize;
+        final long readLimit;
+        final long writeLimit;
+        final long burstSize;
+
+        private CopySettings(int bufferSize, long readLimit, long writeLimit, long burstSize) {
+            this.bufferSize = bufferSize;
+            this.readLimit = readLimit;
+            this.writeLimit = writeLimit;
+            this.burstSize = burstSize;
+        }
+
+        /**
+         * Reads the copy configuration once.
+         *
+         * @return an immutable snapshot for a single copy operation
+         */
+        static CopySettings snapshot() {
+            ConfigManager config = ConfigManager.getInstance();
+            return new CopySettings(
+                    clampBufferSize(config.get(FileCopyConfig.BUFFER_SIZE)),
+                    config.get(RateLimitConfig.COPY_READ_RATE_LIMIT),
+                    config.get(RateLimitConfig.COPY_WRITE_RATE_LIMIT),
+                    config.get(RateLimitConfig.COPY_RATE_BURST_SIZE));
+        }
+    }
 }

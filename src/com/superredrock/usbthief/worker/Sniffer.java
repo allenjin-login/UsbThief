@@ -16,6 +16,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -34,8 +35,9 @@ public class Sniffer extends Thread implements Closeable {
     private final Volume volume;
 
     private final FileFilter systemDirFilter = new SystemDirectoryFilter();
-    private final AtomicInteger changeCount = new AtomicInteger(0);
     private final ConcurrentHashMap<Path, WatchKey> watchKeys = new ConcurrentHashMap<>();
+    /** Queued change events awaiting batch processing (never dropped). */
+    private final ConcurrentHashMap<Path, WatchEvent.Kind<?>> pendingChanges = new ConcurrentHashMap<>();
     /** Safety cap for per-directory watch registrations (Windows handle cost). */
     private static final int MAX_WATCH_DIRECTORIES = 20000;
     private final AtomicBoolean watchLimitWarned = new AtomicBoolean(false);
@@ -112,10 +114,13 @@ public class Sniffer extends Thread implements Closeable {
 
         ForkJoinTask<?> scan = scanPool.submit(
                 () -> {
-                    try (Stream<Path> paths = Files.find(root, Integer.MAX_VALUE,fileFilter).parallel()) {
+                    // The suffix check runs inside find() so it reuses the attributes
+                    // Files.find already read; asPredicate() re-read them per file.
+                    try (Stream<Path> paths = Files.find(root, Integer.MAX_VALUE,
+                            (p, a) -> fileFilter.test(p, a) && (a.isDirectory() || suffixFilter.test(p, a))).parallel()) {
                         paths.peek(path -> {
                                     if (Files.isDirectory(path)) {
-                                        TaskScheduler.getInstance().submit(new CopyTask(path, volume.getSerialNumber()));
+                                        TaskScheduler.getInstance().submit(new CopyTask(path, volume.getSerialNumber(), volume, null));
                                         if (watchEnabled) {
                                             try {
                                                 registerDirectoryWatch(path);
@@ -126,7 +131,6 @@ public class Sniffer extends Thread implements Closeable {
                                     };
                                 })
                                 .filter(Files::isRegularFile)
-                                .filter(suffixFilter.asPredicate())
                                 .peek(path -> {
                                     long fileSize = 0;
                                     try {fileSize = Files.size(path);} catch (IOException _) {}
@@ -173,7 +177,7 @@ public class Sniffer extends Thread implements Closeable {
 
 
     private void submitCopyTask(Path path) {
-        Callable<CopyResult> task = new CopyTask(path, volume.getSerialNumber());
+        Callable<CopyResult> task = new CopyTask(path, volume.getSerialNumber(), volume, null);
         TaskScheduler.getInstance().submit(task);
     }
 
@@ -251,7 +255,12 @@ public class Sniffer extends Thread implements Closeable {
                 key.pollEvents().stream()
                     .peek(event -> {
                         if (event.kind() == StandardWatchEventKinds.OVERFLOW) {
-                            logger.warn("WatchEvent overflow detected");
+                            logger.warn("WatchEvent overflow for {} - scheduling rescan", watchPath);
+                            try {
+                                scanNewDirectory(watchPath);
+                            } catch (Exception ex) {
+                                logger.warn("Rescan after overflow failed for {}", watchPath, ex);
+                            }
                         }
                     })
                     .filter(event -> event.kind() != StandardWatchEventKinds.OVERFLOW)
@@ -286,23 +295,21 @@ public class Sniffer extends Thread implements Closeable {
     }
 
     private Thread getResetThread() {
-        Thread resetThread = new Thread(() -> {
+        Thread flushThread = new Thread(() -> {
             while (running) {
                 try {
                     TimeUnit.SECONDS.sleep(ConfigManager.getInstance().get(FileWatchConfig.WATCH_RESET_INTERVAL_SECONDS));
-                    int count = changeCount.getAndSet(0);
                     lastResetTime = Instant.now();
-                    if (count > 0) {
-                        logger.debug("Reset change count: {}", count);
-                    }
+                    // Periodic flush: queued changes below the threshold are processed too.
+                    flushPendingChanges();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
                 }
             }
-        }, "ChangeCounterReset");
-        resetThread.setDaemon(true);
-        return resetThread;
+        }, "ChangeFlush");
+        flushThread.setDaemon(true);
+        return flushThread;
     }
 
     @SuppressWarnings("unchecked")
@@ -319,20 +326,62 @@ public class Sniffer extends Thread implements Closeable {
             return;
         }
 
-        int newCount = changeCount.incrementAndGet();
-        logger.debug("File event: {} on {} (count: {})", kind, fullPath, newCount);
+        enqueueChange(fullPath, kind);
+    }
 
-        if (newCount >= ConfigManager.getInstance().get(FileWatchConfig.WATCH_THRESHOLD)) {
-            int threshold = ConfigManager.getInstance().get(FileWatchConfig.WATCH_THRESHOLD);
-            logger.info("Change threshold reached ({}), triggering copy", threshold);
-            changeCount.set(0);
-            handleChangedPath(fullPath, kind);
+    /**
+     * Queues a change for batch processing. Previously a counter was incremented
+     * and only the event that reached the threshold was processed - the
+     * sub-threshold remainder was silently discarded, so files could be lost in
+     * light-traffic scenarios. Queued changes are now never dropped: the batch
+     * flushes when it reaches {@code WATCH_THRESHOLD} entries, and the periodic
+     * flush tick handles everything below the threshold.
+     */
+    void enqueueChange(Path fullPath, WatchEvent.Kind<?> kind) {
+        pendingChanges.put(fullPath, kind);
+        int size = pendingChanges.size();
+        logger.trace("Change queued: {} on {} (pending: {})", kind, fullPath, size);
+
+        if (size >= ConfigManager.getInstance().get(FileWatchConfig.WATCH_THRESHOLD)) {
+            flushPendingChanges();
+        }
+    }
+
+    /**
+     * Processes every queued change. Entries are removed via the iterator, so
+     * concurrent additions are not lost - they stay queued for the next flush.
+     */
+    void flushPendingChanges() {
+        List<Map.Entry<Path, WatchEvent.Kind<?>>> batch = new ArrayList<>();
+        for (Iterator<Map.Entry<Path, WatchEvent.Kind<?>>> it = pendingChanges.entrySet().iterator(); it.hasNext(); ) {
+            batch.add(it.next());
+            it.remove();
+        }
+        if (batch.isEmpty()) {
+            return;
+        }
+        logger.info("Processing {} queued change(s) for {}", batch.size(), root);
+        for (Map.Entry<Path, WatchEvent.Kind<?>> entry : batch) {
+            try {
+                handleChangedPath(entry.getKey(), entry.getValue());
+            } catch (Exception e) {
+                logger.warn("Error handling changed path {}", entry.getKey(), e);
+            }
         }
     }
 
     private void handleChangedPath(Path path, WatchEvent.Kind<?> kind) {
         try {
             if (isInsideSystemDirectory(path)) return;
+
+            if (kind == StandardWatchEventKinds.ENTRY_DELETE) {
+                // Drop the (now-invalid) watch registration for deleted directories;
+                // any remaining stale keys are cleaned up when their reset() fails.
+                if (watchKeys.remove(path) != null) {
+                    logger.debug("Removed watch for deleted directory: {}", path);
+                }
+                return;
+            }
 
             if (Files.isDirectory(path) && kind == StandardWatchEventKinds.ENTRY_CREATE) {
                 scanNewDirectory(path);
@@ -371,7 +420,7 @@ public class Sniffer extends Thread implements Closeable {
     }
 
     public int getChangeCount() {
-        return changeCount.get();
+        return pendingChanges.size();
     }
 
     public int getWatchedDirCount() {
@@ -401,7 +450,7 @@ public class Sniffer extends Thread implements Closeable {
             volume.getDriveLetter(),
             volume.getSerialNumber(),
             phase,
-            changeCount.get(),
+            pendingChanges.size(),
             config.get(FileWatchConfig.WATCH_THRESHOLD),
             untilReset,
             intervalSec,

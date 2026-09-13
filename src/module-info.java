@@ -18,6 +18,7 @@ module UsbThief {
     exports com.superredrock.usbthief.core.event.device;
     exports com.superredrock.usbthief.core.event.index;
     exports com.superredrock.usbthief.core.event.worker;
+    exports com.superredrock.usbthief.core.event.storage;
     exports com.superredrock.usbthief.core.filter;
     exports com.superredrock.usbthief.gui;
     exports com.superredrock.usbthief.gui.theme;

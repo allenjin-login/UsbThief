@@ -83,6 +83,7 @@ public abstract class Service extends Thread implements Closeable {
                     break;
                 }
                 // Wait outside the critical section; pause/resume/stop signal us awake.
+                // noinspection ResultOfMethodCallIgnored - signaled or timed out, both re-checked above
                 tickSignal.await(getTickInterval(), getTickUnit());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

@@ -41,7 +41,7 @@ public final class Version {
                 logger.warn("version.properties not found, using defaults");
             }
         } catch (IOException e) {
-            logger.warn("Failed to load version.properties: {}", e);
+            logger.warn("Failed to load version.properties", e);
         }
         
         MAJOR = major;

@@ -20,8 +20,48 @@ public class DeviceUtils {
     protected static final Logger logger = LogManager.getLogger(DeviceUtils.class);
 
 
-    // JNA instances
-    private static final Kernel32 kernel32 = Kernel32.INSTANCE;
+    /**
+     * Lazily resolved kernel32 handle.
+     *
+     * <p>Resolved on first use instead of in the static initializer: on a non-Windows host JNA
+     * cannot load {@code kernel32} at all, and failing class initialization made every caller
+     * (including the copy path, which only needs {@link #getPath(Path, Path, Volume)}) throw
+     * {@code UnsatisfiedLinkError}.</p>
+     */
+    private static volatile Kernel32 kernel32Handle;
+    private static volatile boolean kernel32Unavailable;
+
+    /**
+     * Returns the kernel32 handle, or {@code null} when the platform has no such library.
+     *
+     * @return JNA kernel32 instance or {@code null}
+     */
+    private static Kernel32 kernel32Instance() {
+        if (kernel32Unavailable) {
+            return null;
+        }
+        Kernel32 handle = kernel32Handle;
+        if (handle != null) {
+            return handle;
+        }
+        synchronized (DeviceUtils.class) {
+            if (kernel32Unavailable) {
+                return null;
+            }
+            if (kernel32Handle != null) {
+                return kernel32Handle;
+            }
+            try {
+                kernel32Handle = Kernel32.INSTANCE;
+            } catch (Throwable t) {
+                // Non-Windows host or JNA unavailable: volume serial lookups degrade to "".
+                kernel32Unavailable = true;
+                logger.debug("kernel32 unavailable, volume serial lookups disabled: {}", t.toString());
+                return null;
+            }
+            return kernel32Handle;
+        }
+    }
 
     // Maximum length for volume name and filesystem name buffers
     private static final int MAX_VOLUME_NAME_SIZE = 256;
@@ -78,6 +118,10 @@ public class DeviceUtils {
      * @return serial number or empty string if failed
      */
     private static String getSerialNumberViaJna(String drivePath) {
+        Kernel32 kernel32 = kernel32Instance();
+        if (kernel32 == null) {
+            return "";
+        }
         try {
             // Prepare buffers for API call
             char[] volumeNameBuffer = new char[MAX_VOLUME_NAME_SIZE];
@@ -159,11 +203,41 @@ public class DeviceUtils {
      * @throws IOException if an I/O error occurs
      */
     public static Path getPath(Path workPath, Path target) throws IOException {
+        return getPath(workPath, target, null);
+    }
+
+    /**
+     * Constructs a destination path for file copying, reusing an already known volume.
+     *
+     * <p>When the caller already holds the {@link Volume} that owns {@code target}, the volume
+     * name and serial number come from it directly. That removes a
+     * {@code Files.getFileStore(target).name()} call (tens of microseconds per file on Linux,
+     * a native call on Windows) plus a {@link DeviceManager} lookup from the copy hot path.
+     * Callers without a volume (for example ad-hoc copies) fall back to the previous behaviour.</p>
+     *
+     * @param workPath the working path
+     * @param target the target file path
+     * @param volume the volume that owns {@code target}, or {@code null} to look it up
+     * @return the destination path
+     * @throws IOException if an I/O error occurs while resolving the file store
+     */
+    public static Path getPath(Path workPath, Path target, Volume volume) throws IOException {
         Path root = target.getRoot();
         Path relative = root.relativize(target);
-        String storeName = Files.getFileStore(target).name();
-        Volume volume = QueueManager.getDeviceManager().getVolume(target);
-        return workPath.resolve(storeName + "_" + volume.getSerialNumber()).resolve(relative);
+
+        String storeName = null;
+        if (volume != null) {
+            String volumeName = volume.getVolumeName();
+            if (volumeName != null && !volumeName.isEmpty()) {
+                storeName = volumeName;
+            }
+        }
+        if (storeName == null) {
+            storeName = Files.getFileStore(target).name();
+        }
+
+        Volume owner = volume != null ? volume : QueueManager.getDeviceManager().getVolume(target);
+        return workPath.resolve(storeName + "_" + owner.getSerialNumber()).resolve(relative);
     }
 
     /**

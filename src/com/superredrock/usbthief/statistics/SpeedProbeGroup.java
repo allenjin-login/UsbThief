@@ -5,6 +5,7 @@ import java.lang.ref.WeakReference;
 import java.lang.ref.ReferenceQueue;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.LongAdder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,6 +29,16 @@ public final class SpeedProbeGroup implements Closeable {
     private final ReferenceQueue<SpeedProbe> refQueue;
 
     /**
+     * Running total of every byte recorded by the probes of this group.
+     *
+     * <p>Probes push their deltas here as they record (see {@link #addRecordedBytes(long)}), so
+     * {@link #getTotalBytes()} is an O(1) {@link LongAdder#sum()} instead of a full probe scan.
+     * Probes that are closed detach and subtract their own total; references dropped by the GC
+     * keep their already-counted bytes, which is what a cumulative byte counter wants anyway.</p>
+     */
+    private final LongAdder recordedBytes = new LongAdder();
+
+    /**
      * Creates a new probe group with the given name.
      *
      * @param name the group name for identification
@@ -49,8 +60,32 @@ public final class SpeedProbeGroup implements Closeable {
      */
     public void addProbe(SpeedProbe probe) {
         Objects.requireNonNull(probe, "Probe cannot be null");
+        long alreadyRecorded = probe.getTotalBytes();
+        probe.attachGroup(this);
         probes.offer(new WeakReference<>(probe, refQueue));
+        recordedBytes.add(alreadyRecorded);
         logger.debug("Added probe [{}] to group [{}]", probe.getName(), name);
+    }
+
+    /**
+     * Adds a byte delta recorded by one of the group's probes.
+     *
+     * @param bytes bytes just recorded (must be positive)
+     */
+    void addRecordedBytes(long bytes) {
+        recordedBytes.add(bytes);
+    }
+
+    /**
+     * Removes the bytes a probe contributed before it was closed.
+     *
+     * @param probe the probe being closed
+     */
+    void removeRecordedBytes(SpeedProbe probe) {
+        long total = probe.getTotalBytes();
+        if (total != 0) {
+            recordedBytes.add(-total);
+        }
     }
 
     /**
@@ -66,6 +101,11 @@ public final class SpeedProbeGroup implements Closeable {
         });
 
         if (removed) {
+            // A closed probe already detached and subtracted itself in SpeedProbe.close().
+            if (!probe.isClosed()) {
+                probe.attachGroup(null);
+                removeRecordedBytes(probe);
+            }
             logger.debug("Removed probe [{}] from group [{}]", probe.getName(), name);
         }
         return removed;
@@ -77,6 +117,7 @@ public final class SpeedProbeGroup implements Closeable {
      * <p>This method is lazy - it only runs when explicitly called
      * (typically within getTotalSpeed()).</p>
      */
+    @SuppressWarnings("SuspiciousMethodCalls") // queue holds the very weak-refs drained from refQueue
     private void cleanup() {
         // Remove garbage-collected probes via reference queue
         java.lang.ref.Reference<? extends SpeedProbe> ref;
@@ -114,15 +155,16 @@ public final class SpeedProbeGroup implements Closeable {
      *
      * @return total bytes
      */
+    @SuppressWarnings("SuspiciousMethodCalls") // queue holds the very weak-refs drained from refQueue
     public long getTotalBytes() {
-        cleanup();
+        // O(1)-ish: drain the reference queue (bounded by the number of collected probes) and read
+        // the running total. Closed probes have already subtracted themselves in close().
+        java.lang.ref.Reference<? extends SpeedProbe> ref;
+        while ((ref = refQueue.poll()) != null) {
+            probes.remove(ref);
+        }
 
-        return probes.stream()
-                .map(WeakReference::get)
-                .filter(Objects::nonNull)
-                .filter(p -> !p.isClosed())
-                .mapToLong(SpeedProbe::getTotalBytes)
-                .sum();
+        return recordedBytes.sum();
     }
 
     /**

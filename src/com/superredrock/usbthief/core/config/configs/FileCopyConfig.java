@@ -6,8 +6,16 @@ import static com.superredrock.usbthief.core.config.ConfigEntry.*;
 public final class FileCopyConfig {
     public static final String CATEGORY = "File Copy";
 
+    /**
+     * Size of a single copy chunk.
+     *
+     * <p>Each chunk costs one {@code read} plus one {@code write} syscall, so the default was raised
+     * from 16 KB (which needed 64 syscall pairs per MB) to 1 MB (one syscall pair per MB). Values
+     * below {@code CopyTask.MIN_BUFFER_SIZE} / above {@code CopyTask.MAX_BUFFER_SIZE} are clamped
+     * when a copy starts.</p>
+     */
     public static final ConfigEntry<Integer> BUFFER_SIZE =
-            intEntry("bufferSize", "Buffer size for file copying (bytes)", 16 * 1024, CATEGORY);
+            intEntry("bufferSize", "Buffer size for file copying (bytes)", 1024 * 1024, CATEGORY);
 
     public static final ConfigEntry<Integer> HASH_BUFFER_SIZE =
             intEntry("hashBufferSize", "Buffer size for hash calculation (bytes)", 1024, CATEGORY);
