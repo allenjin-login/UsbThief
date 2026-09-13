@@ -1,15 +1,12 @@
 package com.superredrock.usbthief;
 
 
-import com.superredrock.usbthief.core.DeviceManager;
+import com.superredrock.usbthief.core.AppContext;
 import com.superredrock.usbthief.core.LoggingConfig;
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.ServiceRegistry;
 
 import com.superredrock.usbthief.core.event.EventBus;
-import com.superredrock.usbthief.worker.RecyclerService;
-import com.superredrock.usbthief.worker.SnifferLifecycleManager;
-import com.superredrock.usbthief.worker.TaskScheduler;
 import com.superredrock.usbthief.core.event.storage.EmptyFoldersDeletedEvent;
 import com.superredrock.usbthief.core.event.storage.FilesRecycledEvent;
 import com.superredrock.usbthief.core.event.storage.StorageLowEvent;
@@ -48,19 +45,22 @@ public class Main {
         logger.info("Starting");
         QueueManager.init();
 
-        // Initialize statistics (eager init ensures collectors register before services start)
-        Statistics.getInstance();
+        // Assemble the core object graph in one explicit place, before any service starts.
+        // This also performs the start-up side effects that used to hide in constructors:
+        // the statistics collectors are registered and their persisted metrics loaded (plus the
+        // stats HTTP API started when enabled), and the sniffer lifecycle listeners are hooked up.
+        AppContext context = AppContext.initialize();
 
         // Register logging listeners for storage events
-        registerStorageEventListeners();
+        registerStorageEventListeners(context.getEventBus());
 
         // Register services once, in startup order. shutdownAll() reverses that order,
         // so the startup list and the shutdown list can no longer drift apart.
-        ServiceRegistry registry = ServiceRegistry.getInstance();
-        registry.register(DeviceManager.getInstance());
-        registry.register(TaskScheduler.getInstance());
-        registry.register(SnifferLifecycleManager.getInstance());
-        registry.register(RecyclerService.getInstance());
+        ServiceRegistry registry = context.getServiceRegistry();
+        registry.register(context.getDeviceManager());
+        registry.register(context.getTaskScheduler());
+        registry.register(context.getSnifferLifecycleManager());
+        registry.register(context.getRecyclerService());
 
         // Cleanup must also happen when the JVM goes down outside the GUI exit path
         // (task manager kill, Windows logoff/shutdown, tray exit). Registered before the
@@ -78,9 +78,7 @@ public class Main {
      * Registers default logging listeners for storage events.
      * These listeners log key storage events for monitoring and debugging.
      */
-    private static void registerStorageEventListeners() {
-        EventBus eventBus = EventBus.getInstance();
-
+    private static void registerStorageEventListeners(EventBus eventBus) {
         // Register listener for storage low events
         eventBus.register(StorageLowEvent.class, event -> logger.warn("Storage low: {} bytes free, threshold: {} bytes, level: {}", event.freeBytes(), event.thresholdBytes(), event.level()));
 

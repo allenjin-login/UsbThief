@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class Statistics {
     private static final Logger logger = LogManager.getLogger(Statistics.class);
@@ -27,6 +28,9 @@ public final class Statistics {
     private final VolumeStatsCollector volumeStatsCollector;
     private final DeviceHistoryCollector deviceHistoryCollector;
     private final StatsHttpServer httpServer;
+
+    /** Guards {@link #start()} so persistence is loaded and the HTTP API bound exactly once. */
+    private final AtomicBoolean started = new AtomicBoolean(false);
 
     private Statistics() {
         registry = new MetricRegistry();
@@ -56,11 +60,29 @@ public final class Statistics {
         deviceHistoryCollector = new DeviceHistoryCollector();
         registry.register(deviceHistoryCollector);
 
+        // No I/O and no socket binding happen here: reading the persisted metrics and starting
+        // the HTTP API moved to start(), which the assembly point (AppContext) calls explicitly
+        // before the services start. Constructing a Statistics instance is now side-effect free.
+        httpServer = new StatsHttpServer();
+    }
+
+    /**
+     * Loads the persisted metrics and starts the statistics HTTP API (when enabled).
+     *
+     * <p>Idempotent. Called once by the assembly point ({@code AppContext.initialize()}) before
+     * the services start producing events; {@link #getInstance()} alone does <em>not</em> perform
+     * these actions any more.
+     */
+    public void start() {
+        if (!started.compareAndSet(false, true)) {
+            logger.debug("Statistics already started, ignoring duplicate start()");
+            return;
+        }
+
         // Load persistent data
-        registry.loadAll(store);
+        load();
 
         // Start HTTP API
-        httpServer = new StatsHttpServer();
         httpServer.start(registry);
 
         logger.info("Statistics loaded: {} files, {}",
