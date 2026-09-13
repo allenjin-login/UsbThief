@@ -79,7 +79,7 @@ public class VerifyTask implements Callable<CopyResult> {
             size = attrs.size();
             if (size > 10L * 1024 * 1024 * 1024) {
                 logger.warn("File too big, skipping verify: {}", processingPath);
-                TaskScheduler.getInstance().submit(new CopyTask(processingPath, deviceSerial, null));
+                TaskScheduler.getInstance().submit(new CopyTask(processingPath, deviceSerial, volume, null));
                 return CopyResult.SKIPPED;
             }
             HashAlgorithm algorithm = HashAlgorithm.fromId(

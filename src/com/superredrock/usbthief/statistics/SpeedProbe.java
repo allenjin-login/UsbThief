@@ -41,19 +41,23 @@ public final class SpeedProbe implements Closeable {
     private final long creationTime;  // Track when probe was created
     private volatile long lastMergeTime;
 
-    // Sliding window with cache-line isolation
-    // Manual padding to prevent false sharing (128 bytes = typical cache line size)
+    /**
+     * Owning group (if any). Reused probes stay attached for the lifetime of the process, which
+     * lets the group keep an O(1) running total instead of summing every probe on each snapshot.
+     */
+    private volatile SpeedProbeGroup group;
+
+    // Sliding window. Probes are now reused per thread instead of created per task, so there are
+    // only a handful of live instances and the previous 120 bytes of manual padding (one cache
+    // line per instance) is no longer worth its memory footprint.
     private final Window window;
 
-    // Padding fields to separate window from other fields
-    @SuppressWarnings("unused")
-    private long p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15;
-
     /**
-     * Window data structure isolated to separate cache line.
+     * Window data structure holding the sliding speed samples.
      *
-     * <p>Uses manual padding instead of @Contended to avoid
-     * requiring JVM flags (-XX:-RestrictContended).</p>
+     * <p>If false sharing ever shows up again, annotate this class with
+     * {@code @jdk.internal.vm.annotation.Contended} and run with
+     * {@code -XX:-RestrictContended} instead of re-adding manual padding fields.</p>
      */
     private static class Window {
         final long[] samples;
@@ -91,6 +95,12 @@ public final class SpeedProbe implements Closeable {
     public void record(long bytes) {
         if (closed || bytes <= 0) {
             return;
+        }
+
+        // Keep the owning group's running total in sync without locking (LongAdder).
+        SpeedProbeGroup owner = group;
+        if (owner != null) {
+            owner.addRecordedBytes(bytes);
         }
 
         // Accumulate in thread-local storage
@@ -215,11 +225,25 @@ public final class SpeedProbe implements Closeable {
         return closed;
     }
 
+    /**
+     * Attaches this probe to an aggregating group.
+     *
+     * @param group owning group, or {@code null} to detach
+     */
+    void attachGroup(SpeedProbeGroup group) {
+        this.group = group;
+    }
+
     @Override
     public void close() {
         if (!closed) {
             closed = true;
             merge(System.nanoTime());
+            SpeedProbeGroup owner = group;
+            if (owner != null) {
+                owner.removeRecordedBytes(this);
+                group = null;
+            }
             threadLocalBytes.remove();
             logger.debug("SpeedProbe [{}] closed", name);
         }
