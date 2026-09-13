@@ -212,8 +212,9 @@ public class CopyTask implements Callable<CopyResult>, DeviceBoundTask {
                             } else {
                                 Path resolved = strategy.resolveTarget(destinationPath);
                                 if (resolved.equals(destinationPath)) {
-                                    // TIME_COMPARE: source is older — skip entirely
-                                    logger.info("Skipping older file: {}", processingPath);
+                                    // SKIP: user chose to keep the existing file.
+                                    // TIME_COMPARE: source is older than target — keep target.
+                                    logger.info("Skipping existing file ({}): {}", strategy.name(), processingPath);
                                     result = CopyResult.SKIPPED;
                                 } else {
                                     // RENAME: use new path with timestamp
