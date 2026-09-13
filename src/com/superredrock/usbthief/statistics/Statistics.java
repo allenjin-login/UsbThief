@@ -201,7 +201,9 @@ public final class Statistics {
 
     public void resetAll() {
         registry.resetAll();
-        store.flush();
+        // Persist the wipe right away: with the diff write path this removes exactly the keys that
+        // existed and leaves the store consistent even if the process dies before the next save.
+        registry.saveAll(store);
         logger.info("Statistics reset");
     }
 }

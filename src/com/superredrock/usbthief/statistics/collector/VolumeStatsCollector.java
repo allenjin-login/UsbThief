@@ -6,8 +6,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.nio.file.Files;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class VolumeStatsCollector implements MetricCollector {
@@ -52,7 +56,16 @@ public final class VolumeStatsCollector implements MetricCollector {
     public void load(MetricStore store) {
         try {
             int count = (int) store.getLong(KEY_COUNT).orElse(0);
+
+            // Fetch the keys once and group them per entry instead of scanning the full key array
+            // for every volume (that made loading O(volumes x keys)).
+            Map<Integer, List<String>> keysByIndex = MetricKeyGroups.byEntryIndex(store.keySet(), KEY_PREFIX);
+            Set<Integer> indices = new TreeSet<>(keysByIndex.keySet());
             for (int i = 0; i < count; i++) {
+                indices.add(i);
+            }
+
+            for (Integer i : indices) {
                 String prefix = KEY_PREFIX + i + ".";
                 String serial = store.getString(prefix + "serial").orElse(null);
                 if (serial == null || serial.isEmpty()) continue;
@@ -63,9 +76,12 @@ public final class VolumeStatsCollector implements MetricCollector {
                 vs.bytesCopiedRef().set(store.getLong(prefix + "bytesCopied").orElse(0));
                 vs.errorsRef().set(store.getLong(prefix + "errors").orElse(0));
 
-                for (String key : store.keys()) {
-                    if (key.startsWith(prefix + "ext.")) {
-                        String ext = key.substring((prefix + "ext.").length());
+                List<String> entryKeys = keysByIndex.get(i);
+                if (entryKeys != null) {
+                    String extPrefix = prefix + "ext.";
+                    for (String key : entryKeys) {
+                        if (!key.startsWith(extPrefix)) continue;
+                        String ext = key.substring(extPrefix.length());
                         long extCount = store.getLong(key).orElse(0);
                         if (extCount > 0) {
                             vs.extensionCountsMap().put(ext, new java.util.concurrent.atomic.AtomicLong(extCount));
@@ -82,33 +98,61 @@ public final class VolumeStatsCollector implements MetricCollector {
 
     @Override
     public void save(MetricStore store) {
-        // Clear old keys
         try {
-            int oldCount = (int) store.getLong(KEY_COUNT).orElse(0);
-            for (int i = 0; i < oldCount; i++) {
-                String prefix = KEY_PREFIX + i + ".";
-                for (String key : store.keys()) {
-                    if (key.startsWith(prefix)) store.remove(key);
+            // One round trip for the old keys; the diff is then computed entirely in memory.
+            Set<String> existingKeys = store.keySet();
+            Map<String, List<String>> existingByPrefix =
+                    MetricKeyGroups.byEntryPrefix(existingKeys, KEY_PREFIX);
+
+            MetricWriteBatch batch = new MetricWriteBatch();
+            int idx = 0;
+            for (Map.Entry<String, VolumeStats> entry : statsMap.entrySet()) {
+                String prefix = KEY_PREFIX + idx + ".";
+                Set<String> desiredKeys = new HashSet<>();
+                VolumeStats vs = entry.getValue();
+
+                batch.putString(prefix + "serial", entry.getKey());
+                desiredKeys.add(prefix + "serial");
+                batch.putLong(prefix + "filesCopied", vs.getFilesCopied());
+                desiredKeys.add(prefix + "filesCopied");
+                batch.putLong(prefix + "bytesCopied", vs.getBytesCopied());
+                desiredKeys.add(prefix + "bytesCopied");
+                batch.putLong(prefix + "errors", vs.getErrors());
+                desiredKeys.add(prefix + "errors");
+                batch.putLong(prefix + "firstSeenTime", vs.getFirstSeenTime());
+                desiredKeys.add(prefix + "firstSeenTime");
+
+                for (Map.Entry<String, java.util.concurrent.atomic.AtomicLong> ext
+                        : vs.extensionCountsMap().entrySet()) {
+                    String key = prefix + "ext." + ext.getKey();
+                    batch.putLong(key, ext.getValue().get());
+                    desiredKeys.add(key);
+                }
+
+                List<String> previousKeys = existingByPrefix.remove(prefix);
+                if (previousKeys != null) {
+                    for (String key : previousKeys) {
+                        if (!desiredKeys.contains(key)) {
+                            batch.remove(key);
+                        }
+                    }
+                }
+                idx++;
+            }
+
+            // Volumes that disappeared leave their whole entry prefix behind.
+            for (List<String> staleKeys : existingByPrefix.values()) {
+                for (String key : staleKeys) {
+                    batch.remove(key);
                 }
             }
-        } catch (Exception e) {
-            logger.warn("Failed to clear old volume stats keys: {}", e.getMessage());
-        }
 
-        int idx = 0;
-        for (var entry : statsMap.entrySet()) {
-            String prefix = KEY_PREFIX + idx + ".";
-            store.put(prefix + "serial", entry.getKey());
-            VolumeStats vs = entry.getValue();
-            store.put(prefix + "filesCopied", vs.getFilesCopied());
-            store.put(prefix + "bytesCopied", vs.getBytesCopied());
-            store.put(prefix + "errors", vs.getErrors());
-            store.put(prefix + "firstSeenTime", vs.getFirstSeenTime());
-            vs.extensionCountsMap().forEach((ext, count) ->
-                    store.put(prefix + "ext." + ext, count.get()));
-            idx++;
+            batch.putLong(KEY_COUNT, idx);
+            int applied = store.apply(batch);
+            logger.debug("Saved {} volumes ({} key mutations applied)", idx, applied);
+        } catch (Exception e) {
+            logger.warn("Failed to save volume stats: {}", e.getMessage());
         }
-        store.put(KEY_COUNT, idx);
     }
 
     @Override

@@ -1,12 +1,16 @@
 package com.superredrock.usbthief.statistics.store;
 
 import com.superredrock.usbthief.statistics.collector.MetricStore;
+import com.superredrock.usbthief.statistics.collector.MetricWriteBatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.prefs.Preferences;
 
 public final class PreferencesMetricStore implements MetricStore {
@@ -73,5 +77,78 @@ public final class PreferencesMetricStore implements MetricStore {
             logger.warn("Failed to get preference keys: {}", e.getMessage());
             return new String[0];
         }
+    }
+
+    @Override
+    public Set<String> keySet() {
+        try {
+            String[] stored = prefs.keys();
+            Set<String> result = new LinkedHashSet<>(Math.max(16, stored.length * 2));
+            for (String key : stored) {
+                result.add(key);
+            }
+            return result;
+        } catch (Exception e) {
+            logger.warn("Failed to get preference keys: {}", e.getMessage());
+            return new LinkedHashSet<>();
+        }
+    }
+
+    /**
+     * Diff write: only entries whose value actually changed are written and only keys that exist
+     * are removed.
+     *
+     * <p>The key set is fetched exactly once per batch, so a save with many volumes no longer
+     * triggers one {@code Preferences.keys()} call (and one full key array copy) per volume. Every
+     * skipped entry saves the JNI round trip that {@code Preferences.put*} would cost.</p>
+     *
+     * @return the number of mutations actually handed to the preferences node
+     */
+    @Override
+    public int apply(MetricWriteBatch batch) {
+        Set<String> existing = keySet();
+        int applied = 0;
+
+        for (String key : batch.removalKeys()) {
+            if (existing.contains(key)) {
+                prefs.remove(key);
+                applied++;
+            }
+        }
+
+        for (Map.Entry<String, Long> entry : batch.longEntries().entrySet()) {
+            String key = entry.getKey();
+            long value = entry.getValue().longValue();
+            if (existing.contains(key) && prefs.getLong(key, 0L) == value) {
+                continue;
+            }
+            prefs.putLong(key, value);
+            applied++;
+        }
+
+        for (Map.Entry<String, Double> entry : batch.doubleEntries().entrySet()) {
+            String key = entry.getKey();
+            double value = entry.getValue().doubleValue();
+            if (existing.contains(key) && prefs.getDouble(key, 0.0) == value) {
+                continue;
+            }
+            prefs.putDouble(key, value);
+            applied++;
+        }
+
+        for (Map.Entry<String, String> entry : batch.stringEntries().entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+            String current = prefs.get(key, null);
+            if (existing.contains(key) && current != null && current.equals(value)) {
+                continue;
+            }
+            prefs.put(key, value);
+            applied++;
+        }
+
+        logger.debug("Applied {} of {} metric mutations ({} keys persisted)",
+                applied, batch.size(), existing.size());
+        return applied;
     }
 }
