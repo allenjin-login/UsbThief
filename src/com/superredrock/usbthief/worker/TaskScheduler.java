@@ -391,6 +391,7 @@ public ThreadPoolExecutor getPool() {
      *
      * @return {@code true} when the pool drained within the timeout
      */
+    @SuppressWarnings("BusyWait") // bounded 50ms poll during shutdown grace period
     private boolean awaitInFlightTasks(long timeoutMillis) {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
         while (true) {
@@ -439,6 +440,7 @@ public ThreadPoolExecutor getPool() {
                 int dropped = pool.shutdownNow().size();
                 logger.warn("{} pool did not terminate within {} ms, forcing shutdown ({} task(s) dropped)",
                         getServiceName(), POOL_TERMINATION_TIMEOUT_MILLIS, dropped);
+                // noinspection ResultOfMethodCallIgnored - best-effort grace wait before returning
                 pool.awaitTermination(POOL_FORCE_TERMINATION_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
             }
         } catch (InterruptedException e) {

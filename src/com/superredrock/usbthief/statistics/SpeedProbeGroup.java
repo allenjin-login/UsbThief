@@ -117,6 +117,7 @@ public final class SpeedProbeGroup implements Closeable {
      * <p>This method is lazy - it only runs when explicitly called
      * (typically within getTotalSpeed()).</p>
      */
+    @SuppressWarnings("SuspiciousMethodCalls") // queue holds the very weak-refs drained from refQueue
     private void cleanup() {
         // Remove garbage-collected probes via reference queue
         java.lang.ref.Reference<? extends SpeedProbe> ref;
@@ -154,6 +155,7 @@ public final class SpeedProbeGroup implements Closeable {
      *
      * @return total bytes
      */
+    @SuppressWarnings("SuspiciousMethodCalls") // queue holds the very weak-refs drained from refQueue
     public long getTotalBytes() {
         // O(1)-ish: drain the reference queue (bounded by the number of collected probes) and read
         // the running total. Closed probes have already subtracted themselves in close().

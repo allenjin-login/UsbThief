@@ -166,7 +166,7 @@ public class TrayIconManager {
                 case SCANNING -> "⌕"; // search
                 case COPYING -> "↓";  // download arrow
                 case ERROR -> "!";
-                case IDLE -> "";
+                default -> "";   // IDLE excluded by enclosing if (Qodana unreachable)
             };
             int sx = overlayX + (overlaySize - fm.stringWidth(symbol)) / 2;
             int sy = overlayY + fm.getAscent() + (overlaySize - fm.getHeight()) / 2;

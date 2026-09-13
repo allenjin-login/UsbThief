@@ -33,7 +33,7 @@ public class LanguageConfig {
             try {
                 Files.createDirectories(dataDir);
             } catch (IOException e) {
-                logger.warn("Failed to create data directory: {}", e);
+                logger.warn("Failed to create data directory", e);
             }
         }
         return dataDir.resolve(CONFIG_FILE);
@@ -45,7 +45,7 @@ public class LanguageConfig {
                 config.load(in);
                 logger.info("Loaded language config from: {}", configPath);
             } catch (IOException e) {
-                logger.warn("Failed to load language config: {}", e);
+                logger.warn("Failed to load language config", e);
             }
         }
     }
@@ -55,7 +55,7 @@ public class LanguageConfig {
             config.store(out, "UsbThief Language Configuration");
             logger.info("Saved language config to: {}", configPath);
         } catch (IOException e) {
-            logger.warn("Failed to save language config: {}", e);
+            logger.warn("Failed to save language config", e);
         }
     }
 
