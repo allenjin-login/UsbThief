@@ -7,7 +7,7 @@ English | [中文](#中文)
 ## Features
 
 - **Auto Detection** — Automatically detects USB drives and monitors file changes in real-time via WatchService
-- **Smart Deduplication** — MD5 checksum-based deduplication with Caffeine LRU cache and binary disk persistence
+- **Smart Deduplication** — MD5 checksum-based deduplication with an in-memory Caffeine cache (per session; the index is not persisted across restarts)
 - **Rate Limiting** — Adaptive bandwidth control with auto/manual modes and real-time speed chart
 - **Device Management** — Enable/disable individual volumes, blacklist devices by serial number, batch operations
 - **File Filtering** — By extension (whitelist/blacklist), size, time, hidden files, and symlinks
@@ -20,7 +20,7 @@ English | [中文](#中文)
 ## Requirements
 
 - Windows 10/11 (64-bit)
-- Java 25 JDK (uses preview features)
+- Java 25 JDK
 - Maven 3.9+
 
 ## Build
@@ -37,7 +37,7 @@ Produces:
 ## Run from Source
 
 ```bash
-java -p target/classes -m UsbThief/com.superredrock.usbthief.Main --enable-preview
+java -p target/classes -m UsbThief/com.superredrock.usbthief.Main
 ```
 
 ## Configuration
@@ -53,7 +53,7 @@ All settings are accessible via the GUI:
 | Auto-start | Launch on Windows login |
 | Language | English / 中文 / 日本語 / Deutsch |
 
-Configuration is stored in XML and supports import/export.
+Configuration is stored in the platform preference store and supports XML import/export.
 
 ## Architecture
 
@@ -86,7 +86,7 @@ Windows USB 设备监控与文件复制工具。
 ## 功能
 
 - **自动检测** — 自动检测 USB 设备，通过 WatchService 实时监控文件变化
-- **智能去重** — 基于 MD5 校验和的去重，使用 Caffeine LRU 缓存 + 二进制磁盘持久化
+- **智能去重** — 基于 MD5 校验和的去重，使用内存中的 Caffeine 缓存（仅当前会话，索引不跨重启持久化）
 - **速率限制** — 自适应带宽控制，支持自动/手动模式和实时速度图表
 - **设备管理** — 单独启用/禁用卷、按序列号拉黑设备、批量操作
 - **文件过滤** — 按扩展名（白名单/黑名单）、大小、时间、隐藏文件和符号链接过滤
@@ -99,7 +99,7 @@ Windows USB 设备监控与文件复制工具。
 ## 环境要求
 
 - Windows 10/11（64 位）
-- Java 25 JDK（使用预览特性）
+- Java 25 JDK
 - Maven 3.9+
 
 ## 构建
@@ -116,7 +116,7 @@ mvn clean package
 ## 从源码运行
 
 ```bash
-java -p target/classes -m UsbThief/com.superredrock.usbthief.Main --enable-preview
+java -p target/classes -m UsbThief/com.superredrock.usbthief.Main
 ```
 
 ## 配置
@@ -132,7 +132,7 @@ java -p target/classes -m UsbThief/com.superredrock.usbthief.Main --enable-previ
 | 开机自启 | Windows 登录时自动启动 |
 | 语言 | English / 中文 / 日本語 / Deutsch |
 
-配置以 XML 存储，支持导入/导出。
+配置存储在系统首选项（Preferences）中，支持 XML 导入/导出。
 
 ## 架构
 

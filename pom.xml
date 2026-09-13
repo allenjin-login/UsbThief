@@ -186,7 +186,14 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.2</version>
                 <configuration>
-                    <argLine>--enable-preview -Dnet.bytebuddy.experimental=true</argLine>
+                    <!-- Preview features are not enabled: the source only uses features final in JDK 25. -->
+                    <argLine>-Dnet.bytebuddy.experimental=true</argLine>
+                    <systemPropertyVariables>
+                        <!-- Redirect java.util.prefs to a throwaway tree under target/ so tests
+                             never read or write the developer's real preferences store
+                             (registry HKCU on Windows, ~/.java/.userPrefs on Linux). -->
+                        <java.util.prefs.userRoot>${project.build.directory}/test-user-prefs</java.util.prefs.userRoot>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
             <!-- Jlink: Create custom runtime image using exec-maven-plugin -->
@@ -231,7 +238,7 @@
                             </arguments>
                         </configuration>
                     </execution>
-                    <!-- Patch launcher scripts to add enable-preview VM option -->
+                    <!-- Patch launcher scripts to add native-access VM options -->
                     <execution>
                         <id>patch-launcher-bat</id>
                         <phase>package</phase>
@@ -243,7 +250,7 @@
                             <workingDirectory>${project.build.directory}/${jlink.image.name}/bin</workingDirectory>
                             <arguments>
                                 <argument>-Command</argument>
-                                <argument>(Get-Content runtime.bat) -replace 'set JLINK_VM_OPTIONS=', 'set JLINK_VM_OPTIONS=--enable-preview --enable-native-access=com.sun.jna,com.formdev.flatlaf -Dsun.java2d.d3d=false' | Set-Content runtime.bat</argument>
+                                <argument>(Get-Content runtime.bat) -replace 'set JLINK_VM_OPTIONS=', 'set JLINK_VM_OPTIONS=--enable-native-access=com.sun.jna,com.formdev.flatlaf -Dsun.java2d.d3d=false' | Set-Content runtime.bat</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -259,7 +266,7 @@
                             <workingDirectory>${project.build.directory}/${jlink.image.name}/bin</workingDirectory>
                             <arguments>
                                 <argument>-Command</argument>
-                                <argument>(Get-Content runtime) -replace 'JLINK_VM_OPTIONS=', 'JLINK_VM_OPTIONS=--enable-preview --enable-native-access=com.sun.jna,com.formdev.flatlaf -Dsun.java2d.d3d=false' | Set-Content runtime</argument>
+                                <argument>(Get-Content runtime) -replace 'JLINK_VM_OPTIONS=', 'JLINK_VM_OPTIONS=--enable-native-access=com.sun.jna,com.formdev.flatlaf -Dsun.java2d.d3d=false' | Set-Content runtime</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -291,7 +298,6 @@
                                 <path>${jlink.image.name}</path>
                                 <minVersion>25</minVersion>
                                 <opts>
-                                    <opt>--enable-preview</opt>
                                     <opt>--enable-native-access=com.sun.jna,com.formdev.flatlaf</opt>
                                     <opt>-Dsun.java2d.d3d=false</opt>
                                     <opt>-Dlaunch4j.exefile="%EXEFILE%"</opt>

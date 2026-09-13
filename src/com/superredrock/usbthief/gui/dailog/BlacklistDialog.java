@@ -59,7 +59,7 @@ public class BlacklistDialog extends JDialog {
         // Create list with scroll pane
         blacklistList = new JList<>(listModel);
         blacklistList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        blacklistList.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        blacklistList.setFont(ThemeManager.FONT_MONO);
         blacklistList.setToolTipText(i18n.getMessage("blacklist.tooltip"));
         blacklistList.addListSelectionListener(e -> refreshState());
 

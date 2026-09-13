@@ -10,7 +10,11 @@ import com.superredrock.usbthief.core.config.ConfigEntry;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.configs.PathConfig;
 import com.superredrock.usbthief.core.config.configs.WindowConfig;
+import com.superredrock.usbthief.core.event.EventBus;
+import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
 import com.superredrock.usbthief.gui.dailog.*;
+import com.superredrock.usbthief.gui.components.TaskActivityPanel;
+import com.superredrock.usbthief.gui.theme.ThemeChangeListener;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.statistics.Statistics;
 import com.superredrock.usbthief.statistics.collector.SpeedCollector;
@@ -28,7 +32,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import javax.imageio.ImageIO;
 
-public class MainFrame extends JFrame implements I18nManager.LocaleChangeListener, I18nManager.LanguageListChangeListener {
+public class MainFrame extends JFrame implements I18nManager.LocaleChangeListener, I18nManager.LanguageListChangeListener, ThemeChangeListener {
 
     private static final Logger logger = LogManager.getLogger(MainFrame.class);
     private final I18nManager i18n = I18nManager.getInstance();
@@ -36,8 +40,10 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
     private final JMenuBar menuBar;
     private final JLabel statusBar;
     private final Preferences prefs = Preferences.userNodeForPackage(MainFrame.class);
+    private final java.util.List<JPanel> statCards = new java.util.ArrayList<>();
 
     private final SpeedChartPanel speedChartPanel;
+    private final TaskActivityPanel taskActivityPanel;
     private final VolumeListPanel volumeListPanel;
     private final StatisticsPanel statisticsPanel;
     private LogWindow logWindow;
@@ -56,6 +62,10 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
     private boolean windowVisible = true;
     private SystemTrayIcon trayIcon;
 
+    /** Copy failures observed during this session — surfaced non-intrusively in the status bar. */
+    private final java.util.concurrent.atomic.AtomicInteger sessionCopyFailures =
+            new java.util.concurrent.atomic.AtomicInteger();
+
     public MainFrame() {
         setTitle(i18n.getMessage("main.title") + " v" + Version.getVersion());
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
@@ -73,10 +83,12 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         // Register locale change listener
         i18n.addLocaleChangeListener(this);
         i18n.addLanguageListChangeListener(this);
+        ThemeManager.getInstance().addThemeChangeListener(this);
 
         createMenus();
 
         speedChartPanel = new SpeedChartPanel();
+        taskActivityPanel = new TaskActivityPanel();
         volumeListPanel = new VolumeListPanel();
         volumeListPanel.setParentFrame(this);
         volumeListPanel.setMainFrame(this);
@@ -88,7 +100,7 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
             BorderFactory.createMatteBorder(1, 0, 0, 0, ThemeManager.BORDER_COLOR),
             new EmptyBorder(4, 8, 4, 8)
         ));
-        statusBar.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
+        statusBar.setFont(ThemeManager.FONT_SMALL);
         statusBar.setForeground(ThemeManager.TEXT_SECONDARY);
 
         // Layout
@@ -112,6 +124,15 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         // Initialize system tray icon
         initializeSystemTray();
 
+        // "Only interrupt on failure": count copy failures so the status bar can
+        // mention them instead of failing silently. Done on the event thread; the
+        // counter is atomic because the status bar is refreshed from the EDT timer.
+        EventBus.getInstance().register(CopyCompletedEvent.class, event -> {
+            if (event.isFailure()) {
+                sessionCopyFailures.incrementAndGet();
+            }
+        });
+
         // Remember window size across restarts (UI-19)
         addComponentListener(new java.awt.event.ComponentAdapter() {
             @Override
@@ -130,16 +151,15 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
 
         // Speed chart at top with titled border
         speedChartPanel.setBorder(BorderFactory.createTitledBorder(
-            BorderFactory.createLineBorder(Color.BLACK, 1),
             i18n.getMessage("chart.speed.title")
         ));
         speedChartPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         centerPanel.add(speedChartPanel);
+        centerPanel.add(Box.createVerticalStrut(8));
 
         // Compact stats bar with titled border
         JPanel statsBar = createCompactStatsBar();
         statsBar.setBorder(BorderFactory.createTitledBorder(
-            BorderFactory.createLineBorder(Color.BLACK, 1),
             i18n.getMessage("chart.stats.title")
         ));
         statsBar.setMinimumSize(new Dimension(200, 50));
@@ -147,12 +167,18 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         statsBar.setAlignmentX(Component.LEFT_ALIGNMENT);
         centerPanel.add(statsBar);
 
+        // "Multi-thread driver's license" - live task strip (batch 1)
+        taskActivityPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        taskActivityPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
+        centerPanel.add(Box.createVerticalStrut(6));
+        centerPanel.add(taskActivityPanel);
+        centerPanel.add(Box.createVerticalStrut(8));
+
         // Device list at bottom (scrollable) with titled border
         JScrollPane deviceScroll = new JScrollPane(volumeListPanel);
         deviceScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         deviceScroll.setMinimumSize(new Dimension(200, 60));
         deviceScroll.setBorder(BorderFactory.createTitledBorder(
-            BorderFactory.createLineBorder(Color.BLACK, 1),
             i18n.getMessage("device.list.border")
         ));
         deviceScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -162,7 +188,7 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
     }
 
     private JPanel createCompactStatsBar() {
-        JPanel panel = new JPanel(new GridLayout(1, 8, 4, 0));
+        JPanel panel = new JPanel(new GridLayout(1, 4, 8, 0));
         panel.setOpaque(false);
 
         totalLabel = new JLabel("0 B", SwingConstants.CENTER);
@@ -172,8 +198,8 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         readSpeedLabel = new JLabel("0.0", SwingConstants.CENTER);
         writeSpeedLabel = new JLabel("0.0", SwingConstants.CENTER);
 
-        Font statFont = new Font(Font.SANS_SERIF, Font.BOLD, 11);
-        Font labelFont = new Font(Font.SANS_SERIF, Font.PLAIN, 8);
+        Font statFont = ThemeManager.FONT_BODY;
+        Font labelFont = ThemeManager.FONT_CAPTION;
 
         for (var entry : new Object[][]{
                 {i18n.getMessage("chart.stats.total"), totalLabel},
@@ -191,7 +217,7 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
 
     private JSpinner createRateLimitSpinner(ConfigEntry<Long> configEntry) {
         JSpinner spinner = new JSpinner(new SpinnerNumberModel(0L, 0L, Long.MAX_VALUE, 1024 * 1024L));
-        spinner.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+        spinner.setFont(ThemeManager.FONT_SMALL);
         spinner.setOpaque(false);
         long currentValue = ConfigManager.getInstance().get(configEntry);
         spinner.setValue(currentValue);
@@ -202,10 +228,10 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         return spinner;
     }
 
-    private static JPanel getSpinnerCard(String labelText, JSpinner spinner, Font labelFont) {
+    private JPanel getSpinnerCard(String labelText, JSpinner spinner, Font labelFont) {
         JPanel card = new JPanel(new BorderLayout(2, 0));
-        card.setOpaque(false);
-        card.setBorder(BorderFactory.createLineBorder(Color.BLACK, 1, true));
+        applyCardStyle(card);
+        statCards.add(card);
 
         JLabel lbl = new JLabel(labelText, SwingConstants.CENTER);
         lbl.setFont(labelFont);
@@ -225,10 +251,10 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         return card;
     }
 
-    private static JPanel getCard(Object[] entry, Font labelFont, Font statFont) {
+    private JPanel getCard(Object[] entry, Font labelFont, Font statFont) {
         JPanel card = new JPanel(new BorderLayout(2, 0));
-        card.setOpaque(false);
-        card.setBorder(BorderFactory.createLineBorder(Color.BLACK, 1, true));
+        applyCardStyle(card);
+        statCards.add(card);
         JLabel lbl = new JLabel((String) entry[0], SwingConstants.CENTER);
         lbl.setFont(labelFont);
         lbl.setForeground(ThemeManager.TEXT_MUTED);
@@ -237,6 +263,27 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         card.add(lbl, BorderLayout.NORTH);
         card.add(val, BorderLayout.CENTER);
         return card;
+    }
+
+    /** Design System v2: shared card look + theme-aware recolor. */
+    private void applyCardStyle(JPanel card) {
+        card.setOpaque(true);
+        card.setBackground(ThemeManager.getCardBackground());
+        if (ThemeManager.getInstance().isDarkTheme()) {
+            card.setBorder(new javax.swing.border.EmptyBorder(3, 6, 3, 6));  // dark: clean filled card
+        } else {
+            card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ThemeManager.BORDER_COLOR, 1, true),
+                new javax.swing.border.EmptyBorder(2, 6, 2, 6)));
+        }
+    }
+
+    @Override
+    public void onThemeChanged(com.superredrock.usbthief.gui.theme.AppTheme newTheme) {
+        for (JPanel card : statCards) {
+            applyCardStyle(card);
+        }
+        repaint();
     }
 
     private void updateCompactStats() {
@@ -558,6 +605,12 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         String pathInfo = i18n.getMessage("status.path.format", workPath.isEmpty() ? i18n.getMessage("status.currentDir") : workPath);
 
         String message = i18n.getMessage("status.combined", queueInfo, poolQueueInfo, speedInfo, pathInfo);
+
+        int failures = sessionCopyFailures.get();
+        if (failures > 0) {
+            message = i18n.getMessage("status.combinedWithFailures", message,
+                    i18n.getMessage("status.failures.format", failures));
+        }
         updateStatusBar(message);
     }
 
@@ -579,6 +632,8 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         try {
             speedChartPanel.stop();
             logger.info("SpeedChartPanel stopped");
+
+            taskActivityPanel.stop();
 
             volumeListPanel.stop();
             logger.info("VolumeListPanel stopped");

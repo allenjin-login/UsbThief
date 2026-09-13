@@ -304,7 +304,7 @@ public final class EventBus {
                 eventClass, listener, registrationSequence.incrementAndGet());
 
         if (addAsyncListener(eventClass, wrapper)) {
-            logger.debug("Registered async listener for event type: {}", eventClass.getName());
+            logger.debug("Registered fire-and-forget async listener for event type: {}", eventClass.getName());
         }
     }
 

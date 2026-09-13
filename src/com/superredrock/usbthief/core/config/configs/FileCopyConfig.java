@@ -17,8 +17,15 @@ public final class FileCopyConfig {
     public static final ConfigEntry<Integer> BUFFER_SIZE =
             intEntry("bufferSize", "Buffer size for file copying (bytes)", 1024 * 1024, CATEGORY);
 
+    /**
+     * Size of the read buffer used while hashing a file.
+     *
+     * <p>PF-19: raised from 1 KB to 64 KB. {@code VerifyTask} is currently not wired into the copy
+     * path, so this has no runtime effect today; if checksum verification is ever connected, 1 KB
+     * would cost 1024 {@code read} syscalls per MB (≈100 million for a 100 GB copy).</p>
+     */
     public static final ConfigEntry<Integer> HASH_BUFFER_SIZE =
-            intEntry("hashBufferSize", "Buffer size for hash calculation (bytes)", 1024, CATEGORY);
+            intEntry("hashBufferSize", "Buffer size for hash calculation (bytes)", 64 * 1024, CATEGORY);
 
     public static final ConfigEntry<Integer> MAX_FILE_SIZE =
             intEntry("maxFileSize", "Maximum file size to copy (bytes)", 1000 * 1024 * 1024, CATEGORY);

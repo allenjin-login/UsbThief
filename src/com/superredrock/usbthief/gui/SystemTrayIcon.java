@@ -1,20 +1,31 @@
 package com.superredrock.usbthief.gui;
 
+import com.superredrock.usbthief.core.AppPaths;
+import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.SizeFormatter;
+import com.superredrock.usbthief.core.Volume;
+import com.superredrock.usbthief.core.config.ConfigManager;
+import com.superredrock.usbthief.core.config.configs.PathConfig;
 import com.superredrock.usbthief.statistics.Statistics;
+import com.superredrock.usbthief.worker.SnifferLifecycleManager;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
  * System tray integration for UsbThief.
- * Provides tray icon with popup menu for window control.
- * Enhanced with dynamic icon states via TrayIconManager.
- * All text is hardcoded in English - not affected by i18n.
+ * Provides the tray icon with a popup menu for window control, the copy counters and the
+ * batch① actions (open target folder, rescan).
+ *
+ * <p>The icon image and the hover tooltip are owned by {@link TrayIconManager}; this class owns
+ * the menu. All labels come from the active resource bundle.</p>
  */
 public class SystemTrayIcon {
     private static final Logger logger = LogManager.getLogger(SystemTrayIcon.class);
@@ -22,14 +33,20 @@ public class SystemTrayIcon {
     private final MainFrame mainFrame;
     private TrayIcon trayIcon;
     private MenuItem showHideItem;
-    private MenuItem scanItem;
     private MenuItem speedItem;
     private MenuItem copiedItem;
+    private MenuItem openFolderItem;
+    private MenuItem rescanItem;
+    private MenuItem exitItem;
     private TrayIconManager trayIconManager;
     private Timer stateTimer;
 
     public SystemTrayIcon(MainFrame mainFrame) {
         this.mainFrame = mainFrame;
+    }
+
+    private static String i18n(String key, Object... args) {
+        return I18nManager.getInstance().getMessage(key, args);
     }
 
     /**
@@ -52,29 +69,33 @@ public class SystemTrayIcon {
 
         PopupMenu popup = new PopupMenu();
 
-        showHideItem = new MenuItem("Show Window");
+        showHideItem = new MenuItem(i18n("tray.menu.show"));
         showHideItem.addActionListener(this::toggleWindowVisibility);
         popup.add(showHideItem);
 
         popup.addSeparator();
 
-        speedItem = new MenuItem("Speed: 0.0 MB/s");
+        speedItem = new MenuItem(i18n("tray.menu.speed", "0.0"));
         speedItem.setEnabled(false);
         popup.add(speedItem);
 
-        copiedItem = new MenuItem("Copied: 0 B (0 files)");
+        copiedItem = new MenuItem(i18n("tray.menu.copied", "0 B", "0"));
         copiedItem.setEnabled(false);
         popup.add(copiedItem);
 
         popup.addSeparator();
 
-        scanItem = new MenuItem("Pause Scanning");
-        scanItem.addActionListener(this::toggleScanning);
-        popup.add(scanItem);
+        openFolderItem = new MenuItem(i18n("tray.menu.openFolder"));
+        openFolderItem.addActionListener(this::openTargetFolder);
+        popup.add(openFolderItem);
+
+        rescanItem = new MenuItem(i18n("tray.menu.rescan"));
+        rescanItem.addActionListener(this::rescanNow);
+        popup.add(rescanItem);
 
         popup.addSeparator();
 
-        MenuItem exitItem = new MenuItem("Exit");
+        exitItem = new MenuItem(i18n("tray.menu.exit"));
         exitItem.addActionListener(this::exitApplication);
         popup.add(exitItem);
 
@@ -85,7 +106,7 @@ public class SystemTrayIcon {
         }
 
         Image scaledImage = trayImage.getScaledInstance(iconSize, iconSize, Image.SCALE_DEFAULT);
-        trayIcon = new TrayIcon(scaledImage, "UsbThief - USB Device Monitor", popup);
+        trayIcon = new TrayIcon(scaledImage, i18n("tray.tooltip.idle"), popup);
 
         trayIcon.setImageAutoSize(true);
 
@@ -118,11 +139,11 @@ public class SystemTrayIcon {
 
     private void updateDynamicMenuItems() {
         double speed = Statistics.getInstance().getSpeedCollector().getProbeGroup().getTotalSpeed();
-        speedItem.setLabel(String.format("Speed: %.1f MB/s", speed));
+        speedItem.setLabel(i18n("tray.menu.speed", TrayIconManager.formatSpeed(speed)));
 
         long bytes = Statistics.getInstance().getSpeedCollector().getProbeGroup().getTotalBytes();
         long files = Statistics.getInstance().getTotalFilesCopied();
-        copiedItem.setLabel(String.format("Copied: %s (%d files)", SizeFormatter.format(bytes), files));
+        copiedItem.setLabel(i18n("tray.menu.copied", SizeFormatter.format(bytes), Long.toString(files)));
     }
 
     /**
@@ -156,17 +177,41 @@ public class SystemTrayIcon {
     }
 
     /**
-     * Toggle device scanning (Start/Stop).
+     * Open the configured working directory in the platform file browser.
      */
-    private void toggleScanning(ActionEvent e) {
-        MenuItem item = (MenuItem) e.getSource();
-        if (item.getLabel().equals("Pause Scanning")) {
-            item.setLabel("Start Scanning");
-            logger.info("Scanning paused (menu toggle)");
-        } else {
-            item.setLabel("Pause Scanning");
-            logger.info("Scanning resumed (menu toggle)");
+    private void openTargetFolder(ActionEvent e) {
+        Path workPath = AppPaths.resolve(ConfigManager.getInstance().get(PathConfig.WORK_PATH));
+        try {
+            Files.createDirectories(workPath);
+            if (!Desktop.isDesktopSupported()
+                    || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                logger.warn("Desktop OPEN action is not supported on this platform: {}", workPath);
+                return;
+            }
+            Desktop.getDesktop().open(workPath.toFile());
+            logger.info("Opened target folder: {}", workPath);
+        } catch (IOException | RuntimeException ex) {
+            logger.error("Failed to open target folder {}: {}", workPath, ex.toString());
         }
+    }
+
+    /**
+     * Restart the scanner for every volume that currently has a live scanner.
+     *
+     * <p>There is intentionally no "pause scanning" entry: the previous menu item only flipped its
+     * own label and never touched the sniffers, so it was removed rather than kept as a lie. A real
+     * pause needs per-volume resume semantics that the sniffer lifecycle does not expose yet.</p>
+     */
+    private void rescanNow(ActionEvent e) {
+        SnifferLifecycleManager sniffers = SnifferLifecycleManager.getInstance();
+        int restarted = 0;
+        for (Volume volume : DeviceManager.getInstance().getAllVolumes()) {
+            if (sniffers.isActive(volume.getSerialNumber())) {
+                sniffers.restart(volume);
+                restarted++;
+            }
+        }
+        logger.info("Manual rescan requested from tray: {} volume(s) restarted", restarted);
     }
 
     private void exitApplication(ActionEvent e) {
@@ -174,8 +219,8 @@ public class SystemTrayIcon {
 
         int confirm = JOptionPane.showConfirmDialog(
             mainFrame,
-            "Are you sure you want to exit UsbThief?",
-            "Confirm Exit",
+            i18n("tray.exit.confirm"),
+            i18n("tray.exit.confirm.title"),
             JOptionPane.YES_NO_OPTION,
             JOptionPane.QUESTION_MESSAGE
         );
@@ -187,7 +232,7 @@ public class SystemTrayIcon {
 
     private void updateMenuItems() {
         if (trayIcon != null && trayIcon.getPopupMenu() != null) {
-            showHideItem.setLabel(mainFrame.isVisible() ? "Hide Window" : "Show Window");
+            showHideItem.setLabel(i18n(mainFrame.isVisible() ? "tray.menu.hide" : "tray.menu.show"));
         }
     }
 
@@ -195,13 +240,18 @@ public class SystemTrayIcon {
         updateMenuItems();
     }
 
+    /**
+     * Re-read every menu label after a language change. The tooltip is owned by
+     * {@link TrayIconManager} and refreshes itself on the next tick.
+     */
     public void refreshLanguage() {
         if (trayIcon == null) return;
 
-        trayIcon.setToolTip("UsbThief - USB Device Monitor");
-
-        showHideItem.setLabel(mainFrame.isVisible() ? "Hide Window" : "Show Window");
-        scanItem.setLabel("Pause Scanning");
+        updateMenuItems();
+        openFolderItem.setLabel(i18n("tray.menu.openFolder"));
+        rescanItem.setLabel(i18n("tray.menu.rescan"));
+        exitItem.setLabel(i18n("tray.menu.exit"));
+        updateDynamicMenuItems();
     }
 
     /**

@@ -1,6 +1,8 @@
 package com.superredrock.usbthief.gui;
 
+import com.superredrock.usbthief.core.AppPaths;
 import com.superredrock.usbthief.core.config.ConfigManager;
+import com.superredrock.usbthief.core.config.configs.PathConfig;
 import com.superredrock.usbthief.core.Device;
 import com.superredrock.usbthief.core.Volume;
 import com.superredrock.usbthief.core.DeviceManager;
@@ -11,6 +13,7 @@ import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeStateChangedEvent;
 import com.superredrock.usbthief.gui.dailog.BlacklistDialog;
 import com.superredrock.usbthief.gui.components.EmptyStatePanel;
+import com.superredrock.usbthief.gui.components.UsbIcon;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 
 import java.util.Locale;
@@ -62,9 +65,10 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
         createMoreActionsMenu();
 
         moreButton = new JButton("⋮");
-        moreButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
+        moreButton.setFont(ThemeManager.FONT_BODY);
         moreButton.setToolTipText(i18n.getMessage("device.menu.more"));
         moreButton.setFocusPainted(false);
+        moreButton.putClientProperty("JButton.buttonType", "toolBarButton");
         moreButton.setBorder(BorderFactory.createEmptyBorder(5, 12, 5, 12));
         moreButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
         moreButton.addActionListener(e -> moreActionsMenu.show(moreButton, 0, moreButton.getHeight()));
@@ -179,11 +183,24 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
         emptyStatePanel = new EmptyStatePanel(
             "\uD83D\uDD0C",
             i18n.getMessage("empty.devices.title"),
-            i18n.getMessage("empty.devices.description"),
+            emptyStateDescription(),
             i18n.getMessage("empty.devices.action"),
             () -> BlacklistDialog.showBlacklistDialog(parentFrame)
         );
+        emptyStatePanel.setIconGraphic(new UsbIcon(52, ThemeManager.TEXT_MUTED));
         emptyStatePanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+    }
+
+    /**
+     * Empty-state copy that promises what will happen: the resolved backup
+     * location is injected into the {@code {0}} placeholder of the i18n string.
+     */
+    private String emptyStateDescription() {
+        String workPath = AppPaths.resolve(
+                ConfigManager.getInstance().get(PathConfig.WORK_PATH)).toString();
+        // MessageFormat treats single quotes as quoting markers; escape them so
+        // paths like /home/o'brien stay literal.
+        return i18n.getMessage("empty.devices.description", workPath.replace("'", "''"));
     }
 
     private void updateEmptyState() {
@@ -228,7 +245,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
 
             if (emptyStatePanel != null) {
                 emptyStatePanel.setTitle(i18n.getMessage("empty.devices.title"));
-                emptyStatePanel.setDescription(i18n.getMessage("empty.devices.description"));
+                emptyStatePanel.setDescription(emptyStateDescription());
                 emptyStatePanel.setActionText(i18n.getMessage("empty.devices.action"));
             }
 
@@ -467,7 +484,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
 
             // Toggle arrow
             toggleButton = new JButton("▼");
-            toggleButton.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
+            toggleButton.setFont(ThemeManager.FONT_CAPTION);
             toggleButton.setFocusPainted(false);
             toggleButton.setBorderPainted(false);
             toggleButton.setContentAreaFilled(false);
@@ -476,7 +493,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
 
             // Info label
             infoLabel = new JLabel(buildInfoText());
-            infoLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
+            infoLabel.setFont(ThemeManager.FONT_SMALL);
             infoLabel.setForeground(ThemeManager.TEXT_SECONDARY);
 
             // More button + menu
@@ -493,9 +510,10 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
             groupMenu.add(batchBlacklistItem);
 
             moreButton = new JButton("⋮");
-            moreButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+            moreButton.setFont(ThemeManager.FONT_BODY);
             moreButton.setToolTipText(i18n.getMessage("device.group.button.more"));
             moreButton.setFocusPainted(false);
+            moreButton.putClientProperty("JButton.buttonType", "toolBarButton");
             moreButton.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
             moreButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
             moreButton.addActionListener(e -> groupMenu.show(moreButton, 0, moreButton.getHeight()));
@@ -658,16 +676,16 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
             infoPanel.setOpaque(false);
 
             pathLabel = new JLabel(volume.getRootPath().toString());
-            pathLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+            pathLabel.setFont(ThemeManager.FONT_SMALL);
 
             storageLabel = new JLabel(getStorageInfoCompact());
-            storageLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
+            storageLabel.setFont(ThemeManager.FONT_CAPTION);
             storageLabel.setForeground(ThemeManager.TEXT_SECONDARY);
 
             stateBadge = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
             stateBadge.setOpaque(false);
             stateLabel = new JLabel(getLocalizedState(volume.getState()));
-            stateLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 10));
+            stateLabel.setFont(ThemeManager.FONT_CAPTION);
             stateBadge.add(stateLabel);
 
             infoPanel.add(pathLabel);
@@ -707,9 +725,10 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
             }
 
             moreButton = new JButton("⋮");
-            moreButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+            moreButton.setFont(ThemeManager.FONT_BODY);
             moreButton.setToolTipText(i18n.getMessage("device.card.button.more"));
             moreButton.setFocusPainted(false);
+            moreButton.putClientProperty("JButton.buttonType", "toolBarButton");
             moreButton.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
             moreButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
             moreButton.addActionListener(e -> cardMenu.show(moreButton, 0, moreButton.getHeight()));
