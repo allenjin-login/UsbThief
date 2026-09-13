@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import org.apache.logging.log4j.LogManager;
@@ -35,6 +36,9 @@ public class Sniffer extends Thread implements Closeable {
     private final FileFilter systemDirFilter = new SystemDirectoryFilter();
     private final AtomicInteger changeCount = new AtomicInteger(0);
     private final ConcurrentHashMap<Path, WatchKey> watchKeys = new ConcurrentHashMap<>();
+    /** Safety cap for per-directory watch registrations (Windows handle cost). */
+    private static final int MAX_WATCH_DIRECTORIES = 20000;
+    private final AtomicBoolean watchLimitWarned = new AtomicBoolean(false);
     private volatile boolean running = true;
     private volatile SnifferPhase phase = SnifferPhase.INITIAL_SCAN;
     private volatile Instant lastResetTime = Instant.now();
@@ -74,6 +78,7 @@ public class Sniffer extends Thread implements Closeable {
 
         if (!ConfigManager.getInstance().get(FileWatchConfig.WATCH_ENABLED)) {
             logger.info("File monitoring disabled, scanner finished");
+            closeWatchService();
             completionFuture.complete(null);
             return;
         }
@@ -82,6 +87,7 @@ public class Sniffer extends Thread implements Closeable {
 
         if (monitor == null) {
             logger.warn("WatchService not available, skipping file monitoring");
+            completionFuture.complete(null);
         } else {
             startMonitoring();
         }
@@ -89,6 +95,17 @@ public class Sniffer extends Thread implements Closeable {
 
     private void performInitialScan() {
         logger.info("Scanning Disk {}", root);
+        // The initial scan must leave the monitor with live watch keys, otherwise
+        // files added after the scan completes are never observed. Only needed when
+        // real-time monitoring is enabled (otherwise the rescan cycle covers new files).
+        boolean watchEnabled = ConfigManager.getInstance().get(FileWatchConfig.WATCH_ENABLED);
+        if (watchEnabled) {
+            try {
+                registerDirectoryWatch(root);
+            } catch (IOException e) {
+                logger.warn("Failed to register watch for root {}: {}", root, e);
+            }
+        }
         FileFilter fileFilter = new SystemDirectoryFilter().and(new BasicFileFilter(ConfigManager.getInstance()));
         SuffixFilter suffixFilter = new SuffixFilter(ConfigManager.getInstance());
         AtomicInteger fileCount = new AtomicInteger(0);
@@ -99,6 +116,13 @@ public class Sniffer extends Thread implements Closeable {
                         paths.peek(path -> {
                                     if (Files.isDirectory(path)) {
                                         TaskScheduler.getInstance().submit(new CopyTask(path, volume.getSerialNumber()));
+                                        if (watchEnabled) {
+                                            try {
+                                                registerDirectoryWatch(path);
+                                            } catch (IOException e) {
+                                                logger.warn("Failed to register watch for {}: {}", path, e);
+                                            }
+                                        }
                                     };
                                 })
                                 .filter(Files::isRegularFile)
@@ -203,6 +227,17 @@ public class Sniffer extends Thread implements Closeable {
     }
 
     private void startMonitoring() {
+        if (watchKeys.isEmpty()) {
+            // The initial scan registered no directory watches (no eligible directories,
+            // or registrations failed). Finish normally instead of blocking forever on
+            // monitor.take(): the lifecycle manager will schedule a fresh rescan after the cooldown.
+            logger.info("No watch keys registered for {} - monitor loop skipped, awaiting scheduled rescan", root);
+            phase = SnifferPhase.FINISHED;
+            running = false;
+            closeWatchService();
+            completionFuture.complete(null);
+            return;
+        }
         Thread resetThread = getResetThread();
         resetThread.start();
 
@@ -319,6 +354,12 @@ public class Sniffer extends Thread implements Closeable {
 
     private void registerDirectoryWatch(Path dir) throws IOException {
         if (monitor == null || watchKeys.containsKey(dir)) {
+            return;
+        }
+        if (watchKeys.size() >= MAX_WATCH_DIRECTORIES) {
+            if (watchLimitWarned.compareAndSet(false, true)) {
+                logger.warn("Watch directory limit ({}) reached; further directories are not watched", MAX_WATCH_DIRECTORIES);
+            }
             return;
         }
         WatchKey key = dir.register(monitor,
