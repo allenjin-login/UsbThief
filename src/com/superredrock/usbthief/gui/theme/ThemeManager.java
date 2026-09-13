@@ -63,11 +63,11 @@ public class ThemeManager {
     public static final Color CHART_CURVE = new Color(0x89B4FA);               // Blue (write)
     public static final Color CHART_CURVE_READ = new Color(0xA6E3A1);          // Green (read)
     public static final Color CHART_GRID_LIGHT = new Color(0xE2E8F0);          // Grid lines (light theme)
-    public static final Color CHART_GRID_DARK = new Color(0x313244);           // Grid lines (dark theme)
+    public static final Color CHART_GRID_DARK = new Color(0x45475A);           // Grid lines (dark theme, was 0x313244 - too faint, UI-03)
     public static final Color CHART_BG_LIGHT = new Color(0xF8FAFC);            // Chart background (light theme)
     public static final Color CHART_BG_DARK = new Color(0x11111B);             // Chart background (dark theme)
-    public static final Color CHART_TEXT_LIGHT = new Color(0x94A3B8);          // Chart text (light theme)
-    public static final Color CHART_TEXT_DARK = new Color(0x585B70);           // Chart text (dark theme)
+    public static final Color CHART_TEXT_LIGHT = new Color(0x64748B);       // Chart text (light theme, was 0x94A3B8 - low contrast, UI-03)
+    public static final Color CHART_TEXT_DARK = new Color(0xA6ADC8);           // Chart text (dark theme, was 0x585B70 - unreadable, UI-03)
 
     private final Preferences prefs = Preferences.userNodeForPackage(ThemeManager.class);
     private final List<ThemeChangeListener> listeners = new CopyOnWriteArrayList<>();
