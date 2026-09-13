@@ -77,6 +77,7 @@ public class UsbTesting {
             shutdown();
         }, "InputWaiter").start();
 
+        // noinspection BusyWait - single 1s monitor tick, NOT a hot spin
         while (running) {
             try { Thread.sleep(1000); } catch (InterruptedException _) { break; }
         }

@@ -10,6 +10,7 @@ module UsbThief {
     requires com.github.benmanes.caffeine;
     requires org.jspecify;
 
+
     // No exports: UsbThief is an application module, not a library. The previous
     // 19 exports exposed every internal package for no consumer; package access
     // within the module is unaffected. (architecture-audit [11])
