@@ -2,6 +2,8 @@ package com.superredrock.usbthief.statistics.collector;
 
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.nio.file.Files;
 import java.util.Map;
@@ -9,6 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class ExtensionCountCollector implements MetricCollector {
+    private static final Logger logger = LogManager.getLogger(ExtensionCountCollector.class);
     public static final String ID = "extensions.count";
     private static final String KEY_PREFIX = "ext.";
     private final ConcurrentHashMap<String, AtomicLong> counts = new ConcurrentHashMap<>();
@@ -44,7 +47,8 @@ public final class ExtensionCountCollector implements MetricCollector {
 
     @Override
     public void load(MetricStore store) {
-        for (String key : store.keys()) {
+        // Single keys() round trip; the set-based view is shared with the other collectors.
+        for (String key : store.keySet()) {
             if (key.startsWith(KEY_PREFIX)) {
                 String ext = key.substring(KEY_PREFIX.length());
                 long count = store.getLong(key).orElse(0);
@@ -55,7 +59,10 @@ public final class ExtensionCountCollector implements MetricCollector {
 
     @Override
     public void save(MetricStore store) {
-        counts.forEach((ext, count) -> store.put(KEY_PREFIX + ext, count.get()));
+        MetricWriteBatch batch = new MetricWriteBatch();
+        counts.forEach((ext, count) -> batch.putLong(KEY_PREFIX + ext, count.get()));
+        int applied = store.apply(batch);
+        logger.debug("Saved {} extension counters ({} key mutations applied)", counts.size(), applied);
     }
 
     @Override

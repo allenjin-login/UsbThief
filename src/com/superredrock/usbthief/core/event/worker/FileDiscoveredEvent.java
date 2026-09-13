@@ -1,15 +1,14 @@
 package com.superredrock.usbthief.core.event.worker;
 
-import com.superredrock.usbthief.core.event.Event;
+import com.superredrock.usbthief.core.event.AbstractEvent;
 
 import java.nio.file.Path;
 
-public final class FileDiscoveredEvent implements Event {
+public final class FileDiscoveredEvent extends AbstractEvent {
 
     private final Path filePath;
     private final long fileSize;
     private final String deviceSerial;
-    private final long timestamp;
 
     public FileDiscoveredEvent(Path filePath, long fileSize, String deviceSerial) {
         if (filePath == null) {
@@ -18,7 +17,6 @@ public final class FileDiscoveredEvent implements Event {
         this.filePath = filePath;
         this.fileSize = fileSize;
         this.deviceSerial = deviceSerial != null ? deviceSerial : "";
-        this.timestamp = System.currentTimeMillis();
     }
 
     public Path filePath() {
@@ -34,18 +32,9 @@ public final class FileDiscoveredEvent implements Event {
     }
 
     @Override
-    public long timestamp() {
-        return timestamp;
-    }
-
-    @Override
     public String description() {
         return String.format("FileDiscoveredEvent: %s (size: %d) on device %s at %d",
-                filePath.getFileName(), fileSize, deviceSerial, timestamp);
+                filePath.getFileName(), fileSize, deviceSerial, timestamp());
     }
 
-    @Override
-    public String toString() {
-        return description();
-    }
 }

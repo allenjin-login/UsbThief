@@ -1,6 +1,5 @@
 package com.superredrock.usbthief.worker;
 
-import com.superredrock.usbthief.core.event.storage.StorageLevel;
 import com.superredrock.usbthief.worker.FileSelector.FileMetadata;
 import org.junit.jupiter.api.Test;
 

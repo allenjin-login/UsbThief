@@ -1,4 +1,4 @@
-package com.superredrock.usbthief.core.event.storage;
+package com.superredrock.usbthief.worker;
 
 /**
  * Represents the strategy used for selecting files to recycle.

@@ -4,7 +4,6 @@ import com.superredrock.usbthief.core.AppPaths;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.configs.PathConfig;
 import com.superredrock.usbthief.core.config.configs.StorageConfig;
-import com.superredrock.usbthief.core.event.storage.StorageLevel;
 
 import java.io.IOException;
 import java.nio.file.FileStore;
@@ -39,7 +38,12 @@ public class StorageController {
 
     private static volatile StorageController INSTANCE;
 
-    protected LongSummaryStatistics workSize = new LongSummaryStatistics(0,0,0,0);
+    /**
+     * Statistics of the work directory, refreshed by {@link RecyclerService} on its own
+     * thread and read here when the storage level is computed on another one, so the field
+     * is volatile: the whole instance is published, never mutated in place.
+     */
+    protected volatile LongSummaryStatistics workSize = new LongSummaryStatistics(0,0,0,0);
 
     /**
      * How long a {@link StorageStatus} snapshot may be served from cache.

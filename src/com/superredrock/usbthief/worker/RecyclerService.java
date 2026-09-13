@@ -2,14 +2,13 @@ package com.superredrock.usbthief.worker;
 
 import com.superredrock.usbthief.core.AppPaths;
 import com.superredrock.usbthief.core.Service;
+import com.superredrock.usbthief.core.concurrent.ThreadPools;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.configs.PathConfig;
 import com.superredrock.usbthief.core.config.configs.StorageConfig;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.storage.EmptyFoldersDeletedEvent;
 import com.superredrock.usbthief.core.event.storage.FilesRecycledEvent;
-import com.superredrock.usbthief.core.event.storage.RecycleStrategy;
-import com.superredrock.usbthief.core.event.storage.StorageLevel;
 import com.superredrock.usbthief.core.event.worker.FileDiscoveredEvent;
 
 import java.io.IOException;
@@ -21,6 +20,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -57,6 +57,9 @@ public class RecyclerService extends Service {
     private final ConfigManager configManager;
     private final StorageController storageController;
 
+    /** Guards against piling up work-size scans when a scan outlives the 5 minute tick. */
+    private final AtomicBoolean workSizeScanInFlight = new AtomicBoolean(false);
+
 
     private RecyclerService() {
         configManager = ConfigManager.getInstance();
@@ -79,7 +82,7 @@ public class RecyclerService extends Service {
         try {
             // Skip recycling if storage management is disabled
             if (!configManager.get(StorageConfig.STORAGE_ENABLED)) {
-                scanWorkSize();
+                scheduleWorkSizeScan();
                 return;
             }
 
@@ -93,7 +96,7 @@ public class RecyclerService extends Service {
                 case LOW -> recycleFiles(RecycleStrategy.TIME_FIRST);
                 case CRITICAL -> recycleFiles(RecycleStrategy.SIZE_FIRST);
             }
-            scanWorkSize();
+            scheduleWorkSizeScan();
 
         } catch (Exception e) {
             logger.error("RecyclerService tick failed", e);
@@ -319,10 +322,42 @@ public class RecyclerService extends Service {
         }
     }
 
+    /**
+     * Runs the work-directory size scan on the dedicated recycle pool.
+     *
+     * <p>The walk used to run inline in {@code tick()} on a {@code parallel()} stream, i.e.
+     * it blocked the service thread and split the walk across the common pool. It is a
+     * blocking IO walk like the volume scans, so it now runs as an independent task on its
+     * own single-threaded pool, without touching the common pool and without delaying the
+     * rest of the tick. A second scan is skipped while one is still running.
+     */
+    @SuppressWarnings("resource") // shared pools (ThreadPools) outlive this component
+    private void scheduleWorkSizeScan() {
+        if (!workSizeScanInFlight.compareAndSet(false, true)) {
+            logger.debug("Work size scan still running, skipping this tick");
+            return;
+        }
+        try {
+            ThreadPools.recycleExecutor().execute(() -> {
+                try {
+                    scanWorkSize();
+                } catch (RuntimeException e) {
+                    // A pool task must report its own failure: nothing waits on this future.
+                    logger.warn("Work size scan failed", e);
+                } finally {
+                    workSizeScanInFlight.set(false);
+                }
+            });
+        } catch (RuntimeException e) {
+            workSizeScanInFlight.set(false);
+            throw e;
+        }
+    }
+
     private void scanWorkSize(){
         Path workPath = AppPaths.resolve(ConfigManager.getInstance().get(PathConfig.WORK_PATH));
 
-        try (Stream<Path> paths = Files.find(workPath,Integer.MAX_VALUE,(path,_)-> Files.isRegularFile(path)).parallel()) {
+        try (Stream<Path> paths = Files.find(workPath,Integer.MAX_VALUE,(path,_)-> Files.isRegularFile(path))) {
             LongSummaryStatistics resultsum = paths.map(path -> {
                 try {
                     return Files.size(path);

@@ -32,7 +32,8 @@ UsbThief is a Windows desktop application for USB device monitoring and file cop
 
 | Package | Responsibility |
 |---------|---------------|
-| `core` | Device management, event bus, configuration, file filters, ClockThread |
+| `core` | Device management, event bus, configuration, file filters |
+| `core.concurrent` | Dedicated thread pools (`ThreadPools`) and scheduled cooldowns (`CooldownTimer`) |
 | `worker` | File scanning, copy tasks, rate limiting, task scheduling, storage management |
 | `index` | MD5 checksum deduplication with Caffeine LRU cache + binary disk store |
 | `gui` | Swing UI components, theming, i18n |
@@ -45,7 +46,7 @@ UsbThief is a Windows desktop application for USB device monitoring and file cop
 Services run as daemon threads with tick-based execution:
 
 - **DeviceManager** - USB hotplug detection via Windows API, device state tracking
-- **SnifferLifecycleManager** - Per-volume Sniffer creation, restart scheduling, ClockThread-based cooldown timers
+- **SnifferLifecycleManager** - Per-volume Sniffer creation, restart scheduling, scheduler-based cooldown timers (`CooldownTimer` on the shared `ScheduledExecutorService`)
 - **TaskScheduler** - Priority-based task queue
 - **Index** - Caffeine LRU cache with binary disk persistence (`IndexDiskStore`)
 - **StorageController** - Monitors work directory disk space (OK/LOW/CRITICAL thresholds, toggleable)
@@ -57,14 +58,17 @@ Services run as daemon threads with tick-based execution:
 **EventBus** (`core.event.EventBus`)
 - Singleton, thread-safe event dispatch
 - Synchronous listeners via `register()`, async via `registerAsync()`
-- Dispatch uses `parallelStream()` for concurrent listener notification
+- Dispatch runs listeners in order on the calling thread; the async paths (`dispatchAsync`, `dispatchWithResult`) use the bus's own executor (`setAsyncExecutor`/`getAsyncExecutor`, dedicated pool by default) — never the JVM common pool
 - All events are immutable records
 
-**ClockThread** (`core.ClockThread`)
-- Timer thread using CompletableFuture for async chaining
-- `thenRun(action)` chains actions after countdown completes
-- `onCountdown()` returns the CompletableFuture for custom chaining
-- `cancel()` interrupts thread and cancels future
+**ThreadPools** (`core.concurrent.ThreadPools`)
+- Named daemon pools, one per workload: `cooldownScheduler()` (shared `ScheduledExecutorService`), `scanExecutor()` (bounded, 2–4 IO threads), `eventExecutor()`, `recycleExecutor()`
+- Keeps long disk scans, async event notification and recycler statistics out of `ForkJoinPool.commonPool()`
+- No virtual-thread APIs (Java 11 back-port constraint)
+
+**CooldownTimer** (`core.concurrent.CooldownTimer`)
+- Keyed cooldown delays over the shared scheduler; `schedule(key, delayMs, action)` / `cancel(key)` / `remainingMs(key)`
+- Used by `SnifferLifecycleManager` for restart cooldowns (no polling thread per volume)
 
 **Service Lifecycle**
 ```java

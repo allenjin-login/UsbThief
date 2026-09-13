@@ -1,5 +1,7 @@
 package com.superredrock.usbthief.core.event;
 
+import com.superredrock.usbthief.core.concurrent.ThreadPools;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -10,6 +12,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,6 +30,12 @@ import org.apache.logging.log4j.Logger;
  * thread; {@code dispatch} never hands work to another thread. Listeners that need to
  * run off the calling thread must register through {@link #registerAsync} or dispatch
  * to an executor themselves.
+ *
+ * <p>The asynchronous dispatch paths ({@link #dispatchAsync}, {@link #dispatchWithResult},
+ * {@link #dispatchWithResultMap}) notify listeners on the bus's own executor - a dedicated
+ * pool by default, replaceable via {@link #setAsyncExecutor(Executor)}, and available to
+ * {@link #registerAsync} listeners as their default through {@link #getAsyncExecutor()} -
+ * instead of the JVM-wide {@code ForkJoinPool.commonPool()}.
  *
  * <p>Usage example:
  * <pre>
@@ -95,6 +104,11 @@ public final class EventBus {
     // entries of the type index.
     private final AtomicLong registrationSequence = new AtomicLong();
 
+    // Executor for the asynchronous dispatch paths. Defaults to the dedicated event pool so
+    // async listener work never silently lands on ForkJoinPool.commonPool() (which is also
+    // where the disk scans used to run); injectable for tests and embedders.
+    private volatile Executor asyncExecutor;
+
     private EventBus() {
         // Singleton
     }
@@ -104,6 +118,32 @@ public final class EventBus {
      */
     public static EventBus getInstance() {
         return INSTANCE;
+    }
+
+    /**
+     * Replaces the executor used by {@link #dispatchAsync}, {@link #dispatchWithResult} and
+     * {@link #dispatchWithResultMap} - and the one async listeners can use as their default
+     * via {@link #getAsyncExecutor()}.
+     *
+     * @param executor the executor to use, must not be null
+     */
+    public void setAsyncExecutor(Executor executor) {
+        if (executor == null) {
+            throw new IllegalArgumentException("executor cannot be null");
+        }
+        this.asyncExecutor = executor;
+    }
+
+    /**
+     * @return the executor used for asynchronous listener notification
+     */
+    public Executor getAsyncExecutor() {
+        Executor local = asyncExecutor;
+        if (local == null) {
+            local = ThreadPools.eventExecutor();
+            asyncExecutor = local;
+        }
+        return local;
     }
 
     /**
@@ -310,7 +350,8 @@ public final class EventBus {
         // Collect all futures from async listeners
         List<CompletableFuture<?>> futures = new ArrayList<>();
 
-        // Handle synchronous listeners asynchronously
+        // Handle synchronous listeners asynchronously on the bus's own executor
+        Executor executor = getAsyncExecutor();
         for (EventListenerWrapper<?> wrapper : resolveSyncListeners(event.getClass())) {
             CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
                 try {
@@ -320,7 +361,7 @@ public final class EventBus {
                 } catch (Exception e) {
                     logger.error("Exception in event listener for {}: {}", event.getClass().getName(), e);
                 }
-            });
+            }, executor);
             futures.add(future);
         }
 
@@ -367,6 +408,7 @@ public final class EventBus {
         }
 
         // Handle synchronous listeners (notify but don't collect results)
+        Executor executor = getAsyncExecutor();
         for (EventListenerWrapper<?> wrapper : resolveSyncListeners(event.getClass())) {
             CompletableFuture.runAsync(() -> {
                 try {
@@ -376,7 +418,7 @@ public final class EventBus {
                 } catch (Exception e) {
                     logger.error("Exception in event listener for {}: {}", event.getClass().getName(), e);
                 }
-            });
+            }, executor);
         }
 
         // Return a future that completes with all collected results
@@ -427,6 +469,7 @@ public final class EventBus {
         }
 
         // Handle synchronous listeners (notify but don't collect results)
+        Executor executor = getAsyncExecutor();
         for (EventListenerWrapper<?> wrapper : resolveSyncListeners(event.getClass())) {
             CompletableFuture.runAsync(() -> {
                 try {
@@ -436,7 +479,7 @@ public final class EventBus {
                 } catch (Exception e) {
                     logger.error("Exception in event listener for {}: {}", event.getClass().getName(), e);
                 }
-            });
+            }, executor);
         }
 
         // Return a future that completes with all collected results as a map

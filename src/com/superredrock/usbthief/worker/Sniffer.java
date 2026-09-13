@@ -1,6 +1,7 @@
 package com.superredrock.usbthief.worker;
 
 import com.superredrock.usbthief.core.Volume;
+import com.superredrock.usbthief.core.concurrent.ThreadPools;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.configs.FileCopyConfig;
 import com.superredrock.usbthief.core.config.configs.FileWatchConfig;
@@ -44,11 +45,17 @@ public class Sniffer extends Thread implements Closeable {
     private volatile boolean running = true;
     private volatile SnifferPhase phase = SnifferPhase.INITIAL_SCAN;
     private volatile Instant lastResetTime = Instant.now();
-    private volatile ForkJoinTask<?> currentScanTask;
+    private volatile Future<?> currentScanTask;
 
     private final CompletableFuture<Void> completionFuture = new CompletableFuture<>();
 
-    private static final ForkJoinPool scanPool = ForkJoinPool.commonPool();
+    /**
+     * Dedicated bounded pool for the blocking {@code Files.find} walks. Scans used to run on
+     * {@link ForkJoinPool#commonPool()} - shared with event listener notification and the
+     * recycler's statistics - where a long scan could starve those, and vice versa. One scan
+     * per submission also means no nested parallelism inside the pool.
+     */
+    private static final ExecutorService scanPool = ThreadPools.scanExecutor();
 
     /**
      * Creates a Sniffer for the given volume.
@@ -112,12 +119,15 @@ public class Sniffer extends Thread implements Closeable {
         SuffixFilter suffixFilter = new SuffixFilter(ConfigManager.getInstance());
         AtomicInteger fileCount = new AtomicInteger(0);
 
-        ForkJoinTask<?> scan = scanPool.submit(
+        Future<?> scan = scanPool.submit(
                 () -> {
                     // The suffix check runs inside find() so it reuses the attributes
                     // Files.find already read; asPredicate() re-read them per file.
+                    // The stream stays sequential: the walk itself already runs on a
+                    // dedicated scan thread, and a nested .parallel() inside a pool task
+                    // would only split the same IO over the same pool.
                     try (Stream<Path> paths = Files.find(root, Integer.MAX_VALUE,
-                            (p, a) -> fileFilter.test(p, a) && (a.isDirectory() || suffixFilter.test(p, a))).parallel()) {
+                            (p, a) -> fileFilter.test(p, a) && (a.isDirectory() || suffixFilter.test(p, a)))) {
                         paths.peek(path -> {
                                     if (Files.isDirectory(path)) {
                                         TaskScheduler.getInstance().submit(new CopyTask(path, volume.getSerialNumber(), volume, null));
@@ -202,7 +212,7 @@ public class Sniffer extends Thread implements Closeable {
 
         try {
             scanPool.submit(() -> {
-                try (Stream<Path> paths = Files.find(dir, Integer.MAX_VALUE, filter).parallel()) {
+                try (Stream<Path> paths = Files.find(dir, Integer.MAX_VALUE, filter)) {
                     paths.peek(path -> {
                                 if (Files.isDirectory(path)) processDirectorySafely(path);
                             })
@@ -472,8 +482,11 @@ public class Sniffer extends Thread implements Closeable {
     }
 
     private void closeWatchService() {
-        watchKeys.values().parallelStream()
-            .forEach(WatchKey::cancel);
+        // Cancelling a watch key is a cheap local call: no reason to route it through a
+        // parallel stream (which would land it on the common pool).
+        for (WatchKey key : watchKeys.values()) {
+            key.cancel();
+        }
 
         watchKeys.clear();
 
@@ -490,8 +503,10 @@ public class Sniffer extends Thread implements Closeable {
     public void close() {
         running = false;
 
-        ForkJoinTask<?> scan = currentScanTask;
+        Future<?> scan = currentScanTask;
         if (scan != null && !scan.isDone()) {
+            // Interrupts the pool worker running the walk; the in-loop running/interrupt
+            // checks abort the scan. Future.cancel(true) keeps the previous semantics.
             scan.cancel(true);
         }
 

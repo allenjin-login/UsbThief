@@ -31,7 +31,7 @@ import com.superredrock.usbthief.statistics.collector.SpeedCollector;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class CopyTask implements Callable<CopyResult> {
+public class CopyTask implements Callable<CopyResult>, DeviceBoundTask {
 
     protected static final Logger logger = LogManager.getLogger(CopyTask.class);
 
