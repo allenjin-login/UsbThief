@@ -44,12 +44,23 @@ public class SuffixFilterPanel extends JPanel {
     /** Wire names of the suffix modes, indexed by combo box index. */
     private static final String[] MODE_NAMES = {"NONE", "WHITELIST", "BLACKLIST"};
 
+    /** Combo box indices of the modes above (kept next to the array for clarity). */
+    private static final int MODE_INDEX_NONE = 0;
+    private static final int MODE_INDEX_WHITELIST = 1;
+
     private JComboBox<String> modeComboBox;
     private JComboBox<String> presetComboBox;
     private JCheckBox allowNoExtCheckBox;
     private JList<String> extensionList;
     private DefaultListModel<String> extensionListModel;
     private JTextField extensionField;
+
+    /**
+     * Guards the combo box listeners while this panel writes widget state itself
+     * (load / reset / applying a preset), so a programmatic change is not mistaken
+     * for a user edit that would immediately overwrite that state again.
+     */
+    private boolean suppressPresetApply;
 
     public SuffixFilterPanel() {
         super(new GridBagLayout());
@@ -70,7 +81,12 @@ public class SuffixFilterPanel extends JPanel {
             i18n.getMessage("filter.suffix.mode.whitelist"),
             i18n.getMessage("filter.suffix.mode.blacklist")
         });
-        modeComboBox.addActionListener(e -> updateControlsState());
+        modeComboBox.addActionListener(e -> {
+            if (!suppressPresetApply) {
+                presetComboBox.setSelectedIndex(0); // manual mode change drops the preset
+            }
+            updateControlsState();
+        });
 
         gbc.gridx = 1; gbc.gridy = row; gbc.gridwidth = 2;
         gbc.weightx = 1.0;
@@ -82,16 +98,8 @@ public class SuffixFilterPanel extends JPanel {
         gbc.weightx = 0;
         add(new JLabel(i18n.getMessage("filter.suffix.preset")), gbc);
 
-        presetComboBox = new JComboBox<>(new String[]{
-            "",
-            i18n.getMessage("filter.suffix.preset.documents"),
-            i18n.getMessage("filter.suffix.preset.images"),
-            i18n.getMessage("filter.suffix.preset.video"),
-            i18n.getMessage("filter.suffix.preset.audio"),
-            i18n.getMessage("filter.suffix.preset.archives"),
-            i18n.getMessage("filter.suffix.preset.all")
-        });
-        presetComboBox.addActionListener(e -> applyPreset());
+        presetComboBox = new JComboBox<>(presetLabels());
+        presetComboBox.addActionListener(e -> applySelectedPreset());
 
         gbc.gridx = 1; gbc.gridy = row; gbc.gridwidth = 2;
         gbc.weightx = 1.0;
@@ -165,33 +173,84 @@ public class SuffixFilterPanel extends JPanel {
      * Loads the current settings from ConfigManager.
      */
     public void load(ConfigManager configManager) {
-        String mode = configManager.get(SuffixFilterConfig.SUFFIX_FILTER_MODE);
-        modeComboBox.setSelectedIndex(modeIndex(mode));
+        suppressPresetApply = true;
+        try {
+            String mode = configManager.get(SuffixFilterConfig.SUFFIX_FILTER_MODE);
+            modeComboBox.setSelectedIndex(modeIndex(mode));
 
-        allowNoExtCheckBox.setSelected(configManager.get(FileFilterConfig.FILE_FILTER_ALLOW_NO_EXT));
+            allowNoExtCheckBox.setSelected(configManager.get(FileFilterConfig.FILE_FILTER_ALLOW_NO_EXT));
 
-        // Load extensions
-        extensionListModel.clear();
-        List<String> extensions;
-        if (mode.equalsIgnoreCase("WHITELIST")) {
-            extensions = configManager.get(SuffixFilterConfig.SUFFIX_FILTER_WHITELIST);
-        } else if (mode.equalsIgnoreCase("BLACKLIST")) {
-            extensions = configManager.get(SuffixFilterConfig.SUFFIX_FILTER_BLACKLIST);
-        } else {
-            extensions = List.of();
-        }
-        for (String ext : extensions) {
-            extensionListModel.addElement(ext);
-        }
+            // Load extensions
+            extensionListModel.clear();
+            List<String> extensions;
+            if (mode.equalsIgnoreCase("WHITELIST")) {
+                extensions = configManager.get(SuffixFilterConfig.SUFFIX_FILTER_WHITELIST);
+            } else if (mode.equalsIgnoreCase("BLACKLIST")) {
+                extensions = configManager.get(SuffixFilterConfig.SUFFIX_FILTER_BLACKLIST);
+            } else {
+                extensions = List.of();
+            }
+            for (String ext : extensions) {
+                extensionListModel.addElement(ext);
+            }
 
-        // Load preset
-        String preset = configManager.get(SuffixFilterConfig.SUFFIX_FILTER_PRESET);
-        if (!preset.isEmpty()) {
-            try {
-                FilterPreset filterPreset = FilterPreset.valueOf(preset.toUpperCase(Locale.ROOT));
-                presetComboBox.setSelectedIndex(filterPreset.ordinal() + 1);
-            } catch (IllegalArgumentException e) {
+            // Load preset
+            String preset = configManager.get(SuffixFilterConfig.SUFFIX_FILTER_PRESET);
+            // A stored preset is display state only: it is shown when the mode is the
+            // whitelist (a preset always writes a whitelist). The loaded extension list
+            // above stays the single source of truth, so hand-edited lists survive.
+            if (!preset.isBlank()) {
+                FilterPreset stored = FilterPreset.safeValueOf(preset);
+                boolean displayable = mode.equalsIgnoreCase("WHITELIST") || stored == FilterPreset.ALL;
+                presetComboBox.setSelectedIndex(displayable ? stored.ordinal() + 1 : 0);
+            } else {
                 presetComboBox.setSelectedIndex(0);
+            }
+        } finally {
+            suppressPresetApply = false;
+        }
+
+        updateControlsState();
+    }
+
+    /**
+     * One-click preset application: selects the matching mode and writes the preset's
+     * extensions into the editable list. The list is written, not locked - the user can
+     * keep adding or removing extensions straight away.
+     *
+     * @param preset the preset to apply
+     */
+    public void selectPreset(FilterPreset preset) {
+        if (preset == null) {
+            return;
+        }
+        presetComboBox.setSelectedIndex(preset.ordinal() + 1);
+    }
+
+    /**
+     * Human readable preset names, indexed like the combo box (index 0 = no preset).
+     */
+    private static String[] presetLabels() {
+        FilterPreset[] presets = FilterPreset.values();
+        String[] labels = new String[presets.length + 1];
+        labels[0] = i18n.getMessage("filter.suffix.preset.custom");
+        for (int i = 0; i < presets.length; i++) {
+            labels[i + 1] = i18n.getMessage(presets[i].getDisplayNameKey());
+        }
+        return labels;
+    }
+
+    /**
+     * Back to index 0 of the preset combo: the extension list no longer equals any
+     * preset, so the combo must not keep claiming one is active.
+     */
+    private void markPresetAsCustom() {
+        if (presetComboBox.getSelectedIndex() != 0) {
+            suppressPresetApply = true;
+            try {
+                presetComboBox.setSelectedIndex(0);
+            } finally {
+                suppressPresetApply = false;
             }
         }
     }
@@ -224,11 +283,9 @@ public class SuffixFilterPanel extends JPanel {
 
         // Save preset
         int presetIndex = presetComboBox.getSelectedIndex();
-        if (presetIndex > 0) {
-            FilterPreset[] presets = FilterPreset.values();
-            if (presetIndex - 1 < presets.length) {
-                configManager.set(SuffixFilterConfig.SUFFIX_FILTER_PRESET, presets[presetIndex - 1].name());
-            }
+        FilterPreset[] presets = FilterPreset.values();
+        if (presetIndex > 0 && presetIndex - 1 < presets.length) {
+            configManager.set(SuffixFilterConfig.SUFFIX_FILTER_PRESET, presets[presetIndex - 1].name());
         } else {
             configManager.set(SuffixFilterConfig.SUFFIX_FILTER_PRESET, "");
         }
@@ -238,10 +295,15 @@ public class SuffixFilterPanel extends JPanel {
      * Restores the widgets of this page to the filter defaults.
      */
     public void resetToDefaults() {
-        modeComboBox.setSelectedIndex(0);
-        allowNoExtCheckBox.setSelected(true);
-        extensionListModel.clear();
-        presetComboBox.setSelectedIndex(0);
+        suppressPresetApply = true;
+        try {
+            modeComboBox.setSelectedIndex(0);
+            allowNoExtCheckBox.setSelected(true);
+            extensionListModel.clear();
+            presetComboBox.setSelectedIndex(0);
+        } finally {
+            suppressPresetApply = false;
+        }
 
         updateControlsState();
     }
@@ -265,13 +327,21 @@ public class SuffixFilterPanel extends JPanel {
 
         extensionList.setEnabled(!isNone);
         extensionField.setEnabled(!isNone);
-        presetComboBox.setEnabled(!isNone);
+        // The preset combo stays reachable in "none" mode: it is the one-click entry
+        // point that switches the whitelist on again.
+        presetComboBox.setEnabled(true);
     }
 
     /**
-     * Applies the selected preset to the extension list.
+     * Applies the selected preset as a one-click shortcut: switches to whitelist mode
+     * and writes the preset's extensions into the editable list. {@code ALL} clears the
+     * list and turns filtering off, so it means "no filtering" rather than "whitelist
+     * nothing".
      */
-    private void applyPreset() {
+    private void applySelectedPreset() {
+        if (suppressPresetApply) {
+            return;
+        }
         int presetIndex = presetComboBox.getSelectedIndex();
         if (presetIndex <= 0) {
             return; // No preset selected
@@ -280,36 +350,61 @@ public class SuffixFilterPanel extends JPanel {
         FilterPreset[] presets = FilterPreset.values();
         if (presetIndex - 1 < presets.length) {
             FilterPreset preset = presets[presetIndex - 1];
-            extensionListModel.clear();
-            for (String ext : preset.getExtensions()) {
-                extensionListModel.addElement(ext);
+            suppressPresetApply = true;
+            try {
+                if (preset.filtersExtensions()) {
+                    modeComboBox.setSelectedIndex(MODE_INDEX_WHITELIST);
+                    extensionListModel.clear();
+                    for (String ext : preset.getExtensions()) {
+                        extensionListModel.addElement(ext);
+                    }
+                } else {
+                    // ALL: nothing to filter, so clear the list and stop filtering
+                    modeComboBox.setSelectedIndex(MODE_INDEX_NONE);
+                    extensionListModel.clear();
+                }
+            } finally {
+                suppressPresetApply = false;
             }
         }
+        updateControlsState();
     }
 
     /**
      * Adds an extension from the text field to the list.
      */
     private void addExtension() {
-        String ext = extensionField.getText().trim().toLowerCase(Locale.ROOT);
-        if (ext.isEmpty()) {
-            return;
+        if (addExtensionEntry(extensionField.getText())) {
+            extensionField.setText("");
         }
+    }
 
-        // Remove leading dot if present
+    /**
+     * Normalises and appends one extension to the editable list; the package-private
+     * entry point lets tests exercise the "edit after picking a preset" path.
+     *
+     * @param rawExtension extension as typed by the user, with or without a leading dot
+     * @return true when the entry was added, false when blank or already present
+     */
+    boolean addExtensionEntry(String rawExtension) {
+        String ext = rawExtension == null ? "" : rawExtension.trim().toLowerCase(Locale.ROOT);
         if (ext.startsWith(".")) {
             ext = ext.substring(1);
+        }
+        if (ext.isEmpty()) {
+            return false;
         }
 
         // Check for duplicates
         for (int i = 0; i < extensionListModel.size(); i++) {
             if (extensionListModel.getElementAt(i).equalsIgnoreCase(ext)) {
-                return; // Already exists
+                return false; // Already exists
             }
         }
 
         extensionListModel.addElement(ext);
-        extensionField.setText("");
+        markPresetAsCustom();
+        return true;
     }
 
     /**
@@ -317,9 +412,13 @@ public class SuffixFilterPanel extends JPanel {
      */
     private void removeExtension() {
         int[] selectedIndices = extensionList.getSelectedIndices();
+        if (selectedIndices.length == 0) {
+            return;
+        }
         for (int i = selectedIndices.length - 1; i >= 0; i--) {
             extensionListModel.remove(selectedIndices[i]);
         }
+        markPresetAsCustom();
     }
 
     /**
