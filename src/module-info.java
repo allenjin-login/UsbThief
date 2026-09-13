@@ -12,6 +12,7 @@ module UsbThief {
 
     exports com.superredrock.usbthief.index;
     exports com.superredrock.usbthief.core;
+    exports com.superredrock.usbthief.core.concurrent;
     exports com.superredrock.usbthief.core.config;
     exports com.superredrock.usbthief.core.config.configs;
     exports com.superredrock.usbthief.core.event;
