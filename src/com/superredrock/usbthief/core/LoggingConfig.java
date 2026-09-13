@@ -17,9 +17,33 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+/**
+ * Bootstraps the Log4j appenders (console, rolling file, debug file and the
+ * in-memory {@link LogBufferAppender} surfaced in the UI).
+ *
+ * <p>Log files live in the {@code logs} directory below {@link AppPaths#getAppHome()}:
+ * {@code latest.log} (INFO and above) and {@code debug.log} (DEBUG and above). At
+ * startup the previous session's files are archived next to them as
+ * {@code latest_&lt;timestamp&gt;.log} / {@code debug_&lt;timestamp&gt;.log}.</p>
+ *
+ * <p>Initialization is intentionally fault tolerant: a failure to prepare the log
+ * directory is reported and initialization continues with a degraded appender set
+ * instead of silently disabling logging.</p>
+ */
 public class LoggingConfig {
 
     public static final LogBufferAppender BUFFER_APPENDER;
+
+    /** Name of the active session log inside the {@code logs} directory. */
+    private static final String LATEST_LOG_NAME = "latest.log";
+
+    /**
+     * Misspelled name used by releases up to v1.3.0. Kept only so the file can be
+     * migrated to {@link #LATEST_LOG_NAME} once (architecture-audit [20]).
+     */
+    private static final String LEGACY_LATEST_LOG_NAME = "lastest.log";
+
+    private static final String DEBUG_LOG_NAME = "debug.log";
 
     static {
         BUFFER_APPENDER = LogBufferAppender.createAppender("LogBuffer");
@@ -45,19 +69,25 @@ public class LoggingConfig {
     }
 
     public static void initialize() {
+        Path logsDir = AppPaths.resolve("logs");
         try {
-            Path logsDir = AppPaths.resolve("logs");
             Files.createDirectories(logsDir);
-            // Archive previous session logs by renaming with startup timestamp
-            archiveIfExists(logsDir, "lastest.log");
-            archiveIfExists(logsDir, "debug.log");
+        } catch (FileAlreadyExistsException e) {
+            // Benign: something already occupies the path. Never abort startup for it.
+            System.err.println("Log directory path already exists, continuing: " + logsDir);
         } catch (IOException e) {
-            if (!(e instanceof FileAlreadyExistsException)) {
-                return;
-            } else {
-                throw new RuntimeException(e);
-            }
+            // A genuine IO failure (missing permission, read-only volume, full disk).
+            // Logging is exactly what is needed to diagnose such a failure, so do NOT
+            // abandon initialization: report the problem and degrade to the console /
+            // in-memory appenders installed below.
+            System.err.println("Failed to create log directory " + logsDir + ": " + e);
         }
+
+        // Preserve the previous session's logs: migrate the legacy misspelled file
+        // name first, then rename whatever exists with a startup timestamp.
+        migrateLegacyLogName(logsDir);
+        archiveIfExists(logsDir, LATEST_LOG_NAME);
+        archiveIfExists(logsDir, DEBUG_LOG_NAME);
 
         try {
             LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
@@ -76,13 +106,13 @@ public class LoggingConfig {
                     .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%level] [%logger{1.}] %msg%n")
                     .build();
             RollingFileAppender file = createRollingAppender(config, "File",
-                    AppPaths.resolve("logs/lastest.log").toString(),
-                    AppPaths.resolve("logs").resolve("info-%d{yyyy-MM-dd}.log").toString(), fileLayout);
+                    logsDir.resolve(LATEST_LOG_NAME).toString(),
+                    logsDir.resolve("info-%d{yyyy-MM-dd}.log").toString(), fileLayout);
             config.addAppender(file);
 
             RollingFileAppender debugFile = createRollingAppender(config, "DebugFile",
-                    AppPaths.resolve("logs/debug.log").toString(),
-                    AppPaths.resolve("logs").resolve("debug-%d{yyyy-MM-dd}.log").toString(), fileLayout);
+                    logsDir.resolve(DEBUG_LOG_NAME).toString(),
+                    logsDir.resolve("debug-%d{yyyy-MM-dd}.log").toString(), fileLayout);
             config.addAppender(debugFile);
 
             LoggerConfig root = config.getRootLogger();
@@ -106,8 +136,28 @@ public class LoggingConfig {
             java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
     /**
+     * Rename the misspelled {@code lastest.log} written by releases up to v1.3.0 to
+     * {@code latest.log} (architecture-audit [20]). Runs once: afterwards the file is
+     * maintained under the correct name and archived as usual. Older archives named
+     * {@code lastest_&lt;timestamp&gt;.log} are deliberately left untouched so no log
+     * history is rewritten.
+     */
+    private static void migrateLegacyLogName(Path logsDir) {
+        Path legacy = logsDir.resolve(LEGACY_LATEST_LOG_NAME);
+        Path current = logsDir.resolve(LATEST_LOG_NAME);
+        if (!Files.exists(legacy) || Files.exists(current)) {
+            return;
+        }
+        try {
+            Files.move(legacy, current);
+        } catch (IOException e) {
+            System.err.println("Failed to migrate log file name: " + legacy + " -> " + current);
+        }
+    }
+
+    /**
      * Rename an existing log file to include a timestamp, preserving previous session logs.
-     * e.g. lastest.log → lastest_20260531_143022.log
+     * e.g. latest.log → latest_20260531_143022.log
      */
     private static void archiveIfExists(Path logsDir, String fileName) {
         Path logFile = logsDir.resolve(fileName);
