@@ -580,6 +580,9 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
 
             this.setVisible(false);
 
+            // Unified shutdown path: stops all registered services (reverse registration
+            // order), releases non-service resources and finally persists statistics.
+            // Main.quit() is idempotent, so the JVM shutdown hook it installs is a no-op here.
             Main.quit();
             logger.info("Unified shutdown completed");
 
