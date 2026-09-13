@@ -15,6 +15,7 @@ import com.superredrock.usbthief.core.event.device.VolumeStateChangedEvent;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Manages Sniffer lifecycle as a background Service.
@@ -42,7 +43,10 @@ public class SnifferLifecycleManager extends Service {
     private final CooldownTimer cooldowns = new CooldownTimer();
 
     /** Whether init check has been done */
-    private volatile boolean initialized = false;
+    private volatile boolean deviceManagerReady = false;
+
+    /** Guards {@link #initialize()} so the global listeners are registered exactly once. */
+    private final AtomicBoolean listenersRegistered = new AtomicBoolean(false);
 
     public enum RestartReason {
         NORMAL_COMPLETION,
@@ -64,8 +68,13 @@ public class SnifferLifecycleManager extends Service {
         }
     }
 
+    /**
+     * Deliberately side-effect free: the constructor used to register three listeners into the
+     * global {@link EventBus}, so merely constructing (or class-loading) this service mutated
+     * process-wide state. {@link #initialize()} performs the registration instead, and the
+     * assembly point calls it before the service starts.
+     */
     private SnifferLifecycleManager() {
-        registerEventListeners();
     }
 
     public static SnifferLifecycleManager getInstance() {
@@ -80,6 +89,20 @@ public class SnifferLifecycleManager extends Service {
     }
 
     // ========== Event Listeners ==========
+
+    /**
+     * Registers the global {@link EventBus} listeners.
+     *
+     * <p>Idempotent and safe to call from more than one thread. The assembly point
+     * ({@code AppContext.initialize()}) calls it before the services start; {@link #tick()} calls
+     * it as well, so a service that was started without the assembly point still reacts to events.
+     */
+    public void initialize() {
+        if (listenersRegistered.compareAndSet(false, true)) {
+            registerEventListeners();
+            logger.debug("Sniffer lifecycle listeners registered");
+        }
+    }
 
     private void registerEventListeners() {
         EventBus bus = EventBus.getInstance();
@@ -125,9 +148,13 @@ public class SnifferLifecycleManager extends Service {
 
     @Override
     protected void tick() {
-        if (!initialized) {
+        // Defensive: the assembly point normally registers the listeners before start(), but a
+        // running service must react to events no matter how it was brought up.
+        initialize();
+
+        if (!deviceManagerReady) {
             if (QueueManager.getDeviceManager() == null) return;
-            initialized = true;
+            deviceManagerReady = true;
         }
 
         Collection<Volume> volumes = QueueManager.getDeviceManager().getAllVolumes();
