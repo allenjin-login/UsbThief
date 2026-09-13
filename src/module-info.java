@@ -10,23 +10,8 @@ module UsbThief {
     requires com.github.benmanes.caffeine;
     requires org.jspecify;
 
-    exports com.superredrock.usbthief.index;
-    exports com.superredrock.usbthief.core;
-    exports com.superredrock.usbthief.core.concurrent;
-    exports com.superredrock.usbthief.core.config;
-    exports com.superredrock.usbthief.core.config.configs;
-    exports com.superredrock.usbthief.core.event;
-    exports com.superredrock.usbthief.core.event.device;
-    exports com.superredrock.usbthief.core.event.index;
-    exports com.superredrock.usbthief.core.event.worker;
-    exports com.superredrock.usbthief.core.filter;
-    exports com.superredrock.usbthief.gui;
-    exports com.superredrock.usbthief.gui.theme;
-    exports com.superredrock.usbthief.gui.components;
-    exports com.superredrock.usbthief.worker;
-    exports com.superredrock.usbthief.statistics;
-    exports com.superredrock.usbthief.statistics.collector;
-    exports com.superredrock.usbthief.statistics.store;
-    exports com.superredrock.usbthief.statistics.api;
-    exports com.superredrock.usbthief.gui.dailog;
+    // No exports: UsbThief is an application module, not a library. The previous
+    // 19 exports exposed every internal package for no consumer; package access
+    // within the module is unaffected. (architecture-audit [11])
+
 }
