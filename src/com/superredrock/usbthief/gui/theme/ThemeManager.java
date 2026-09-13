@@ -37,6 +37,7 @@ public class ThemeManager {
 
     // UI colors - Light theme defaults
     public static final Color CARD_BACKGROUND = new Color(0xFFFFFF);
+    public static final Color CARD_BACKGROUND_DARK = new Color(0x2D2D44);  // soft indigo-tinted card (design v2)
     public static final Color CARD_BACKGROUND_ALT = new Color(0xF8FAFC);
     public static final Color BORDER_COLOR = new Color(0xE2E8F0);
     public static final Color TEXT_PRIMARY = new Color(0x1E293B);
@@ -59,13 +60,22 @@ public class ThemeManager {
     public static final Color TOAST_INFO_BG = new Color(0xEEF2FF);
     public static final Color TOAST_INFO_BORDER = new Color(0x3B82F6);
 
+    // ===== Design System v2 — typography tokens (use these instead of ad-hoc new Font(...)) =====
+    public static final Font FONT_TITLE = new Font(Font.SANS_SERIF, Font.BOLD, 15);      // section/dialog titles
+    public static final Font FONT_BODY = new Font(Font.SANS_SERIF, Font.PLAIN, 13);      // default body (matches UIManager defaultFont)
+    public static final Font FONT_BODY_BOLD = new Font(Font.SANS_SERIF, Font.BOLD, 13);  // emphasized values
+    public static final Font FONT_SMALL = new Font(Font.SANS_SERIF, Font.PLAIN, 11);     // captions / auxiliary
+    public static final Font FONT_SMALL_BOLD = new Font(Font.SANS_SERIF, Font.BOLD, 11);// badges / small emphasis
+    public static final Font FONT_CAPTION = new Font(Font.SANS_SERIF, Font.PLAIN, 10);   // tiny labels
+    public static final Font FONT_MONO = new Font(Font.MONOSPACED, Font.PLAIN, 12);      // paths / identifiers
+
     // Chart colors
     public static final Color CHART_CURVE = new Color(0x89B4FA);               // Blue (write)
     public static final Color CHART_CURVE_READ = new Color(0xA6E3A1);          // Green (read)
     public static final Color CHART_GRID_LIGHT = new Color(0xE2E8F0);          // Grid lines (light theme)
     public static final Color CHART_GRID_DARK = new Color(0x45475A);           // Grid lines (dark theme, was 0x313244 - too faint, UI-03)
     public static final Color CHART_BG_LIGHT = new Color(0xF8FAFC);            // Chart background (light theme)
-    public static final Color CHART_BG_DARK = new Color(0x11111B);             // Chart background (dark theme)
+    public static final Color CHART_BG_DARK = new Color(0x232330);             // Chart background (dark theme, softer + less blue - design v2)
     public static final Color CHART_TEXT_LIGHT = new Color(0x64748B);       // Chart text (light theme, was 0x94A3B8 - low contrast, UI-03)
     public static final Color CHART_TEXT_DARK = new Color(0xA6ADC8);           // Chart text (dark theme, was 0x585B70 - unreadable, UI-03)
 
@@ -110,10 +120,12 @@ public class ThemeManager {
             switch (theme) {
                 case DARK -> {
                     FlatDarkLaf.setup();
+                    installDesignTokens();
                     updateDarkThemeColors();
                 }
                 case LIGHT -> {
                     FlatLightLaf.setup();
+                    installDesignTokens();
                     updateLightThemeColors();
                 }
             }
@@ -134,6 +146,33 @@ public class ThemeManager {
         // Light theme uses default colors defined above
     }
 
+    /**
+     * Design System v2 (Echo): global FlatLaf tuning for a modern, breathable look.
+     * Theme-neutral tokens — applied after every LAF setup so both themes share them.
+     */
+    private void installDesignTokens() {
+        // Rounded components
+        UIManager.put("Component.arc", 10);
+        UIManager.put("Button.arc", 10);
+        UIManager.put("TextComponent.arc", 8);
+        UIManager.put("CheckBox.arc", 4);
+        UIManager.put("ProgressBar.arc", 10);
+        // Slim focus ring
+        UIManager.put("Component.focusWidth", 1);
+        UIManager.put("Component.innerFocusWidth", 1);
+        // Scrollbars — pill thumb, no arrow buttons
+        UIManager.put("ScrollBar.thumbArc", 999);
+        UIManager.put("ScrollBar.trackArc", 999);
+        UIManager.put("ScrollBar.width", 12);
+        UIManager.put("ScrollBar.showButtons", false);
+        // Roomier rows
+        UIManager.put("Tree.rowHeight", 26);
+        UIManager.put("Table.rowHeight", 24);
+        UIManager.put("TabbedPane.tabHeight", 32);
+        // Typography base (design token: body = 13)
+        UIManager.put("defaultFont", new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+    }
+
     private void updateDarkThemeColors() {
         // Override colors for dark theme
         // Note: In a full implementation, we would use mutable colors or
@@ -151,6 +190,15 @@ public class ThemeManager {
         for (Window window : Window.getWindows()) {
             SwingUtilities.updateComponentTreeUI(window);
         }
+    }
+
+    /**
+     * Card background for the current theme (Design System v2).
+     *
+     * @return card background color
+     */
+    public static Color getCardBackground() {
+        return getInstance().isDarkTheme() ? CARD_BACKGROUND_DARK : CARD_BACKGROUND;
     }
 
     /**

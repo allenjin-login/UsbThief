@@ -56,7 +56,7 @@ public class EmptyStatePanel extends JPanel {
 
         // Description
         descriptionLabel = new JLabel(description);
-        descriptionLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        descriptionLabel.setFont(ThemeManager.FONT_BODY);
         descriptionLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         // Action button (optional)
@@ -89,7 +89,7 @@ public class EmptyStatePanel extends JPanel {
      */
     private JButton createActionButton(String text, Runnable action) {
         JButton button = new JButton(text);
-        button.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+        button.setFont(ThemeManager.FONT_BODY);
         button.setForeground(Color.WHITE);
         button.setBackground(ThemeManager.ACCENT_PRIMARY);
         button.setFocusPainted(false);
@@ -152,6 +152,17 @@ public class EmptyStatePanel extends JPanel {
         if (actionButton != null) {
             actionButton.setText(text);
         }
+    }
+
+    /**
+     * Replace the icon with a custom vector graphic (Design System v2).
+     * Clears any text/emoji icon previously set.
+     *
+     * @param icon the icon to display
+     */
+    public void setIconGraphic(Icon icon) {
+        iconLabel.setText("");
+        iconLabel.setIcon(icon);
     }
 
     /**

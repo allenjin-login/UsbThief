@@ -20,7 +20,7 @@ public class SpeedChartPanel extends JPanel {
 
     private static final int MAX_SAMPLES = 60;
     private static final int SAMPLE_INTERVAL_MS = 500;
-    private static final int CHART_PADDING_LEFT = 36;
+    private static final int CHART_PADDING_LEFT = 44;
     private static final int CHART_PADDING_RIGHT = 8;
     private static final int CHART_PADDING_TOP = 14;
     private static final int CHART_PADDING_BOTTOM = 16;

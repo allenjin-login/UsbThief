@@ -100,8 +100,8 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
             new EmptyBorder(6, 8, 6, 8)
         ));
 
-        Font valFont = new Font(Font.SANS_SERIF, Font.BOLD, 13);
-        Font lblFont = new Font(Font.SANS_SERIF, Font.PLAIN, 10);
+        Font valFont = ThemeManager.FONT_BODY;
+        Font lblFont = ThemeManager.FONT_CAPTION;
 
         for (Object[] entry : new Object[][]{
             {i18n.getMessage("deviceinfo.global.files"), globalFilesLabel},
@@ -201,7 +201,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
         header.setBorder(new EmptyBorder(8, 4, 4, 4));
 
         JLabel label = new JLabel(title);
-        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+        label.setFont(ThemeManager.FONT_BODY);
         label.setForeground(isLive ? ThemeManager.ACCENT_SUCCESS : ThemeManager.TEXT_MUTED);
         header.add(label, BorderLayout.WEST);
 
@@ -238,7 +238,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
         }
         String totalStr = volume != null ? formatTotalSpace(volume) : "";
         JLabel idLabel = new JLabel(idBuilder + historyEntry.getSerialNumber() + "  " + totalStr);
-        idLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+        idLabel.setFont(ThemeManager.FONT_BODY);
         idLabel.setForeground(isLive ? ThemeManager.TEXT_PRIMARY : ThemeManager.TEXT_SECONDARY);
         headerRow.add(idLabel, BorderLayout.WEST);
 
@@ -247,14 +247,14 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
             stateBadge.setOpaque(true);
             stateBadge.setBackground(ThemeManager.getStateColor(volume.getState()));
             JLabel stateText = new JLabel(getLocalizedState(volume.getState()));
-            stateText.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+            stateText.setFont(ThemeManager.FONT_SMALL);
             stateText.setForeground(Color.WHITE);
             stateBadge.add(stateText);
             stateBadge.setBorder(BorderFactory.createEmptyBorder(1, 8, 1, 8));
             headerRow.add(stateBadge, BorderLayout.EAST);
         } else {
             JLabel offlineLabel = new JLabel(i18n.getMessage("deviceinfo.card.offline"));
-            offlineLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
+            offlineLabel.setFont(ThemeManager.FONT_SMALL);
             offlineLabel.setForeground(ThemeManager.TEXT_MUTED);
             headerRow.add(offlineLabel, BorderLayout.EAST);
         }
@@ -269,7 +269,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
                 barPanel.setBorder(new EmptyBorder(4, 0, 0, 0));
                 barPanel.add(storageBar, BorderLayout.CENTER);
                 JLabel storageText = new JLabel(getStorageDetail(volume));
-                storageText.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
+                storageText.setFont(ThemeManager.FONT_SMALL);
                 storageText.setForeground(ThemeManager.TEXT_SECONDARY);
                 barPanel.add(storageText, BorderLayout.EAST);
                 card.add(barPanel);
@@ -344,7 +344,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
             timelineRow.setBorder(new EmptyBorder(4, 0, 0, 0));
 
             JButton expandBtn = new JButton(i18n.getMessage("deviceinfo.timeline.show") + " (" + timeline.size() + ")");
-            expandBtn.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
+            expandBtn.setFont(ThemeManager.FONT_CAPTION);
             expandBtn.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
             expandBtn.setContentAreaFilled(false);
             expandBtn.setForeground(ThemeManager.TEXT_MUTED);
@@ -370,7 +370,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
             for (var te : sorted) {
                 String eventKey = "deviceinfo.timeline." + te.getValue().toLowerCase();
                 JLabel entryLabel = new JLabel("  " + formatTimestamp(te.getKey()) + "  -  " + i18n.getMessage(eventKey));
-                entryLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
+                entryLabel.setFont(ThemeManager.FONT_CAPTION);
                 entryLabel.setForeground(te.getValue().equals("CONNECTED")
                     ? ThemeManager.ACCENT_SUCCESS
                     : ThemeManager.TEXT_MUTED);
@@ -387,12 +387,12 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
 
     private void addInfoRow(JPanel grid, String label, String value) {
         JLabel lbl = new JLabel(label + ": ");
-        lbl.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
+        lbl.setFont(ThemeManager.FONT_SMALL);
         lbl.setForeground(ThemeManager.TEXT_MUTED);
         grid.add(lbl);
 
         JLabel val = new JLabel(value);
-        val.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
+        val.setFont(ThemeManager.FONT_SMALL);
         val.setForeground(ThemeManager.TEXT_SECONDARY);
         grid.add(val);
     }
@@ -401,10 +401,10 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
         JPanel cell = new JPanel(new BorderLayout(2, 0));
         cell.setOpaque(false);
         JLabel lbl = new JLabel(label, SwingConstants.CENTER);
-        lbl.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
+        lbl.setFont(ThemeManager.FONT_CAPTION);
         lbl.setForeground(ThemeManager.TEXT_MUTED);
         JLabel val = new JLabel(value, SwingConstants.CENTER);
-        val.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+        val.setFont(ThemeManager.FONT_SMALL);
         cell.add(lbl, BorderLayout.NORTH);
         cell.add(val, BorderLayout.CENTER);
         panel.add(cell);

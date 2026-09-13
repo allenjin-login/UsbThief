@@ -1,5 +1,7 @@
 package com.superredrock.usbthief.gui;
 
+import com.superredrock.usbthief.gui.theme.ThemeManager;
+
 import com.superredrock.usbthief.core.SizeFormatter;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.device.VolumeInsertedEvent;
@@ -72,7 +74,7 @@ public class LogPanel extends JPanel {
         // Table model
         tableModel = new LogTableModel();
         logTable = new JTable(tableModel);
-        logTable.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        logTable.setFont(ThemeManager.FONT_MONO);
         logTable.setRowHeight(20);
 
         // Custom renderer for log level
