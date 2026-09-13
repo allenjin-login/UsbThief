@@ -179,7 +179,9 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
         emptyStatePanel = new EmptyStatePanel(
             "\uD83D\uDD0C",
             i18n.getMessage("empty.devices.title"),
-            i18n.getMessage("empty.devices.description")
+            i18n.getMessage("empty.devices.description"),
+            i18n.getMessage("empty.devices.action"),
+            () -> BlacklistDialog.showBlacklistDialog(parentFrame)
         );
         emptyStatePanel.setAlignmentX(Component.CENTER_ALIGNMENT);
     }
@@ -227,6 +229,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
             if (emptyStatePanel != null) {
                 emptyStatePanel.setTitle(i18n.getMessage("empty.devices.title"));
                 emptyStatePanel.setDescription(i18n.getMessage("empty.devices.description"));
+                emptyStatePanel.setActionText(i18n.getMessage("empty.devices.action"));
             }
 
             for (DeviceGroupPanel group : deviceGroups.values()) {
@@ -491,6 +494,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
 
             moreButton = new JButton("⋮");
             moreButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+            moreButton.setToolTipText(i18n.getMessage("device.group.button.more"));
             moreButton.setFocusPainted(false);
             moreButton.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
             moreButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
@@ -597,6 +601,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
             batchEnableItem.setText(i18n.getMessage("device.group.batchEnable"));
             batchDisableItem.setText(i18n.getMessage("device.group.batchDisable"));
             batchBlacklistItem.setText(i18n.getMessage("device.group.batchBlacklist"));
+            moreButton.setToolTipText(i18n.getMessage("device.group.button.more"));
             refreshHeader();
         }
     }
@@ -714,6 +719,9 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
 
             add(infoPanel, BorderLayout.CENTER);
             add(rightPanel, BorderLayout.EAST);
+
+            // Apply state badge colors immediately (previously only set on first state-change event)
+            refreshVolumeInfo();
         }
 
         private String getStorageInfoCompact() {

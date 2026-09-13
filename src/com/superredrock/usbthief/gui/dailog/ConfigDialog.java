@@ -26,9 +26,16 @@ import java.util.stream.Collectors;
  * Features:
  * - Left panel: Search field + tree with grouped configuration categories
  * - Right panel: Breadcrumb + settings form for selected category
- * - Bottom: OK + Cancel buttons
+ * - Bottom: Reset-all + OK + Cancel buttons
  * - Search filters tree and auto-selects first match
  * - Breadcrumb shows "Group > Category" path
+ *
+ * <p>Every configuration entry is rendered with a human readable label, a
+ * unit/default/range note and a tooltip (UI-01/UI-13). Labels, notes and
+ * tooltips are resolved from i18n keys derived from the configuration key:
+ * {@code config.entry.<key>.label}, {@code config.entry.<key>.default} and
+ * {@code config.entry.<key>.hint}. When a key is absent the raw configuration
+ * key / description is used as a fallback.</p>
  */
 public class ConfigDialog extends JDialog {
 
@@ -62,8 +69,12 @@ public class ConfigDialog extends JDialog {
         breadcrumbLabel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
         rightPanel = new JPanel(new BorderLayout());
 
-        // Create split pane
-        splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, createLeftPanel(), rightPanel);
+        // Create split pane. The left panel's preferred width is aligned with the
+        // divider location so that packing the dialog does not steal width from the
+        // settings panel (which would clip the value notes).
+        JPanel leftPanel = createLeftPanel();
+        leftPanel.setPreferredSize(new Dimension(200, leftPanel.getPreferredSize().height));
+        splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
         splitPane.setDividerLocation(200);
         splitPane.setResizeWeight(0.0);
 
@@ -74,7 +85,9 @@ public class ConfigDialog extends JDialog {
         JButton cancelButton = new JButton(i18n.getMessage("config.button.cancel"));
         cancelButton.addActionListener(e -> dispose());
 
-        JButton resetButton = new JButton(i18n.getMessage("config.button.reset"));
+        // UI-14: make the scope of "reset" explicit (it resets EVERY page, not just the current one)
+        JButton resetButton = new JButton(i18n.getMessage("config.button.resetAll"));
+        resetButton.setToolTipText(i18n.getMessage("config.button.resetAll.tooltip"));
         resetButton.addActionListener(e -> resetAllToDefaults());
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -127,7 +140,6 @@ public class ConfigDialog extends JDialog {
 
         // Build tree structure: 9 parent groups with leaf children
         addGroupNode(i18n.getMessage("config.group.general"),
-            i18n.getMessage("config.category.threadPool"), "config.category.threadPool",
             i18n.getMessage("config.category.scanner"), "config.category.scanner"
         );
 
@@ -164,7 +176,9 @@ public class ConfigDialog extends JDialog {
             i18n.getMessage("config.category.storage"), "config.category.storage"
         );
 
+        // UI-14: performance-related thread pool settings belong under "Advanced", not "General"
         addGroupNode(i18n.getMessage("config.group.advanced"),
+            i18n.getMessage("config.category.threadPool"), "config.category.threadPool",
             i18n.getMessage("config.category.statisticsApi"), "config.category.statisticsApi"
         );
 
@@ -307,7 +321,6 @@ public class ConfigDialog extends JDialog {
 
         // Re-add all groups
         addGroupNode(i18n.getMessage("config.group.general"),
-            i18n.getMessage("config.category.threadPool"), "config.category.threadPool",
             i18n.getMessage("config.category.scanner"), "config.category.scanner"
         );
 
@@ -344,7 +357,9 @@ public class ConfigDialog extends JDialog {
             i18n.getMessage("config.category.storage"), "config.category.storage"
         );
 
+        // UI-14: performance-related thread pool settings belong under "Advanced", not "General"
         addGroupNode(i18n.getMessage("config.group.advanced"),
+            i18n.getMessage("config.category.threadPool"), "config.category.threadPool",
             i18n.getMessage("config.category.statisticsApi"), "config.category.statisticsApi"
         );
     }
@@ -513,32 +528,86 @@ public class ConfigDialog extends JDialog {
         if (entries != null) {
             int row = 0;
             for (ConfigEntry<?> entry : entries) {
+                String labelText = i18nOr("config.entry." + entry.key() + ".label", entry.key());
+                String hintText = i18nOr("config.entry." + entry.key() + ".hint", entry.description());
+                String valueNote = i18nOrNull("config.entry." + entry.key() + ".default");
+
                 JComponent component = createValueComponent(entry);
+                component.setToolTipText(hintText);
                 // Store component in map
                 allCategoryComponents.get(currentCategoryKey).put(entry.key(), component);
 
-                // Label
+                // Label (human readable name, no Java identifiers - UI-01)
                 gbc.gridx = 0;
                 gbc.gridy = row;
-                JLabel label = new JLabel(entry.key() + ":");
-                label.setToolTipText(entry.description());
+                gbc.gridwidth = 1;
+                gbc.weightx = 0;
+                gbc.weighty = 0;
+                gbc.fill = GridBagConstraints.NONE;
+                gbc.anchor = GridBagConstraints.WEST;
+                JLabel label = new JLabel(labelText);
+                label.setToolTipText(hintText);
                 panel.add(label, gbc);
 
                 // Value component
+                boolean expands = component instanceof JTextField || component instanceof JScrollPane;
                 gbc.gridx = 1;
-                gbc.weightx = 1.0;
+                gbc.weightx = expands ? 1.0 : 0.0;
+                gbc.fill = expands ? GridBagConstraints.HORIZONTAL : GridBagConstraints.NONE;
                 panel.add(component, gbc);
+
+                // Unit / default / valid-range note (UI-13)
+                if (valueNote != null) {
+                    JLabel note = new JLabel(valueNote);
+                    Color muted = UIManager.getColor("Label.disabledForeground");
+                    if (muted != null) {
+                        note.setForeground(muted);
+                    }
+                    note.setToolTipText(hintText);
+                    gbc.gridx = 2;
+                    gbc.weightx = expands ? 0.0 : 1.0;
+                    gbc.fill = GridBagConstraints.NONE;
+                    gbc.anchor = GridBagConstraints.WEST;
+                    panel.add(note, gbc);
+                }
 
                 row++;
             }
 
             // Add empty space at bottom
+            gbc.gridx = 0;
             gbc.gridy = row;
+            gbc.gridwidth = 4;
+            gbc.weightx = 0;
             gbc.weighty = 1.0;
+            gbc.fill = GridBagConstraints.BOTH;
             panel.add(Box.createVerticalGlue(), gbc);
         }
 
         return panel;
+    }
+
+    /**
+     * Resolve an i18n key, returning {@code fallback} when the key is not defined
+     * in any bundle (I18nManager signals missing keys with {@code !key!}).
+     */
+    private static String i18nOr(String key, String fallback) {
+        String value = i18n.getMessage(key);
+        if (value == null || (value.length() > 1 && value.startsWith("!") && value.endsWith("!"))) {
+            return fallback;
+        }
+        return value;
+    }
+
+    /**
+     * Resolve an optional i18n key, returning {@code null} when it is not defined.
+     */
+    private static String i18nOrNull(String key) {
+        String value = i18n.getMessage(key);
+        if (value == null || (value.length() > 1 && value.startsWith("!") && value.endsWith("!"))) {
+            return null;
+        }
+        return value;
     }
 
     /**
@@ -565,7 +634,7 @@ public class ConfigDialog extends JDialog {
         } else if (entry.type() == ConfigType.STRING) {
             return createTextField((String) currentValue, entry.description());
         } else if (entry.type() == ConfigType.ENUM) {
-            return createComboBox((String) currentValue, entry.options(), entry.description());
+            return createComboBox(entry, (String) currentValue);
         } else if (entry.type() == ConfigType.STRING_LIST) {
             return createTextArea((List<String>) currentValue, entry.description());
         }
@@ -618,12 +687,20 @@ public class ConfigDialog extends JDialog {
     }
 
     /**
-     * Create combo box for enum values.
+     * Create combo box for enum values. The visible items are localized (UI-01);
+     * the raw option values are kept as a client property so saving still writes
+     * the value the application expects.
      */
-    private JComboBox<String> createComboBox(String currentValue, java.util.List<String> options, String description) {
-        JComboBox<String> comboBox = new JComboBox<>(options.toArray(new String[0]));
-        comboBox.setSelectedItem(currentValue);
-        comboBox.setToolTipText(description);
+    private JComboBox<String> createComboBox(ConfigEntry<?> entry, String currentValue) {
+        java.util.List<String> options = entry.options();
+        java.util.List<String> displayed = new ArrayList<>();
+        for (String option : options) {
+            displayed.add(i18nOr("config.option." + entry.key() + "." + option, option));
+        }
+        JComboBox<String> comboBox = new JComboBox<>(displayed.toArray(new String[0]));
+        comboBox.putClientProperty("config.rawOptions", options);
+        int index = options.indexOf(currentValue);
+        comboBox.setSelectedIndex(index >= 0 ? index : 0);
         return comboBox;
     }
 
@@ -649,6 +726,15 @@ public class ConfigDialog extends JDialog {
             // Capture current panel values first
             if (currentCategoryKey != null) {
                 captureCurrentPanelValues();
+            }
+
+            // UI-13: a value typed into a spinner is only committed on Enter or focus
+            // loss. Commit every editor explicitly so typed input is never silently lost.
+            commitSpinnerEdits();
+
+            // UI-13: "max threads" must never be smaller than "core threads"
+            if (!validateThreadPoolSettings()) {
+                return;
             }
 
             // Iterate ALL categories (not just current one)
@@ -683,7 +769,14 @@ public class ConfigDialog extends JDialog {
                         } else if (entry.type() == ConfigType.STRING) {
                             newValue = ((JTextField) component).getText();
                         } else if (entry.type() == ConfigType.ENUM) {
-                            newValue = ((JComboBox<String>) component).getSelectedItem();
+                            JComboBox<?> comboBox = (JComboBox<?>) component;
+                            Object rawOptions = comboBox.getClientProperty("config.rawOptions");
+                            int selected = comboBox.getSelectedIndex();
+                            if (rawOptions instanceof List<?> rawList && selected >= 0 && selected < rawList.size()) {
+                                newValue = rawList.get(selected);
+                            } else {
+                                newValue = comboBox.getSelectedItem();
+                            }
                         } else if (entry.type() == ConfigType.STRING_LIST) {
                             JTextArea textArea = (component instanceof JScrollPane scroll)
                                 ? (JTextArea) scroll.getViewport().getView()
@@ -718,6 +811,66 @@ public class ConfigDialog extends JDialog {
                 JOptionPane.ERROR_MESSAGE);
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Commit any text typed into a spinner editor that has not been confirmed with
+     * Enter yet. Without this, typing {@code 1024} and pressing OK would silently
+     * keep the previous value (UI-13).
+     */
+    private void commitSpinnerEdits() {
+        for (Map<String, JComponent> components : allCategoryComponents.values()) {
+            for (JComponent component : components.values()) {
+                if (component instanceof JSpinner spinner) {
+                    try {
+                        spinner.commitEdit();
+                    } catch (java.text.ParseException e) {
+                        // Invalid text: restore the editor to the last valid value.
+                        if (spinner.getEditor() instanceof JSpinner.NumberEditor editor) {
+                            editor.getTextField().setValue(spinner.getValue());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Validate cross-field constraints of the thread pool page (UI-13).
+     *
+     * @return {@code true} when the settings may be saved
+     */
+    private boolean validateThreadPoolSettings() {
+        Number core = readSpinnerValue("config.category.threadPool", ThreadPoolConfig.CORE_POOL_SIZE.key());
+        Number max = readSpinnerValue("config.category.threadPool", ThreadPoolConfig.MAX_POOL_SIZE.key());
+        if (core == null || max == null) {
+            return true;
+        }
+        if (max.longValue() < core.longValue()) {
+            JOptionPane.showMessageDialog(this,
+                i18n.getMessage("config.validation.maxPoolSize"),
+                i18n.getMessage("config.validation.title"),
+                JOptionPane.WARNING_MESSAGE);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Read the current value of a spinner for the given category/key.
+     *
+     * @return the value, or {@code null} when the page was never opened
+     */
+    private Number readSpinnerValue(String categoryKey, String entryKey) {
+        Map<String, JComponent> components = allCategoryComponents.get(categoryKey);
+        if (components == null) {
+            return null;
+        }
+        JComponent component = components.get(entryKey);
+        if (component instanceof JSpinner spinner && spinner.getValue() instanceof Number number) {
+            return number;
+        }
+        return null;
     }
 
     /**

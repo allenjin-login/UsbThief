@@ -23,6 +23,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.prefs.Preferences;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import javax.imageio.ImageIO;
@@ -34,6 +35,7 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
 
     private final JMenuBar menuBar;
     private final JLabel statusBar;
+    private final Preferences prefs = Preferences.userNodeForPackage(MainFrame.class);
 
     private final SpeedChartPanel speedChartPanel;
     private final VolumeListPanel volumeListPanel;
@@ -57,10 +59,10 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
     public MainFrame() {
         setTitle(i18n.getMessage("main.title") + " v" + Version.getVersion());
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-        setSize(500, 800);
-        setMinimumSize(new Dimension(500, 800));
+        setSize(prefs.getInt("window.width", 500), prefs.getInt("window.height", 800));
+        setMinimumSize(new Dimension(500, 600));
         setLocationRelativeTo(null);
-        setResizable(false);
+        setResizable(true);
 
         // Set window icon
         setWindowIcon();
@@ -86,7 +88,7 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
             BorderFactory.createMatteBorder(1, 0, 0, 0, ThemeManager.BORDER_COLOR),
             new EmptyBorder(4, 8, 4, 8)
         ));
-        statusBar.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
+        statusBar.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
         statusBar.setForeground(ThemeManager.TEXT_SECONDARY);
 
         // Layout
@@ -109,6 +111,16 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
 
         // Initialize system tray icon
         initializeSystemTray();
+
+        // Remember window size across restarts (UI-19)
+        addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentResized(java.awt.event.ComponentEvent e) {
+                if (!isShowing()) return; // skip layout-time resizes before the window is shown
+                prefs.putInt("window.width", getWidth());
+                prefs.putInt("window.height", getHeight());
+            }
+        });
     }
 
     private JPanel createCenterPanel() {
@@ -300,7 +312,7 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
 
         actionMenu.addSeparator();
 
-        JMenuItem debugMonitorItem = new JMenuItem("Debug Monitor");
+        JMenuItem debugMonitorItem = new JMenuItem(i18n.getMessage("menu.action.debugMonitor"));
         debugMonitorItem.addActionListener(_ -> showDebugMonitor());
         actionMenu.add(debugMonitorItem);
 

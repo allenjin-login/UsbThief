@@ -16,11 +16,13 @@ import java.util.Locale;
  */
 public class SpeedChartPanel extends JPanel {
 
+    private final I18nManager i18n = I18nManager.getInstance();
+
     private static final int MAX_SAMPLES = 60;
     private static final int SAMPLE_INTERVAL_MS = 500;
     private static final int CHART_PADDING_LEFT = 36;
     private static final int CHART_PADDING_RIGHT = 8;
-    private static final int CHART_PADDING_TOP = 8;
+    private static final int CHART_PADDING_TOP = 14;
     private static final int CHART_PADDING_BOTTOM = 16;
     private static final int NUM_GRID_LINES = 4;
 
@@ -91,7 +93,7 @@ public class SpeedChartPanel extends JPanel {
         if (maxSpeed < 1.0) maxSpeed = 1.0;
 
         // Grid lines and Y labels
-        g2d.setFont(g2d.getFont().deriveFont(9f));
+        g2d.setFont(g2d.getFont().deriveFont(10f));
         for (int i = 0; i <= NUM_GRID_LINES; i++) {
             int y = chartY + (int) (chartH * (1.0 - (double) i / NUM_GRID_LINES));
             g2d.setColor(ThemeManager.getInstance().isDarkTheme() ? ThemeManager.CHART_GRID_DARK : ThemeManager.CHART_GRID_LIGHT);
@@ -101,7 +103,10 @@ public class SpeedChartPanel extends JPanel {
 
             double val = maxSpeed * i / NUM_GRID_LINES;
             g2d.setColor(ThemeManager.getInstance().isDarkTheme() ? ThemeManager.CHART_TEXT_DARK : ThemeManager.CHART_TEXT_LIGHT);
-            g2d.drawString(String.format(Locale.ROOT, "%.1f", val), 2, y + 3);
+            String axisLabel = (val == Math.floor(val))
+                    ? String.format(Locale.ROOT, "%.0f", val)
+                    : String.format(Locale.ROOT, "%.2f", val);
+            g2d.drawString(axisLabel, 2, y + 3);
         }
 
         Double[] readSamples, writeSamples;
@@ -110,7 +115,13 @@ public class SpeedChartPanel extends JPanel {
             writeSamples = writeHistory.toArray(Double[]::new);
         }
 
-        if (readSamples.length < 2) {
+        if (readSamples.length < 2 || peakSpeed < 0.1) {
+            // Empty-state hint (UI-10): a silent blank chart confused users
+            g2d.setColor(ThemeManager.getInstance().isDarkTheme() ? ThemeManager.CHART_TEXT_DARK : ThemeManager.CHART_TEXT_LIGHT);
+            g2d.setFont(g2d.getFont().deriveFont(11f));
+            String hint = i18n.getMessage("chart.empty");
+            int tw = g2d.getFontMetrics().stringWidth(hint);
+            g2d.drawString(hint, chartX + (chartW - tw) / 2, chartY + chartH / 2 + 4);
             g2d.dispose();
             return;
         }
