@@ -1,6 +1,7 @@
 package com.superredrock.usbthief.core.event.storage;
 
-import com.superredrock.usbthief.core.event.Event;
+import com.superredrock.usbthief.core.event.AbstractEvent;
+import com.superredrock.usbthief.worker.StorageLevel;
 
 import java.nio.file.Path;
 
@@ -8,13 +9,12 @@ import java.nio.file.Path;
  * Event fired when storage is low or critically low.
  * Provides information about the current storage status and threshold.
  */
-public class StorageLowEvent implements Event {
+public class StorageLowEvent extends AbstractEvent {
 
     private final Path workDir;
     private final long freeBytes;
     private final long thresholdBytes;
     private final StorageLevel level;
-    private final long timestamp;
 
     public StorageLowEvent(Path workDir, long freeBytes, long thresholdBytes, StorageLevel level) {
         if (workDir == null || level == null) {
@@ -27,7 +27,6 @@ public class StorageLowEvent implements Event {
         this.freeBytes = freeBytes;
         this.thresholdBytes = thresholdBytes;
         this.level = level;
-        this.timestamp = System.currentTimeMillis();
     }
 
     /**
@@ -66,18 +65,9 @@ public class StorageLowEvent implements Event {
     }
 
     @Override
-    public long timestamp() {
-        return timestamp;
-    }
-
-    @Override
     public String description() {
         return String.format("StorageLowEvent: %s (free: %d bytes, threshold: %d bytes, level: %s) at %s",
-                workDir, freeBytes, thresholdBytes, level, timestamp);
+                workDir, freeBytes, thresholdBytes, level, timestamp());
     }
 
-    @Override
-    public String toString() {
-        return description();
-    }
 }

@@ -1,6 +1,7 @@
 package com.superredrock.usbthief.core.event.storage;
 
-import com.superredrock.usbthief.core.event.Event;
+import com.superredrock.usbthief.core.event.AbstractEvent;
+import com.superredrock.usbthief.worker.RecycleStrategy;
 
 import java.nio.file.Path;
 import java.util.Collections;
@@ -10,12 +11,11 @@ import java.util.List;
  * Event fired when files are recycled from storage.
  * Provides information about which files were deleted and how much space was freed.
  */
-public class FilesRecycledEvent implements Event {
+public class FilesRecycledEvent extends AbstractEvent {
 
     private final List<Path> files;
     private final long bytesFreed;
     private final RecycleStrategy strategy;
-    private final long timestamp;
 
     public FilesRecycledEvent(List<Path> files, long bytesFreed, RecycleStrategy strategy) {
         if (files == null || strategy == null) {
@@ -28,7 +28,6 @@ public class FilesRecycledEvent implements Event {
         this.files = Collections.unmodifiableList(files);
         this.bytesFreed = bytesFreed;
         this.strategy = strategy;
-        this.timestamp = System.currentTimeMillis();
     }
 
     /**
@@ -60,18 +59,9 @@ public class FilesRecycledEvent implements Event {
     }
 
     @Override
-    public long timestamp() {
-        return timestamp;
-    }
-
-    @Override
     public String description() {
         return String.format("FilesRecycledEvent: %d files (strategy: %s, freed: %d bytes) at %s",
-                files.size(), strategy, bytesFreed, timestamp);
+                files.size(), strategy, bytesFreed, timestamp());
     }
 
-    @Override
-    public String toString() {
-        return description();
-    }
 }

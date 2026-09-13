@@ -1,6 +1,6 @@
 package com.superredrock.usbthief.core.event.worker;
 
-import com.superredrock.usbthief.core.event.Event;
+import com.superredrock.usbthief.core.event.AbstractEvent;
 import com.superredrock.usbthief.worker.CopyResult;
 
 import java.nio.file.Path;
@@ -9,7 +9,7 @@ import java.nio.file.Path;
  * Event fired when a file copy operation completes (success, failure, or cancellation).
  * Provides statistics for monitoring and tracking copy operations.
  */
-public class CopyCompletedEvent implements Event {
+public class CopyCompletedEvent extends AbstractEvent {
 
     private final Path sourcePath;
     private final Path destinationPath;
@@ -17,7 +17,6 @@ public class CopyCompletedEvent implements Event {
     private final long bytesCopied;
     private final CopyResult result;
     private final String deviceSerial;
-    private final long timestamp;
 
     public CopyCompletedEvent(Path sourcePath, Path destinationPath,
                            long fileSize, long bytesCopied, CopyResult result, String deviceSerial) {
@@ -30,7 +29,6 @@ public class CopyCompletedEvent implements Event {
         this.bytesCopied = bytesCopied;
         this.result = result;
         this.deviceSerial = deviceSerial != null ? deviceSerial : "";
-        this.timestamp = System.currentTimeMillis();
     }
 
     public String deviceSerial() {
@@ -104,20 +102,11 @@ public class CopyCompletedEvent implements Event {
     }
 
     @Override
-    public long timestamp() {
-        return timestamp;
-    }
-
-    @Override
     public String description() {
         return String.format("CopyCompletedEvent: %s -> %s (size: %d, copied: %d, result: %s) at %s",
                 sourcePath.getFileName(),
                 destinationPath != null ? destinationPath.getFileName() : "null",
-                fileSize, bytesCopied, result, timestamp);
+                fileSize, bytesCopied, result, timestamp());
     }
 
-    @Override
-    public String toString() {
-        return description();
-    }
 }

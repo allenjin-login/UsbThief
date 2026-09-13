@@ -1,6 +1,5 @@
 package com.superredrock.usbthief.worker;
 
-import com.superredrock.usbthief.core.event.storage.StorageLevel;
 
 import java.nio.file.Path;
 import java.util.ArrayList;

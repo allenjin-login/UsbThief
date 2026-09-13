@@ -1,6 +1,6 @@
 package com.superredrock.usbthief.core.event.storage;
 
-import com.superredrock.usbthief.core.event.Event;
+import com.superredrock.usbthief.core.event.AbstractEvent;
 
 import java.nio.file.Path;
 import java.util.Collections;
@@ -10,11 +10,10 @@ import java.util.List;
  * Event fired when empty folders are deleted during storage cleanup.
  * Provides information about which folders were removed.
  */
-public class EmptyFoldersDeletedEvent implements Event {
+public class EmptyFoldersDeletedEvent extends AbstractEvent {
 
     private final List<Path> folders;
     private final int count;
-    private final long timestamp;
 
     public EmptyFoldersDeletedEvent(List<Path> folders, int count) {
         if (folders == null) {
@@ -29,7 +28,6 @@ public class EmptyFoldersDeletedEvent implements Event {
         // Create immutable copy to prevent external modification
         this.folders = Collections.unmodifiableList(folders);
         this.count = count;
-        this.timestamp = System.currentTimeMillis();
     }
 
     /**
@@ -47,17 +45,8 @@ public class EmptyFoldersDeletedEvent implements Event {
     }
 
     @Override
-    public long timestamp() {
-        return timestamp;
-    }
-
-    @Override
     public String description() {
-        return String.format("EmptyFoldersDeletedEvent: %d folders deleted at %s", count, timestamp);
+        return String.format("EmptyFoldersDeletedEvent: %d folders deleted at %s", count, timestamp());
     }
 
-    @Override
-    public String toString() {
-        return description();
-    }
 }

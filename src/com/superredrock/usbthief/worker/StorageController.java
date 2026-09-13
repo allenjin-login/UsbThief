@@ -4,7 +4,6 @@ import com.superredrock.usbthief.core.AppPaths;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.configs.PathConfig;
 import com.superredrock.usbthief.core.config.configs.StorageConfig;
-import com.superredrock.usbthief.core.event.storage.StorageLevel;
 
 import java.io.IOException;
 import java.nio.file.FileStore;

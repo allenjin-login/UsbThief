@@ -9,8 +9,6 @@ import com.superredrock.usbthief.core.config.configs.StorageConfig;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.core.event.storage.EmptyFoldersDeletedEvent;
 import com.superredrock.usbthief.core.event.storage.FilesRecycledEvent;
-import com.superredrock.usbthief.core.event.storage.RecycleStrategy;
-import com.superredrock.usbthief.core.event.storage.StorageLevel;
 import com.superredrock.usbthief.core.event.worker.FileDiscoveredEvent;
 
 import java.io.IOException;
