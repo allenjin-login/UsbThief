@@ -32,6 +32,7 @@ public class ConfigSchema {
         registerClass(StorageConfig.class);
         registerClass(StatisticsApiConfig.class);
         registerClass(OverwriteConfig.class);
+        registerClass(CategoryConfig.class);
     }
 
     private ConfigSchema() {

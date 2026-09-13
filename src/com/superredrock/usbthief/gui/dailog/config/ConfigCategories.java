@@ -1,6 +1,7 @@
 package com.superredrock.usbthief.gui.dailog.config;
 
 import com.superredrock.usbthief.core.config.configs.BlacklistConfig;
+import com.superredrock.usbthief.core.config.configs.CategoryConfig;
 import com.superredrock.usbthief.core.config.configs.DeviceScannerConfig;
 import com.superredrock.usbthief.core.config.configs.FileCopyConfig;
 import com.superredrock.usbthief.core.config.configs.FileFilterConfig;
@@ -44,7 +45,8 @@ final class ConfigCategories {
         {"config.group.general", "config.category.scanner"},
         {"config.group.file",
             "config.category.fileCopy", "config.category.fileWatch", "config.category.fileFilter",
-            "config.category.suffixFilter", "config.category.overwriteStrategy"},
+            "config.category.suffixFilter", "config.category.overwriteStrategy",
+            "config.category.categoryFolders"},
         {"config.group.index", "config.category.index"},
         {"config.group.rateLimit", "config.category.rateLimit"},
         {"config.group.paths", "config.category.paths"},
@@ -74,6 +76,7 @@ final class ConfigCategories {
         CATEGORY_BY_KEY.put("config.category.storage", StorageConfig.CATEGORY);
         CATEGORY_BY_KEY.put("config.category.statisticsApi", StatisticsApiConfig.CATEGORY);
         CATEGORY_BY_KEY.put("config.category.overwriteStrategy", OverwriteConfig.CATEGORY);
+        CATEGORY_BY_KEY.put("config.category.categoryFolders", CategoryConfig.CATEGORY);
     }
 
     private ConfigCategories() {
