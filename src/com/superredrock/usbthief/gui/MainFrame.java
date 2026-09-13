@@ -10,6 +10,8 @@ import com.superredrock.usbthief.core.config.ConfigEntry;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.configs.PathConfig;
 import com.superredrock.usbthief.core.config.configs.WindowConfig;
+import com.superredrock.usbthief.core.event.EventBus;
+import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
 import com.superredrock.usbthief.gui.dailog.*;
 import com.superredrock.usbthief.gui.components.TaskActivityPanel;
 import com.superredrock.usbthief.gui.theme.ThemeChangeListener;
@@ -59,6 +61,10 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
     // Window visibility state
     private boolean windowVisible = true;
     private SystemTrayIcon trayIcon;
+
+    /** Copy failures observed during this session — surfaced non-intrusively in the status bar. */
+    private final java.util.concurrent.atomic.AtomicInteger sessionCopyFailures =
+            new java.util.concurrent.atomic.AtomicInteger();
 
     public MainFrame() {
         setTitle(i18n.getMessage("main.title") + " v" + Version.getVersion());
@@ -117,6 +123,15 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
 
         // Initialize system tray icon
         initializeSystemTray();
+
+        // "Only interrupt on failure": count copy failures so the status bar can
+        // mention them instead of failing silently. Done on the event thread; the
+        // counter is atomic because the status bar is refreshed from the EDT timer.
+        EventBus.getInstance().register(CopyCompletedEvent.class, event -> {
+            if (event.isFailure()) {
+                sessionCopyFailures.incrementAndGet();
+            }
+        });
 
         // Remember window size across restarts (UI-19)
         addComponentListener(new java.awt.event.ComponentAdapter() {
@@ -590,6 +605,12 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         String pathInfo = i18n.getMessage("status.path.format", workPath.isEmpty() ? i18n.getMessage("status.currentDir") : workPath);
 
         String message = i18n.getMessage("status.combined", queueInfo, poolQueueInfo, speedInfo, pathInfo);
+
+        int failures = sessionCopyFailures.get();
+        if (failures > 0) {
+            message = i18n.getMessage("status.combinedWithFailures", message,
+                    i18n.getMessage("status.failures.format", failures));
+        }
         updateStatusBar(message);
     }
 
