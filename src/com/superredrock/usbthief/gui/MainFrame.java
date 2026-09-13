@@ -8,6 +8,7 @@ import com.superredrock.usbthief.core.SizeFormatter;
 import com.superredrock.usbthief.core.Version;
 import com.superredrock.usbthief.core.config.ConfigEntry;
 import com.superredrock.usbthief.core.config.ConfigManager;
+import com.superredrock.usbthief.platform.Platform;
 import com.superredrock.usbthief.core.config.configs.PathConfig;
 import com.superredrock.usbthief.core.config.configs.WindowConfig;
 import com.superredrock.usbthief.core.event.EventBus;
@@ -615,14 +616,16 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
     }
 
     private void applyWindowSettings() {
-        boolean showInTaskbar = ConfigManager.getInstance().get(WindowConfig.SHOW_IN_TASKBAR);
+        boolean startHidden = ConfigManager.getInstance().get(WindowConfig.START_HIDDEN);
 
-        windowVisible = false;
-        setVisible(false);
-        logger.info("Application started hidden");
-
-        if (!showInTaskbar) {
-            logger.info("Taskbar visibility setting requires JNA (not implemented)");
+        if (startHidden) {
+            windowVisible = false;
+            setVisible(false);
+            logger.info("Application started hidden (startHidden=true)");
+        } else {
+            // User opted for a visible launch: show once the frame is fully constructed.
+            logger.info("Application starting visible (startHidden=false)");
+            SwingUtilities.invokeLater(this::showWindow);
         }
     }
 
@@ -758,7 +761,18 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
             setState(JFrame.NORMAL);
             toFront();
             requestFocus();
+            applyTaskbarVisibility();
         });
+    }
+
+    /**
+     * Mirrors the "show in taskbar" preference onto the live window (Windows-only; no-op
+     * elsewhere). Called whenever the window becomes visible, because the native handle is
+     * only valid from that point on (batch-3 polish).
+     */
+    private void applyTaskbarVisibility() {
+        boolean showInTaskbar = ConfigManager.getInstance().get(WindowConfig.SHOW_IN_TASKBAR);
+        Platform.taskbarCustomizer().setHiddenFromTaskbar(this, !showInTaskbar);
     }
 
     public void hideWindow() {

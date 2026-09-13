@@ -135,7 +135,49 @@ public class SpeedChartPanel extends JPanel {
         // Draw write curve (blue, in front)
         drawCurve(g2d, writeSamples, offset, dx, chartX, chartY, chartW, chartH, maxSpeed, ThemeManager.CHART_CURVE);
 
+        // Legend (batch-3 polish): read/write colour chips, top-right inside the chart
+        drawLegend(g2d, chartX + chartW, chartY);
+
         g2d.dispose();
+    }
+
+    /**
+     * Draws a compact read/write legend as two colour dots with labels in the chart's
+     * top-right corner (batch-3 polish; the two curves were previously unlabelled).
+     */
+    private void drawLegend(Graphics2D g2d, int right, int top) {
+        boolean dark = ThemeManager.getInstance().isDarkTheme();
+        g2d.setFont(g2d.getFont().deriveFont(10f));
+        FontMetrics fm = g2d.getFontMetrics();
+        String readLabel = i18n.getMessage("chart.legend.read");
+        String writeLabel = i18n.getMessage("chart.legend.write");
+
+        int dot = 7, gap = 4, itemGap = 12, pad = 7;
+        int readW = dot + gap + fm.stringWidth(readLabel);
+        int writeW = dot + gap + fm.stringWidth(writeLabel);
+        int totalW = pad + readW + itemGap + writeW + pad;
+        int lh = fm.getHeight() + 3;
+        int lx = right - totalW - 6;
+        int ly = top + 6;
+
+        // Pill background for contrast on both themes
+        g2d.setColor(dark ? new Color(0, 0, 0, 90) : new Color(255, 255, 255, 150));
+        g2d.fillRoundRect(lx, ly, totalW, lh, lh, lh);
+
+        Color textColor = dark ? ThemeManager.CHART_TEXT_DARK : ThemeManager.CHART_TEXT_LIGHT;
+        int cy = ly + lh / 2;
+        int cx = lx + pad;
+
+        g2d.setColor(ThemeManager.CHART_CURVE_READ);
+        g2d.fillOval(cx, cy - dot / 2, dot, dot);
+        g2d.setColor(textColor);
+        g2d.drawString(readLabel, cx + dot + gap, cy + fm.getAscent() / 2 - 1);
+
+        cx += readW + itemGap;
+        g2d.setColor(ThemeManager.CHART_CURVE);
+        g2d.fillOval(cx, cy - dot / 2, dot, dot);
+        g2d.setColor(textColor);
+        g2d.drawString(writeLabel, cx + dot + gap, cy + fm.getAscent() / 2 - 1);
     }
 
     private void drawCurve(Graphics2D g2d, Double[] samples, int offset, double dx,
