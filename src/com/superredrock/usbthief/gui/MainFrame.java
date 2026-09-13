@@ -18,13 +18,22 @@ import com.superredrock.usbthief.gui.theme.ThemeChangeListener;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.statistics.Statistics;
 import com.superredrock.usbthief.statistics.collector.SpeedCollector;
+import com.superredrock.usbthief.worker.CopyHistoryEntry;
+import com.superredrock.usbthief.worker.CopyHistoryRecorder;
+import com.superredrock.usbthief.worker.CopyResult;
+import com.superredrock.usbthief.worker.ReportExporter;
 import com.superredrock.usbthief.worker.TaskScheduler;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.prefs.Preferences;
@@ -347,6 +356,10 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         statsWindowItem.addActionListener(_ -> showStatisticsWindow());
         actionMenu.add(statsWindowItem);
 
+        JMenuItem exportReportItem = new JMenuItem(i18n.getMessage("menu.action.exportReport"));
+        exportReportItem.addActionListener(_ -> exportCopyReport());
+        actionMenu.add(exportReportItem);
+
         actionMenu.addSeparator();
 
         JMenuItem hideItem = new JMenuItem(i18n.getMessage("menu.action.hide"));
@@ -544,6 +557,92 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
                     JOptionPane.INFORMATION_MESSAGE);
             logger.info("Statistics cleared from menu");
         }
+    }
+
+    /**
+     * Batch 3-A: writes the recorded copy history to a CSV file chosen by the user.
+     *
+     * <p>Records come from {@link CopyHistoryRecorder}, which subscribes to
+     * {@code CopyCompletedEvent} and keeps the most recent 1000 operations. The report is
+     * written as UTF-8 with a BOM (see {@link ReportExporter}) so Excel opens Chinese labels
+     * and paths correctly. An empty history still exports - the file then contains the header
+     * row only - but the user is told first instead of being left with an unexplained empty
+     * file.</p>
+     */
+    private void exportCopyReport() {
+        // The same instance AppContext assembles at start-up, so the records cover the whole
+        // session and not just the copies made since this dialog was first opened.
+        List<CopyHistoryEntry> records = CopyHistoryRecorder.getInstance().snapshot();
+
+        if (records.isEmpty()) {
+            int confirm = JOptionPane.showConfirmDialog(
+                    this,
+                    i18n.getMessage("export.empty.message"),
+                    i18n.getMessage("export.empty.title"),
+                    JOptionPane.OK_CANCEL_OPTION,
+                    JOptionPane.INFORMATION_MESSAGE);
+            if (confirm != JOptionPane.OK_OPTION) {
+                return;
+            }
+        }
+
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle(i18n.getMessage("export.dialog.title"));
+        chooser.setSelectedFile(new File(defaultReportFileName()));
+        chooser.setFileFilter(new FileNameExtensionFilter(
+                i18n.getMessage("export.dialog.filter"), "csv"));
+        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+
+        Path target = withCsvExtension(chooser.getSelectedFile().toPath());
+        try {
+            int written = ReportExporter.export(target, records, buildReportHeader(), this::statusText);
+            logger.info("Exported {} copy record(s) to {}", written, target);
+            JOptionPane.showMessageDialog(
+                    this,
+                    i18n.getMessage("export.success.message", written, target.toString()),
+                    i18n.getMessage("export.success.title"),
+                    JOptionPane.INFORMATION_MESSAGE);
+        } catch (IOException | RuntimeException e) {
+            logger.error("Failed to export copy report to {}", target, e);
+            JOptionPane.showMessageDialog(
+                    this,
+                    i18n.getMessage("export.failed.message", String.valueOf(e.getMessage())),
+                    i18n.getMessage("export.failed.title"),
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    /**
+     * @return the localised column titles of the report, resolved from the bundle in the same
+     *         order {@link ReportExporter#COLUMN_KEYS} declares
+     */
+    private List<String> buildReportHeader() {
+        List<String> header = new java.util.ArrayList<>(ReportExporter.COLUMN_KEYS.size());
+        for (String key : ReportExporter.COLUMN_KEYS) {
+            header.add(i18n.getMessage(key));
+        }
+        return header;
+    }
+
+    /** @return the status column text for a copy outcome, localised through the bundle */
+    private String statusText(CopyResult result) {
+        return i18n.getMessage(ReportExporter.statusKey(result));
+    }
+
+    private String defaultReportFileName() {
+        String stamp = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(LocalDateTime.now());
+        return i18n.getMessage("export.dialog.defaultName") + "-" + stamp + ReportExporter.FILE_EXTENSION;
+    }
+
+    /** Appends the {@code .csv} extension when the user typed a name without one. */
+    private static Path withCsvExtension(Path target) {
+        String name = target.getFileName().toString();
+        if (name.toLowerCase(Locale.ROOT).endsWith(ReportExporter.FILE_EXTENSION)) {
+            return target;
+        }
+        return target.resolveSibling(name + ReportExporter.FILE_EXTENSION);
     }
 
     private void clearIndex() {
