@@ -8,6 +8,7 @@ import com.superredrock.usbthief.core.config.configs.IndexConfig;
 import com.superredrock.usbthief.core.config.configs.RateLimitConfig;
 import com.superredrock.usbthief.core.config.configs.ThreadPoolConfig;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,7 +26,9 @@ class ConfigManagerTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        testPrefs = Preferences.userNodeForPackage(ConfigManager.class).node("test_" + System.nanoTime());
+        // Isolate every test in its own root-level node so nothing is written into the real
+        // application preferences tree (and no sibling test can observe the values).
+        testPrefs = Preferences.userRoot().node("/usbthief-config-test-" + System.nanoTime());
         testPrefs.clear();
         var ctor = ConfigManager.class.getDeclaredConstructor(Preferences.class);
         ctor.setAccessible(true);
@@ -34,8 +37,8 @@ class ConfigManagerTest {
 
     @AfterEach
     void tearDown() throws BackingStoreException {
-        testPrefs.clear();
-        testPrefs.sync();
+        // clear() alone leaves the node behind forever; removeNode() actually reclaims it.
+        testPrefs.removeNode();
     }
 
     @Test
@@ -169,9 +172,16 @@ class ConfigManagerTest {
     }
 
     @Test
-    void exportToXmlInvalidPathThrows() {
-        assertThrows(IOException.class,
-                () -> manager.exportToXml(Path.of("Z:\\nonexistent\\dir\\config.xml")));
+    void exportToXmlInvalidPathThrows(@TempDir Path tempDir) throws IOException {
+        // A platform-independent "genuinely unwritable" path: a regular file can never act as a
+        // directory, so resolving a child below it makes the export fail on every OS. (The old
+        // "Z:\nonexistent\dir\config.xml" literal is a *valid* file name on Linux, where the
+        // export silently succeeded and created junk in the working directory.)
+        Path regularFile = Files.createFile(tempDir.resolve("not-a-directory"));
+        Path invalidPath = regularFile.resolve("child").resolve("config.xml");
+
+        assertThrows(IOException.class, () -> manager.exportToXml(invalidPath));
+        assertFalse(Files.exists(invalidPath), "no file may be created under a regular file");
     }
 
     @Test
