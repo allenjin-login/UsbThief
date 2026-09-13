@@ -491,6 +491,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
 
             moreButton = new JButton("⋮");
             moreButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+            moreButton.setToolTipText(i18n.getMessage("device.group.button.more"));
             moreButton.setFocusPainted(false);
             moreButton.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
             moreButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
@@ -597,6 +598,7 @@ public class VolumeListPanel extends JPanel implements I18nManager.LocaleChangeL
             batchEnableItem.setText(i18n.getMessage("device.group.batchEnable"));
             batchDisableItem.setText(i18n.getMessage("device.group.batchDisable"));
             batchBlacklistItem.setText(i18n.getMessage("device.group.batchBlacklist"));
+            moreButton.setToolTipText(i18n.getMessage("device.group.button.more"));
             refreshHeader();
         }
     }

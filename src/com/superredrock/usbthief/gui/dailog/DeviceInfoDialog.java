@@ -101,7 +101,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
         ));
 
         Font valFont = new Font(Font.SANS_SERIF, Font.BOLD, 13);
-        Font lblFont = new Font(Font.SANS_SERIF, Font.PLAIN, 9);
+        Font lblFont = new Font(Font.SANS_SERIF, Font.PLAIN, 10);
 
         for (Object[] entry : new Object[][]{
             {i18n.getMessage("deviceinfo.global.files"), globalFilesLabel},
@@ -140,7 +140,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
 
         if (allHistory.isEmpty()) {
             EmptyStatePanel emptyStatePanel = new EmptyStatePanel(
-                    "\uD83D\uDD0C",
+                    "\uD83D\uDD52",
                     i18n.getMessage("deviceinfo.empty.title"),
                     i18n.getMessage("deviceinfo.empty.description")
             );
@@ -247,14 +247,14 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
             stateBadge.setOpaque(true);
             stateBadge.setBackground(ThemeManager.getStateColor(volume.getState()));
             JLabel stateText = new JLabel(getLocalizedState(volume.getState()));
-            stateText.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 10));
+            stateText.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
             stateText.setForeground(Color.WHITE);
             stateBadge.add(stateText);
             stateBadge.setBorder(BorderFactory.createEmptyBorder(1, 8, 1, 8));
             headerRow.add(stateBadge, BorderLayout.EAST);
         } else {
             JLabel offlineLabel = new JLabel(i18n.getMessage("deviceinfo.card.offline"));
-            offlineLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
+            offlineLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
             offlineLabel.setForeground(ThemeManager.TEXT_MUTED);
             headerRow.add(offlineLabel, BorderLayout.EAST);
         }
@@ -269,7 +269,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
                 barPanel.setBorder(new EmptyBorder(4, 0, 0, 0));
                 barPanel.add(storageBar, BorderLayout.CENTER);
                 JLabel storageText = new JLabel(getStorageDetail(volume));
-                storageText.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
+                storageText.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
                 storageText.setForeground(ThemeManager.TEXT_SECONDARY);
                 barPanel.add(storageText, BorderLayout.EAST);
                 card.add(barPanel);
@@ -344,7 +344,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
             timelineRow.setBorder(new EmptyBorder(4, 0, 0, 0));
 
             JButton expandBtn = new JButton(i18n.getMessage("deviceinfo.timeline.show") + " (" + timeline.size() + ")");
-            expandBtn.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 9));
+            expandBtn.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
             expandBtn.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
             expandBtn.setContentAreaFilled(false);
             expandBtn.setForeground(ThemeManager.TEXT_MUTED);
@@ -370,7 +370,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
             for (var te : sorted) {
                 String eventKey = "deviceinfo.timeline." + te.getValue().toLowerCase();
                 JLabel entryLabel = new JLabel("  " + formatTimestamp(te.getKey()) + "  -  " + i18n.getMessage(eventKey));
-                entryLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 9));
+                entryLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
                 entryLabel.setForeground(te.getValue().equals("CONNECTED")
                     ? ThemeManager.ACCENT_SUCCESS
                     : ThemeManager.TEXT_MUTED);
@@ -401,7 +401,7 @@ public class DeviceInfoDialog extends JDialog implements I18nManager.LocaleChang
         JPanel cell = new JPanel(new BorderLayout(2, 0));
         cell.setOpaque(false);
         JLabel lbl = new JLabel(label, SwingConstants.CENTER);
-        lbl.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 9));
+        lbl.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
         lbl.setForeground(ThemeManager.TEXT_MUTED);
         JLabel val = new JLabel(value, SwingConstants.CENTER);
         val.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));

@@ -17,6 +17,7 @@ import com.superredrock.usbthief.core.event.storage.EmptyFoldersDeletedEvent;
 import com.superredrock.usbthief.core.event.worker.FileDiscoveredEvent;
 import com.superredrock.usbthief.core.event.worker.CopyCompletedEvent;
 import com.superredrock.usbthief.core.event.index.DuplicateDetectedEvent;
+import com.superredrock.usbthief.gui.I18nManager;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.index.Index;
 import com.superredrock.usbthief.worker.*;
@@ -34,7 +35,7 @@ import java.util.*;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-public class SnifferDebugDialog extends JDialog {
+public class SnifferDebugDialog extends JDialog implements I18nManager.LocaleChangeListener {
 
     private static final int POLL_MS = 250;
     private static final int EVENT_BUFFER_SIZE = 200;
@@ -46,9 +47,13 @@ public class SnifferDebugDialog extends JDialog {
     private static final int TAB_SERVICES = 1;
     private static final int TAB_EVENTS = 2;
     private static final int TAB_THREADS = 3;
-    private static final String[] TAB_NAMES = {"Sniffers", "Services", "Events", "Threads"};
     private static final String[] TAB_KEYS = {"SNIFFERS", "SERVICES", "EVENTS", "THREADS"};
+    private static final String[] TAB_MESSAGE_KEYS = {
+        "debug.tab.sniffers", "debug.tab.services", "debug.tab.events", "debug.tab.threads"
+    };
+    private static final String[] EVENT_FILTER_KEYS = {"all", "device", "copy", "index", "storage"};
 
+    private final I18nManager i18n = I18nManager.getInstance();
     private final Timer timer;
     private int activeTab = TAB_SNIFFERS;
 
@@ -61,7 +66,7 @@ public class SnifferDebugDialog extends JDialog {
 
     private final LinkedList<CapturedEvent> eventBuffer = new LinkedList<>();
     private final EventListener<Event> eventListener;
-    private String activeEventFilter = "All";
+    private String activeEventFilter = EVENT_FILTER_KEYS[0];
     private final CardLayout cardLayout;
     private final JPanel contentContainer;
 
@@ -74,7 +79,7 @@ public class SnifferDebugDialog extends JDialog {
     private static final Color TAB_INACTIVE_FG = ThemeManager.TEXT_MUTED;
 
     public SnifferDebugDialog(Frame owner) {
-        super(owner, "UsbThief Debug", false);
+        super(owner, I18nManager.getInstance().getMessage("debug.title"), false);
         setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         setSize(640, 480);
         setMinimumSize(new Dimension(480, 360));
@@ -103,11 +108,14 @@ public class SnifferDebugDialog extends JDialog {
         timer = new Timer(POLL_MS, _ -> refresh());
         timer.start();
 
+        i18n.addLocaleChangeListener(this);
+
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosed(java.awt.event.WindowEvent e) {
                 timer.stop();
                 EventBus.getInstance().unregister(Event.class, eventListener);
+                i18n.removeLocaleChangeListener(SnifferDebugDialog.this);
             }
         });
 
@@ -121,8 +129,8 @@ public class SnifferDebugDialog extends JDialog {
         bar.setBackground(ThemeManager.BACKGROUND_PRIMARY);
         bar.setBorder(new MatteBorder(0, 0, 1, 0, ThemeManager.BORDER_COLOR));
 
-        for (int i = 0; i < TAB_NAMES.length; i++) {
-            JButton btn = new JButton(TAB_NAMES[i]);
+        for (int i = 0; i < TAB_MESSAGE_KEYS.length; i++) {
+            JButton btn = new JButton(i18n.getMessage(TAB_MESSAGE_KEYS[i]));
             btn.setFocusPainted(false);
             btn.setBorderPainted(true);
             btn.setFont(btn.getFont().deriveFont(Font.PLAIN, 12f));
@@ -229,7 +237,8 @@ public class SnifferDebugDialog extends JDialog {
         sniffersPanel.setBorder(new EmptyBorder(12, 12, 12, 12));
 
         if (merged.isEmpty()) {
-            JLabel empty = new JLabel("No active sniffers", SwingConstants.CENTER);
+            JLabel empty = new JLabel(i18n.getMessage("debug.sniffers.empty"), SwingConstants.CENTER);
+            empty.setFont(empty.getFont().deriveFont(Font.PLAIN, 12f));
             empty.setForeground(ThemeManager.TEXT_MUTED);
             empty.setAlignmentX(Component.CENTER_ALIGNMENT);
             sniffersPanel.add(empty);
@@ -284,24 +293,24 @@ public class SnifferDebugDialog extends JDialog {
         stats.setOpaque(false);
 
         if (s.phase() == SnifferPhase.MONITORING) {
-            stats.add(buildStatItem("Changes", s.changeCount() + " / " + s.threshold()));
+            stats.add(buildStatItem(i18n.getMessage("debug.stat.changes"), s.changeCount() + " / " + s.threshold()));
             stats.add(buildProgressBar(s.changeCount(), Math.max(1, s.threshold())));
             if (s.resetIntervalSec() > 0) {
-                stats.add(buildStatItem("Reset In", formatDuration(s.secondsUntilReset())));
+                stats.add(buildStatItem(i18n.getMessage("debug.stat.resetIn"), formatDuration(s.secondsUntilReset())));
             }
-            stats.add(buildStatItem("Watched Dirs", String.valueOf(s.watchedDirCount())));
+            stats.add(buildStatItem(i18n.getMessage("debug.stat.watchedDirs"), String.valueOf(s.watchedDirCount())));
         } else if (s.phase() == SnifferPhase.FINISHED && s.cooldownRemainingMs() > 0) {
             long sec = TimeUnit.MILLISECONDS.toSeconds(s.cooldownRemainingMs());
             JLabel remainingLabel = new JLabel(formatDuration(sec));
             remainingLabel.setFont(remainingLabel.getFont().deriveFont(Font.BOLD, 12f));
             remainingLabel.setForeground(ThemeManager.ACCENT_ERROR);
-            stats.add(buildStatItem("Remaining", ""));
+            stats.add(buildStatItem(i18n.getMessage("debug.stat.remaining"), ""));
             stats.add(remainingLabel);
             if (s.cooldownReason() != null && !s.cooldownReason().isEmpty()) {
-                stats.add(buildStatItem("Reason", s.cooldownReason()));
+                stats.add(buildStatItem(i18n.getMessage("debug.stat.reason"), s.cooldownReason()));
             }
         } else if (s.phase() == SnifferPhase.INITIAL_SCAN) {
-            stats.add(buildStatItem("Watched Dirs", String.valueOf(s.watchedDirCount())));
+            stats.add(buildStatItem(i18n.getMessage("debug.stat.watchedDirs"), String.valueOf(s.watchedDirCount())));
         } else if (s.phase() == SnifferPhase.EJECTED) {
             Long ts = ejectedTimestamps.get(s.serialNumber());
             if (ts != null) {
@@ -309,7 +318,7 @@ public class SnifferDebugDialog extends JDialog {
                 JLabel elapsedLabel = new JLabel(formatDuration(elapsedSec));
                 elapsedLabel.setFont(elapsedLabel.getFont().deriveFont(Font.BOLD, 12f));
                 elapsedLabel.setForeground(ThemeManager.TEXT_MUTED);
-                stats.add(buildStatItem("Elapsed", ""));
+                stats.add(buildStatItem(i18n.getMessage("debug.stat.elapsed"), ""));
                 stats.add(elapsedLabel);
             }
         }
@@ -318,15 +327,17 @@ public class SnifferDebugDialog extends JDialog {
         return card;
     }
 
-    private static JPanel getDebugPanel(SnifferDebugSnapshot s) {
+    private JPanel getDebugPanel(SnifferDebugSnapshot s) {
         JPanel namePanel = new JPanel();
         namePanel.setLayout(new BoxLayout(namePanel, BoxLayout.Y_AXIS));
         namePanel.setOpaque(false);
-        JLabel nameLabel = new JLabel(s.driveLetter() != null && !s.driveLetter().isEmpty() ? "Volume " + s.driveLetter() : s.serialNumber());
+        JLabel nameLabel = new JLabel(s.driveLetter() != null && !s.driveLetter().isEmpty()
+            ? i18n.getMessage("debug.sniffers.volume", s.driveLetter())
+            : s.serialNumber());
         nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD, 12f));
         nameLabel.setForeground(ThemeManager.TEXT_PRIMARY);
-        JLabel serialLabel = new JLabel("Serial: " + s.serialNumber());
-        serialLabel.setFont(serialLabel.getFont().deriveFont(Font.PLAIN, 10f));
+        JLabel serialLabel = new JLabel(i18n.getMessage("debug.sniffers.serial", s.serialNumber()));
+        serialLabel.setFont(serialLabel.getFont().deriveFont(Font.PLAIN, 11f));
         serialLabel.setForeground(ThemeManager.TEXT_MUTED);
         namePanel.add(nameLabel);
         namePanel.add(serialLabel);
@@ -339,25 +350,25 @@ public class SnifferDebugDialog extends JDialog {
         Color fg = Color.WHITE;
         switch (s.phase()) {
             case INITIAL_SCAN:
-                text = "Scanning";
+                text = i18n.getMessage("debug.phase.scanning");
                 bg = ThemeManager.ACCENT_INFO;
                 break;
             case EJECTED:
-                text = "Ejected";
+                text = i18n.getMessage("debug.phase.ejected");
                 bg = ThemeManager.TEXT_MUTED;
                 fg = ThemeManager.TEXT_PRIMARY;
                 break;
             case MONITORING:
-                text = "Monitoring";
+                text = i18n.getMessage("debug.phase.monitoring");
                 bg = ThemeManager.ACCENT_SUCCESS;
                 break;
             case FINISHED:
             default:
                 if (s.cooldownRemainingMs() > 0) {
-                    text = "Cooldown";
+                    text = i18n.getMessage("debug.phase.cooldown");
                     bg = ThemeManager.ACCENT_ERROR;
                 } else {
-                    text = "Finished";
+                    text = i18n.getMessage("debug.phase.finished");
                     bg = ThemeManager.TEXT_MUTED;
                     fg = ThemeManager.TEXT_PRIMARY;
                 }
@@ -386,9 +397,9 @@ public class SnifferDebugDialog extends JDialog {
 
         JPanel summary = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         summary.setOpaque(false);
-        summary.add(buildCountBadge(running + " Running", ThemeManager.ACCENT_SUCCESS));
-        summary.add(buildCountBadge(paused + " Paused", ThemeManager.ACCENT_WARNING));
-        summary.add(buildCountBadge(failed + " Failed", ThemeManager.ACCENT_ERROR));
+        summary.add(buildCountBadge(i18n.getMessage("debug.services.running", running), ThemeManager.ACCENT_SUCCESS));
+        summary.add(buildCountBadge(i18n.getMessage("debug.services.paused", paused), ThemeManager.ACCENT_WARNING));
+        summary.add(buildCountBadge(i18n.getMessage("debug.services.failed", failed), ThemeManager.ACCENT_ERROR));
 
         JPanel grid = new JPanel(new GridLayout(0, 2, 8, 8));
         grid.setOpaque(false);
@@ -416,7 +427,23 @@ public class SnifferDebugDialog extends JDialog {
     }
 
     private JPanel buildServiceCard(Service svc) {
-        if (svc == null) return new JPanel();
+        if (svc == null) {
+            JPanel card = new JPanel(new BorderLayout());
+            card.setBackground(ThemeManager.CARD_BACKGROUND);
+            card.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(ThemeManager.BORDER_COLOR, 1, true),
+                new EmptyBorder(12, 12, 12, 12)
+            ));
+            JLabel nameLabel = new JLabel(i18n.getMessage("debug.services.unavailable"));
+            nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD, 11f));
+            nameLabel.setForeground(ThemeManager.TEXT_MUTED);
+            card.add(nameLabel, BorderLayout.WEST);
+            JLabel dot = new JLabel("\u25CF");
+            dot.setForeground(ThemeManager.TEXT_MUTED);
+            dot.setFont(dot.getFont().deriveFont(Font.PLAIN, 11f));
+            card.add(dot, BorderLayout.EAST);
+            return card;
+        }
 
         ServiceState state = svc.getServiceState();
         Color dotColor = switch (state) {
@@ -472,10 +499,9 @@ public class SnifferDebugDialog extends JDialog {
 
         JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         filters.setOpaque(false);
-        String[] categories = {"All", "Device", "Copy", "Index", "Storage"};
-        for (String cat : categories) {
-            JButton btn = new JButton(cat);
-            btn.setFont(btn.getFont().deriveFont(Font.PLAIN, 10f));
+        for (String cat : EVENT_FILTER_KEYS) {
+            JButton btn = new JButton(i18n.getMessage("debug.events.filter." + cat));
+            btn.setFont(btn.getFont().deriveFont(Font.PLAIN, 11f));
             btn.setFocusPainted(false);
             btn.setBorderPainted(true);
             btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -495,8 +521,8 @@ public class SnifferDebugDialog extends JDialog {
         }
         filterBar.add(filters, BorderLayout.WEST);
 
-        JLabel eventRateLabel = new JLabel(events.size() + " events");
-        eventRateLabel.setFont(eventRateLabel.getFont().deriveFont(Font.PLAIN, 10f));
+        JLabel eventRateLabel = new JLabel(i18n.getMessage("debug.events.count", events.size()));
+        eventRateLabel.setFont(eventRateLabel.getFont().deriveFont(Font.PLAIN, 11f));
         eventRateLabel.setForeground(ThemeManager.TEXT_MUTED);
         filterBar.add(eventRateLabel, BorderLayout.EAST);
 
@@ -528,12 +554,12 @@ public class SnifferDebugDialog extends JDialog {
     }
 
     private boolean matchesFilter(Event event, String filter) {
-        if ("All".equals(filter)) return true;
+        if (EVENT_FILTER_KEYS[0].equals(filter)) return true;
         return switch (filter) {
-            case "Device" -> event instanceof DeviceEvent || event instanceof VolumeEvent;
-            case "Copy" -> event instanceof FileDiscoveredEvent || event instanceof CopyCompletedEvent || event instanceof DuplicateDetectedEvent;
-            case "Index" -> event instanceof IndexEvent;
-            case "Storage" -> event instanceof StorageLowEvent || event instanceof StorageRecoveredEvent || event instanceof FilesRecycledEvent || event instanceof EmptyFoldersDeletedEvent;
+            case "device" -> event instanceof DeviceEvent || event instanceof VolumeEvent;
+            case "copy" -> event instanceof FileDiscoveredEvent || event instanceof CopyCompletedEvent || event instanceof DuplicateDetectedEvent;
+            case "index" -> event instanceof IndexEvent;
+            case "storage" -> event instanceof StorageLowEvent || event instanceof StorageRecoveredEvent || event instanceof FilesRecycledEvent || event instanceof EmptyFoldersDeletedEvent;
             default -> true;
         };
     }
@@ -549,30 +575,30 @@ public class SnifferDebugDialog extends JDialog {
         timeLabel.setPreferredSize(new Dimension(60, 20));
 
         Event event = ce.event;
-        String category;
+        String categoryKey;
         Color catColor;
         if (event instanceof DeviceEvent || event instanceof VolumeEvent) {
-            category = "DEVICE";
+            categoryKey = "debug.events.category.device";
             catColor = ThemeManager.ACCENT_INFO;
         } else if (event instanceof FileDiscoveredEvent || event instanceof CopyCompletedEvent || event instanceof DuplicateDetectedEvent) {
-            category = "COPY";
+            categoryKey = "debug.events.category.copy";
             catColor = ThemeManager.ACCENT_SUCCESS;
         } else if (event instanceof IndexEvent) {
-            category = "INDEX";
+            categoryKey = "debug.events.category.index";
             catColor = ThemeManager.ACCENT_PRIMARY;
         } else if (event instanceof StorageLowEvent || event instanceof StorageRecoveredEvent || event instanceof FilesRecycledEvent || event instanceof EmptyFoldersDeletedEvent) {
-            category = "STORAGE";
+            categoryKey = "debug.events.category.storage";
             catColor = ThemeManager.ACCENT_WARNING;
         } else {
-            category = "OTHER";
+            categoryKey = "debug.events.category.other";
             catColor = ThemeManager.TEXT_MUTED;
         }
 
-        JLabel catBadge = new JLabel(category);
+        JLabel catBadge = new JLabel(i18n.getMessage(categoryKey));
         catBadge.setOpaque(true);
         catBadge.setBackground(blendColor(catColor, 0.15f));
         catBadge.setForeground(catColor);
-        catBadge.setFont(catBadge.getFont().deriveFont(Font.BOLD, 10f));
+        catBadge.setFont(catBadge.getFont().deriveFont(Font.BOLD, 11f));
         catBadge.setBorder(new EmptyBorder(1, 6, 1, 6));
 
         JLabel descLabel = new JLabel(event.description());
@@ -601,26 +627,32 @@ public class SnifferDebugDialog extends JDialog {
 
         JPanel summary = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         summary.setOpaque(false);
-        JLabel summaryLabel = new JLabel("Total: " + filtered.size() + " threads | " + daemonCount + " daemon");
-        summaryLabel.setFont(summaryLabel.getFont().deriveFont(Font.PLAIN, 10f));
+        JLabel summaryLabel = new JLabel(i18n.getMessage("debug.threads.summary", filtered.size(), daemonCount));
+        summaryLabel.setFont(summaryLabel.getFont().deriveFont(Font.PLAIN, 11f));
         summaryLabel.setForeground(ThemeManager.TEXT_MUTED);
         summary.add(summaryLabel);
 
-        String[] columns = {"#", "Name", "State", "Daemon", "Priority"};
+        String[] columns = {
+            i18n.getMessage("debug.threads.column.index"),
+            i18n.getMessage("debug.threads.column.name"),
+            i18n.getMessage("debug.threads.column.state"),
+            i18n.getMessage("debug.threads.column.daemon"),
+            i18n.getMessage("debug.threads.column.priority")
+        };
         Object[][] data = new Object[filtered.size()][5];
         for (int i = 0; i < filtered.size(); i++) {
             Thread t = filtered.get(i);
             data[i][0] = i + 1;
             data[i][1] = t.getName();
             data[i][2] = t.getState().toString();
-            data[i][3] = t.isDaemon() ? "Yes" : "No";
+            data[i][3] = i18n.getMessage(t.isDaemon() ? "debug.threads.yes" : "debug.threads.no");
             data[i][4] = t.getPriority();
         }
 
         JTable table = new JTable(data, columns);
         table.setRowHeight(24);
         table.setFont(table.getFont().deriveFont(Font.PLAIN, 11f));
-        table.getTableHeader().setFont(table.getFont().deriveFont(Font.BOLD, 10f));
+        table.getTableHeader().setFont(table.getFont().deriveFont(Font.BOLD, 11f));
         table.setGridColor(ThemeManager.BORDER_COLOR);
         table.setShowGrid(true);
         table.setBackground(ThemeManager.CARD_BACKGROUND);
@@ -658,13 +690,30 @@ public class SnifferDebugDialog extends JDialog {
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setOpaque(false);
         JLabel lbl = new JLabel(label);
-        lbl.setFont(lbl.getFont().deriveFont(Font.PLAIN, 10f));
+        lbl.setFont(lbl.getFont().deriveFont(Font.PLAIN, 11f));
         lbl.setForeground(ThemeManager.TEXT_MUTED);
         JLabel val = new JLabel(value);
         val.setFont(val.getFont().deriveFont(Font.BOLD, 12f));
         panel.add(lbl);
         panel.add(val);
         return panel;
+    }
+
+    // ========== Localization ==========
+
+    @Override
+    public void onLocaleChanged(java.util.Locale newLocale) {
+        SwingUtilities.invokeLater(this::refreshLanguage);
+    }
+
+    public void refreshLanguage() {
+        setTitle(i18n.getMessage("debug.title"));
+        for (int i = 0; i < tabButtons.length; i++) {
+            if (tabButtons[i] != null) {
+                tabButtons[i].setText(i18n.getMessage(TAB_MESSAGE_KEYS[i]));
+            }
+        }
+        refresh();
     }
 
     private static JProgressBar buildProgressBar(int value, int max) {
