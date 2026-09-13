@@ -1,9 +1,9 @@
 package com.superredrock.usbthief.worker;
 
-import com.superredrock.usbthief.core.ClockThread;
 import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.Service;
 import com.superredrock.usbthief.core.Volume;
+import com.superredrock.usbthief.core.concurrent.CooldownTimer;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.configs.StorageConfig;
 import com.superredrock.usbthief.core.QueueManager;
@@ -35,8 +35,11 @@ public class SnifferLifecycleManager extends Service {
     /** Active sniffers keyed by volume serial number */
     private final ConcurrentHashMap<String, SnifferEntry> sniffers = new ConcurrentHashMap<>();
 
-    /** Active cooldown timers keyed by volume serial number */
-    private final ConcurrentHashMap<String, ClockThread> timers = new ConcurrentHashMap<>();
+    /**
+     * Pending restart cooldowns keyed by volume serial number. Backed by the shared
+     * {@code ScheduledExecutorService}: a cooldown is a delayed task, not a polling thread.
+     */
+    private final CooldownTimer cooldowns = new CooldownTimer();
 
     /** Whether init check has been done */
     private volatile boolean initialized = false;
@@ -100,7 +103,7 @@ public class SnifferLifecycleManager extends Service {
                 case OFFLINE, EJECTING -> {
                     logger.debug("Volume {} , stopping sniffer: {}", newState, serial);
                     stopSnifferOnly(serial);
-                    if (!timers.containsKey(serial)) {
+                    if (!cooldowns.isPending(serial)) {
                         scheduleRestart(serial, RestartReason.NORMAL_COMPLETION);
                     }
                 }
@@ -132,7 +135,7 @@ public class SnifferLifecycleManager extends Service {
             String serial = volume.getSerialNumber();
             if (volume.isActive() &&
                 !sniffers.containsKey(serial) &&
-                !timers.containsKey(serial)) {
+                !cooldowns.isPending(serial)) {
                 createSniffer(volume);
             }
         }
@@ -207,7 +210,7 @@ public class SnifferLifecycleManager extends Service {
     }
 
     /**
-     * Schedules a restart after the appropriate cooldown delay.
+     * Schedules a restart after the cooldown configured for the given reason.
      */
     private void scheduleRestart(String serial, RestartReason reason) {
         long delayMs = getRestartDelayMs(reason);
@@ -221,27 +224,36 @@ public class SnifferLifecycleManager extends Service {
             return;
         }
 
-        ClockThread timer = new ClockThread(delayMs)
-            .thenRun(() -> {
-                timers.remove(serial);
-                Volume vol = getVolumeBySerial(serial);
-                if (vol != null && vol.isActive() && !sniffers.containsKey(serial)) {
-                    logger.info("Cooldown elapsed, restarting sniffer for: {}", serial);
-                    createSniffer(vol);
-                } else {
-                    logger.debug("Skipping restart for {}: volume not IDLE or sniffer already active", serial);
-                }
-            });
-        timers.put(serial, timer);
-        timer.start();
+        scheduleRestart(serial, delayMs, reason);
+    }
+
+    /**
+     * Schedules a restart after an explicit delay.
+     *
+     * <p>The cooldown itself runs on the shared scheduler thread and only performs the
+     * eligibility check plus {@link #createSniffer(Volume)}, which merely spawns the
+     * Sniffer thread - the scan work stays on the Sniffer/scan threads. Package-private so
+     * a test can drive the restart path without waiting the configured minutes.
+     *
+     * @param serial  the volume serial number
+     * @param delayMs the cooldown in milliseconds, must be positive
+     * @param reason  the reason the restart was scheduled (for logging)
+     */
+    void scheduleRestart(String serial, long delayMs, RestartReason reason) {
+        cooldowns.schedule(serial, delayMs, () -> {
+            Volume vol = getVolumeBySerial(serial);
+            if (vol != null && vol.isActive() && !sniffers.containsKey(serial)) {
+                logger.info("Cooldown elapsed, restarting sniffer for: {}", serial);
+                createSniffer(vol);
+            } else {
+                logger.debug("Skipping restart for {}: volume not IDLE or sniffer already active", serial);
+            }
+        });
         logger.info("Scheduled restart for {} in {} min (reason: {})", serial, TimeUnit.MILLISECONDS.toMinutes(delayMs), reason);
     }
 
     private void cancelTimer(String serial) {
-        ClockThread timer = timers.remove(serial);
-        if (timer != null) {
-            timer.cancel();
-        }
+        cooldowns.cancel(serial);
     }
 
     private Volume getVolumeBySerial(String serial) {
@@ -252,8 +264,12 @@ public class SnifferLifecycleManager extends Service {
 
     /**
      * Gets the restart delay in milliseconds based on the reason.
+     *
+     * <p>Package-private for testing: the reason-to-delay mapping is an acceptance criterion
+     * of the cooldown behaviour (NORMAL_COMPLETION and ERROR differ, STORAGE_PAUSE restarts
+     * immediately).
      */
-    private long getRestartDelayMs(RestartReason reason) {
+    long getRestartDelayMs(RestartReason reason) {
         ConfigManager config = ConfigManager.getInstance();
         return switch (reason) {
             case NORMAL_COMPLETION ->
@@ -330,15 +346,14 @@ public class SnifferLifecycleManager extends Service {
      * Returns true if a restart is pending for the given serial.
      */
     public boolean isRestartPending(String serialNumber) {
-        return timers.containsKey(serialNumber);
+        return cooldowns.isPending(serialNumber);
     }
 
     /**
      * Gets the remaining cooldown time in milliseconds for a volume, or 0 if not in cooldown.
      */
     public long getRemainingCooldownMs(String serialNumber) {
-        ClockThread timer = timers.get(serialNumber);
-        return timer != null ? timer.getRemaining(TimeUnit.MILLISECONDS) : 0;
+        return cooldowns.remainingMs(serialNumber);
     }
 
     /**
@@ -365,11 +380,11 @@ public class SnifferLifecycleManager extends Service {
             }
         }
 
-        for (var entry : timers.entrySet()) {
+        for (Map.Entry<String, Long> entry : cooldowns.remainingMsSnapshot().entrySet()) {
             String serial = entry.getKey();
             boolean hasActive = snapshots.stream().anyMatch(s -> s.serialNumber().equals(serial));
             if (!hasActive) {
-                long remaining = entry.getValue().getRemaining(TimeUnit.MILLISECONDS);
+                long remaining = entry.getValue();
                 String reason = remaining > 0 ? "restart" : "";
                 Volume vol = getVolumeBySerial(serial);
                 snapshots.add(new SnifferDebugSnapshot(
@@ -390,10 +405,7 @@ public class SnifferLifecycleManager extends Service {
 
     @Override
     protected void cleanup() {
-        for (ClockThread timer : timers.values()) {
-            timer.cancel();
-        }
-        timers.clear();
+        cooldowns.cancelAll();
 
         for (SnifferEntry entry : sniffers.values()) {
             try {

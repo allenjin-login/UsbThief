@@ -39,7 +39,12 @@ public class StorageController {
 
     private static volatile StorageController INSTANCE;
 
-    protected LongSummaryStatistics workSize = new LongSummaryStatistics(0,0,0,0);
+    /**
+     * Statistics of the work directory, refreshed by {@link RecyclerService} on its own
+     * thread and read here when the storage level is computed on another one, so the field
+     * is volatile: the whole instance is published, never mutated in place.
+     */
+    protected volatile LongSummaryStatistics workSize = new LongSummaryStatistics(0,0,0,0);
 
     /**
      * How long a {@link StorageStatus} snapshot may be served from cache.
