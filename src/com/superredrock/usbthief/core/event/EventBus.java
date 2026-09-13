@@ -1,19 +1,31 @@
 package com.superredrock.usbthief.core.event;
 
-import com.superredrock.usbthief.core.QueueManager;
-
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
  * Thread-safe event bus for dispatching events to registered listeners.
  * Supports dynamic listener registration and unregistration.
+ *
+ * <p>Listeners are indexed by the event type they subscribed to. A subscription on a
+ * supertype (a base class such as {@code VolumeEvent} or the {@link Event} interface)
+ * receives every event whose class is assignable to that type. Lookups therefore only
+ * touch the supertype chain of the dispatched event instead of scanning every listener.
+ *
+ * <p>Synchronous listeners are invoked in registration order on the <em>calling</em>
+ * thread; {@code dispatch} never hands work to another thread. Listeners that need to
+ * run off the calling thread must register through {@link #registerAsync} or dispatch
+ * to an executor themselves.
  *
  * <p>Usage example:
  * <pre>
@@ -34,13 +46,55 @@ public final class EventBus {
     private static final EventBus INSTANCE = new EventBus();
     private static final Logger logger = LogManager.getLogger(EventBus.class);
 
-    // Synchronous listeners stored per event type, using CopyOnWriteArrayList for thread-safe iteration
-    @SuppressWarnings("rawtypes")
-    private final List<EventListenerWrapper> listeners = new CopyOnWriteArrayList<>();
+    /**
+     * Cached supertype chain (the class itself, all superclasses and all implemented
+     * interfaces, transitively) used to resolve subtype subscriptions. The chain of a
+     * class never changes, so it is computed at most once per event class and is
+     * independent of which listeners happen to be registered.
+     */
+    private static final ClassValue<List<Class<?>>> TYPE_CHAIN = new ClassValue<List<Class<?>>>() {
+        @Override
+        protected List<Class<?>> computeValue(Class<?> type) {
+            List<Class<?>> chain = new ArrayList<>();
+            Deque<Class<?>> pending = new ArrayDeque<>();
+            pending.add(type);
+            while (!pending.isEmpty()) {
+                Class<?> current = pending.poll();
+                if (current == null || current == Object.class || chain.contains(current)) {
+                    continue;
+                }
+                chain.add(current);
+                for (Class<?> iface : current.getInterfaces()) {
+                    pending.add(iface);
+                }
+                Class<?> superClass = current.getSuperclass();
+                if (superClass != null) {
+                    pending.add(superClass);
+                }
+            }
+            return Collections.unmodifiableList(chain);
+        }
+    };
 
-    // Asynchronous listeners stored per event type, using CopyOnWriteArrayList for thread-safe iteration
-    @SuppressWarnings("rawtypes")
-    private final List<AsyncEventListenerWrapper> asyncListeners = new CopyOnWriteArrayList<>();
+    // Synchronous listeners indexed by the event type they registered for. Values are
+    // CopyOnWriteArrayList so dispatch can iterate lock-free while registrations happen.
+    private final Map<Class<?>, List<EventListenerWrapper<?>>> syncByType = new ConcurrentHashMap<>();
+
+    // Asynchronous listeners, indexed the same way.
+    private final Map<Class<?>, List<AsyncEventListenerWrapper<?, ?>>> asyncByType = new ConcurrentHashMap<>();
+
+    // Per-event-class resolution of the listener index. Compared against
+    // registryVersion, so an entry is only reused while no registration changed.
+    private final Map<Class<?>, ResolvedListeners<EventListenerWrapper<?>>> syncCache = new ConcurrentHashMap<>();
+    private final Map<Class<?>, ResolvedListeners<AsyncEventListenerWrapper<?, ?>>> asyncCache = new ConcurrentHashMap<>();
+
+    // Bumped on every registration change; invalidates the resolution caches.
+    private final AtomicLong registryVersion = new AtomicLong();
+
+    // Assigns a globally increasing registration sequence, used to keep dispatch order
+    // identical to registration order even when listeners are matched through different
+    // entries of the type index.
+    private final AtomicLong registrationSequence = new AtomicLong();
 
     private EventBus() {
         // Singleton
@@ -57,6 +111,9 @@ public final class EventBus {
      * Registers a listener for events of the specified type.
      * Duplicate listeners are not added; each listener is called at most once per event.
      *
+     * <p>The listener receives every event assignable to {@code eventClass}, including
+     * events of subclasses and of implementing classes.
+     *
      * @param eventClass the class of events to listen for
      * @param listener   the listener to register
      * @param <T>        the event type
@@ -66,17 +123,19 @@ public final class EventBus {
             throw new IllegalArgumentException("eventClass and listener cannot be null");
         }
 
-        EventListenerWrapper<T> wrapper = new EventListenerWrapper<>(eventClass, listener);
+        List<EventListenerWrapper<?>> registered =
+                syncByType.computeIfAbsent(eventClass, key -> new CopyOnWriteArrayList<>());
 
-        // Check for duplicates
-        for (EventListenerWrapper<?> existing : listeners) {
-            if (existing.equals(wrapper)) {
-                logger.warn("Listener already registered for event type: {}", eventClass.getName());
-                return;
-            }
+        EventListenerWrapper<T> wrapper =
+                new EventListenerWrapper<>(eventClass, listener, registrationSequence.incrementAndGet());
+
+        if (registered.contains(wrapper)) {
+            logger.warn("Listener already registered for event type: {}", eventClass.getName());
+            return;
         }
 
-        listeners.add(wrapper);
+        registered.add(wrapper);
+        registryVersion.incrementAndGet();
         logger.debug("Registered listener for event type: {}", eventClass.getName());
     }
 
@@ -93,46 +152,57 @@ public final class EventBus {
             throw new IllegalArgumentException("eventClass and listener cannot be null");
         }
 
-        EventListenerWrapper<T> wrapper = new EventListenerWrapper<>(eventClass, listener);
+        List<EventListenerWrapper<?>> registered = syncByType.get(eventClass);
+        if (registered == null) {
+            return;
+        }
 
-        boolean removed = listeners.remove(wrapper);
-        if (removed) {
+        if (registered.remove(new EventListenerWrapper<>(eventClass, listener, -1L))) {
+            registryVersion.incrementAndGet();
             logger.debug("Unregistered listener for event type: {}", eventClass.getName());
         }
     }
 
     /**
-     * Dispatches an event to all registered listeners for its type.
-     * Listeners are notified in parallel using parallel streams.
-     * Exceptions thrown by listeners are logged but do not stop dispatch to other listeners.
+     * Dispatches an event to all matching listeners.
+     *
+     * <p>Listeners are executed serially on the calling thread, in the order they were
+     * registered. Exceptions thrown by a listener are logged and do not stop dispatch
+     * to the remaining listeners. If no listener is registered for the event type (or
+     * any of its supertypes) the method returns immediately.
      *
      * @param event the event to dispatch
      * @param <T>   the event type
      */
-    @SuppressWarnings("unchecked")
     public <T extends Event> void dispatch(T event) {
         if (event == null) {
             throw new IllegalArgumentException("event cannot be null");
         }
 
-        listeners.parallelStream()
-                .filter(wrapper -> wrapper.canHandle(event))
-                .forEach(wrapper -> {
-                    try {
-                        EventListener<T> listener = (EventListener<T>) wrapper.listener();
-                        listener.onEvent(event);
-                    } catch (Exception e) {
-                        logger.error("Exception in event listener for {}: {}", event.getClass().getName(), e);
-                    }
-                });
+        List<EventListenerWrapper<?>> resolved = resolveSyncListeners(event.getClass());
+        if (resolved.isEmpty()) {
+            return; // fast path: nobody listens for this type
+        }
+
+        for (int i = 0; i < resolved.size(); i++) {
+            EventListenerWrapper<?> wrapper = resolved.get(i);
+            try {
+                @SuppressWarnings("unchecked")
+                EventListener<T> listener = (EventListener<T>) wrapper.listener();
+                listener.onEvent(event);
+            } catch (Exception e) {
+                logger.error("Exception in event listener for {}: {}", event.getClass().getName(), e);
+            }
+        }
     }
 
     /**
      * Clears all registered listeners. Useful for testing or application shutdown.
      */
     public void clearAll() {
-        listeners.clear();
-        asyncListeners.clear();
+        syncByType.clear();
+        asyncByType.clear();
+        registryVersion.incrementAndGet();
         logger.debug("Cleared all event listeners");
     }
 
@@ -140,7 +210,14 @@ public final class EventBus {
      * @return the number of registered listeners (both sync and async)
      */
     public int listenerCount() {
-        return listeners.size() + asyncListeners.size();
+        int count = 0;
+        for (List<EventListenerWrapper<?>> wrappers : syncByType.values()) {
+            count += wrappers.size();
+        }
+        for (List<AsyncEventListenerWrapper<?, ?>> wrappers : asyncByType.values()) {
+            count += wrappers.size();
+        }
+        return count;
     }
 
     /**
@@ -162,18 +239,12 @@ public final class EventBus {
             throw new IllegalArgumentException("resultType cannot be null");
         }
 
-        AsyncEventListenerWrapper<T, R> wrapper = new AsyncEventListenerWrapper<>(eventClass, listener, resultType);
+        AsyncEventListenerWrapper<T, R> wrapper = new AsyncEventListenerWrapper<>(
+                eventClass, listener, resultType, registrationSequence.incrementAndGet());
 
-        // Check for duplicates
-        for (AsyncEventListenerWrapper<?, ?> existing : asyncListeners) {
-            if (existing.equals(wrapper)) {
-                logger.warn("Async listener already registered for event type: {}", eventClass.getName());
-                return;
-            }
+        if (addAsyncListener(eventClass, wrapper)) {
+            logger.debug("Registered async listener for event type: {}", eventClass.getName());
         }
-
-        asyncListeners.add(wrapper);
-        logger.debug("Registered async listener for event type: {}", eventClass.getName());
     }
 
     /**
@@ -190,18 +261,12 @@ public final class EventBus {
             throw new IllegalArgumentException("eventClass and listener cannot be null");
         }
 
-        AsyncEventListenerWrapper<T, R> wrapper = new AsyncEventListenerWrapper<>(eventClass, listener, null);
+        AsyncEventListenerWrapper<T, R> wrapper = new AsyncEventListenerWrapper<>(
+                eventClass, listener, registrationSequence.incrementAndGet());
 
-        // Check for duplicates
-        for (AsyncEventListenerWrapper<?, ?> existing : asyncListeners) {
-            if (existing.equals(wrapper)) {
-                logger.warn("Async listener already registered for event type: {}", eventClass.getName());
-                return;
-            }
+        if (addAsyncListener(eventClass, wrapper)) {
+            logger.debug("Registered async listener for event type: {}", eventClass.getName());
         }
-
-        asyncListeners.add(wrapper);
-        logger.debug("Registered async listener for event type: {}", eventClass.getName());
     }
 
     /**
@@ -218,10 +283,13 @@ public final class EventBus {
             throw new IllegalArgumentException("eventClass and listener cannot be null");
         }
 
-        AsyncEventListenerWrapper<T, R> wrapper = new AsyncEventListenerWrapper<>(eventClass, listener);
+        List<AsyncEventListenerWrapper<?, ?>> registered = asyncByType.get(eventClass);
+        if (registered == null) {
+            return;
+        }
 
-        boolean removed = asyncListeners.remove(wrapper);
-        if (removed) {
+        if (registered.remove(new AsyncEventListenerWrapper<>(eventClass, listener, -1L))) {
+            registryVersion.incrementAndGet();
             logger.debug("Unregistered async listener for event type: {}", eventClass.getName());
         }
     }
@@ -244,29 +312,25 @@ public final class EventBus {
         List<CompletableFuture<?>> futures = new ArrayList<>();
 
         // Handle synchronous listeners asynchronously
-        for (EventListenerWrapper<?> wrapper : listeners) {
-            if (wrapper.canHandle(event)) {
-                CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
-                    try {
-                        @SuppressWarnings("unchecked")
-                        EventListener<T> listener = (EventListener<T>) wrapper.listener();
-                        listener.onEvent(event);
-                    } catch (Exception e) {
-                        logger.error("Exception in event listener for {}: {}", event.getClass().getName(), e);
-                    }
-                });
-                futures.add(future);
-            }
+        for (EventListenerWrapper<?> wrapper : resolveSyncListeners(event.getClass())) {
+            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                try {
+                    @SuppressWarnings("unchecked")
+                    EventListener<T> listener = (EventListener<T>) wrapper.listener();
+                    listener.onEvent(event);
+                } catch (Exception e) {
+                    logger.error("Exception in event listener for {}: {}", event.getClass().getName(), e);
+                }
+            });
+            futures.add(future);
         }
 
         // Handle asynchronous listeners
-        for (AsyncEventListenerWrapper<?, ?> wrapper : asyncListeners) {
-            if (wrapper.canHandle(event)) {
-                @SuppressWarnings("unchecked")
-                AsyncEventListener<T, ?> listener = (AsyncEventListener<T, ?>) wrapper.listener();
-                CompletableFuture<?> future = listener.onEventAsync(event);
-                futures.add(future);
-            }
+        for (AsyncEventListenerWrapper<?, ?> wrapper : resolveAsyncListeners(event.getClass())) {
+            @SuppressWarnings("unchecked")
+            AsyncEventListener<T, ?> listener = (AsyncEventListener<T, ?>) wrapper.listener();
+            CompletableFuture<?> future = listener.onEventAsync(event);
+            futures.add(future);
         }
 
         // Return a future that completes when all listeners finish
@@ -295,8 +359,8 @@ public final class EventBus {
         // Collect results from async listeners that return the specified type
         List<CompletableFuture<R>> resultFutures = new ArrayList<>();
 
-        for (AsyncEventListenerWrapper<?, ?> wrapper : asyncListeners) {
-            if (wrapper.canHandle(event) && wrapper.canReturn(resultType)) {
+        for (AsyncEventListenerWrapper<?, ?> wrapper : resolveAsyncListeners(event.getClass())) {
+            if (wrapper.canReturn(resultType)) {
                 @SuppressWarnings("unchecked")
                 AsyncEventListener<T, R> listener = (AsyncEventListener<T, R>) wrapper.listener();
                 resultFutures.add(listener.onEventAsync(event));
@@ -304,18 +368,16 @@ public final class EventBus {
         }
 
         // Handle synchronous listeners (notify but don't collect results)
-        for (EventListenerWrapper<?> wrapper : listeners) {
-            if (wrapper.canHandle(event)) {
-                CompletableFuture.runAsync(() -> {
-                    try {
-                        @SuppressWarnings("unchecked")
-                        EventListener<T> listener = (EventListener<T>) wrapper.listener();
-                        listener.onEvent(event);
-                    } catch (Exception e) {
-                        logger.error("Exception in event listener for {}: {}", event.getClass().getName(), e);
-                    }
-                });
-            }
+        for (EventListenerWrapper<?> wrapper : resolveSyncListeners(event.getClass())) {
+            CompletableFuture.runAsync(() -> {
+                try {
+                    @SuppressWarnings("unchecked")
+                    EventListener<T> listener = (EventListener<T>) wrapper.listener();
+                    listener.onEvent(event);
+                } catch (Exception e) {
+                    logger.error("Exception in event listener for {}: {}", event.getClass().getName(), e);
+                }
+            });
         }
 
         // Return a future that completes with all collected results
@@ -356,8 +418,8 @@ public final class EventBus {
         // Store listener -> future mapping
         Map<AsyncEventListener<T, R>, CompletableFuture<R>> listenerFutures = new ConcurrentHashMap<>();
 
-        for (AsyncEventListenerWrapper<?, ?> wrapper : asyncListeners) {
-            if (wrapper.canHandle(event) && wrapper.canReturn(resultType)) {
+        for (AsyncEventListenerWrapper<?, ?> wrapper : resolveAsyncListeners(event.getClass())) {
+            if (wrapper.canReturn(resultType)) {
                 @SuppressWarnings("unchecked")
                 AsyncEventListener<T, R> listener = (AsyncEventListener<T, R>) wrapper.listener();
                 CompletableFuture<R> future = listener.onEventAsync(event);
@@ -366,18 +428,16 @@ public final class EventBus {
         }
 
         // Handle synchronous listeners (notify but don't collect results)
-        for (EventListenerWrapper<?> wrapper : listeners) {
-            if (wrapper.canHandle(event)) {
-                CompletableFuture.runAsync(() -> {
-                    try {
-                        @SuppressWarnings("unchecked")
-                        EventListener<T> listener = (EventListener<T>) wrapper.listener();
-                        listener.onEvent(event);
-                    } catch (Exception e) {
-                        logger.error("Exception in event listener for {}: {}", event.getClass().getName(), e);
-                    }
-                });
-            }
+        for (EventListenerWrapper<?> wrapper : resolveSyncListeners(event.getClass())) {
+            CompletableFuture.runAsync(() -> {
+                try {
+                    @SuppressWarnings("unchecked")
+                    EventListener<T> listener = (EventListener<T>) wrapper.listener();
+                    listener.onEvent(event);
+                } catch (Exception e) {
+                    logger.error("Exception in event listener for {}: {}", event.getClass().getName(), e);
+                }
+            });
         }
 
         // Return a future that completes with all collected results as a map
@@ -395,24 +455,135 @@ public final class EventBus {
                 });
     }
 
+    private boolean addAsyncListener(Class<?> eventClass, AsyncEventListenerWrapper<?, ?> wrapper) {
+        List<AsyncEventListenerWrapper<?, ?>> registered =
+                asyncByType.computeIfAbsent(eventClass, key -> new CopyOnWriteArrayList<>());
+
+        if (registered.contains(wrapper)) {
+            logger.warn("Async listener already registered for event type: {}", eventClass.getName());
+            return false;
+        }
+
+        registered.add(wrapper);
+        registryVersion.incrementAndGet();
+        return true;
+    }
+
+    /**
+     * Returns the synchronous listeners matching the given event class, in registration
+     * order. Resolutions are cached until the registry changes.
+     */
+    private List<EventListenerWrapper<?>> resolveSyncListeners(Class<?> eventClass) {
+        long version = registryVersion.get();
+        ResolvedListeners<EventListenerWrapper<?>> cached = syncCache.get(eventClass);
+        if (cached != null && cached.version == version) {
+            return cached.wrappers;
+        }
+
+        List<EventListenerWrapper<?>> resolved = resolve(syncByType, eventClass);
+        syncCache.put(eventClass, new ResolvedListeners<>(version, resolved));
+        return resolved;
+    }
+
+    /**
+     * Returns the asynchronous listeners matching the given event class, in registration
+     * order. Resolutions are cached until the registry changes.
+     */
+    private List<AsyncEventListenerWrapper<?, ?>> resolveAsyncListeners(Class<?> eventClass) {
+        long version = registryVersion.get();
+        ResolvedListeners<AsyncEventListenerWrapper<?, ?>> cached = asyncCache.get(eventClass);
+        if (cached != null && cached.version == version) {
+            return cached.wrappers;
+        }
+
+        List<AsyncEventListenerWrapper<?, ?>> resolved = resolve(asyncByType, eventClass);
+        asyncCache.put(eventClass, new ResolvedListeners<>(version, resolved));
+        return resolved;
+    }
+
+    /**
+     * Walks the supertype chain of {@code eventClass} and collects every listener
+     * registered against one of its types, ordered by registration sequence.
+     */
+    private static <W extends RegisteredWrapper> List<W> resolve(Map<Class<?>, List<W>> byType, Class<?> eventClass) {
+        List<W> matched = new ArrayList<>();
+        for (Class<?> type : TYPE_CHAIN.get(eventClass)) {
+            List<W> registered = byType.get(type);
+            if (registered != null && !registered.isEmpty()) {
+                matched.addAll(registered);
+            }
+        }
+
+        if (matched.size() > 1) {
+            matched.sort((a, b) -> Long.compare(a.sequence(), b.sequence()));
+        }
+
+        return Collections.unmodifiableList(matched);
+    }
+
+    /**
+     * Common contract of the listener wrappers, used to restore registration order after
+     * the type index has gathered them from several supertypes.
+     */
+    private interface RegisteredWrapper {
+        long sequence();
+    }
+
+    /**
+     * Cached resolution of the listener index for one event class.
+     */
+    private static final class ResolvedListeners<W> {
+        private final long version;
+        private final List<W> wrappers;
+
+        ResolvedListeners(long version, List<W> wrappers) {
+            this.version = version;
+            this.wrappers = wrappers;
+        }
+    }
+
     /**
      * Internal wrapper class that associates a listener with its event type.
      * Uses equality based on the event type and listener instance to prevent duplicates.
      *
      * @param <T> the event type
      */
-    private record EventListenerWrapper<T extends Event>(Class<T> eventClass, EventListener<T> listener) {
+    private static final class EventListenerWrapper<T extends Event> implements RegisteredWrapper {
+        private final Class<T> eventClass;
+        private final EventListener<T> listener;
+        private final long sequence;
 
-        boolean canHandle(Event event) {
-            return eventClass.isInstance(event);
+        EventListenerWrapper(Class<T> eventClass, EventListener<T> listener, long sequence) {
+            this.eventClass = eventClass;
+            this.listener = listener;
+            this.sequence = sequence;
+        }
+
+        EventListener<T> listener() {
+            return listener;
+        }
+
+        @Override
+        public long sequence() {
+            return sequence;
         }
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof EventListenerWrapper<?>(Class<?> aClass, EventListener<?> listener1))) return false;
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof EventListenerWrapper)) {
+                return false;
+            }
+            EventListenerWrapper<?> other = (EventListenerWrapper<?>) o;
             // Equality based on same event type and same listener instance
-            return eventClass.equals(aClass) && listener.equals(listener1);
+            return eventClass.equals(other.eventClass) && listener.equals(other.listener);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * eventClass.hashCode() + listener.hashCode();
         }
     }
 
@@ -423,16 +594,13 @@ public final class EventBus {
      * @param <T> the event type
      * @param <R> the result type
      */
-    private static class AsyncEventListenerWrapper<T extends Event, R> {
+    private static final class AsyncEventListenerWrapper<T extends Event, R> implements RegisteredWrapper {
         private final Class<T> eventClass;
         private final AsyncEventListener<T, R> listener;
         private final Class<R> resultType;
+        private final long sequence;
 
-        AsyncEventListenerWrapper(Class<T> eventClass, AsyncEventListener<T, R> listener) {
-            this(eventClass, listener, null);
-        }
-
-        <R2> AsyncEventListenerWrapper(Class<T> eventClass, AsyncEventListener<T, R> listener, Class<R2> resultType) {
+        <R2> AsyncEventListenerWrapper(Class<T> eventClass, AsyncEventListener<T, R> listener, Class<R2> resultType, long sequence) {
             // Note: This constructor accepts a generic resultType parameter but stores it as Class<R>
             // In practice, resultType should match the actual return type of the listener
             this.eventClass = eventClass;
@@ -440,6 +608,12 @@ public final class EventBus {
             @SuppressWarnings("unchecked")
             Class<R> castResultType = (Class<R>) resultType;
             this.resultType = castResultType;
+            this.sequence = sequence;
+        }
+
+        @SuppressWarnings("unchecked")
+        AsyncEventListenerWrapper(Class<T> eventClass, AsyncEventListener<T, R> listener, long sequence) {
+            this(eventClass, listener, null, sequence);
         }
 
         Class<T> eventClass() {
@@ -450,21 +624,31 @@ public final class EventBus {
             return listener;
         }
 
-        boolean canHandle(Event event) {
-            return eventClass.isInstance(event);
-        }
-
         boolean canReturn(Class<?> type) {
             return resultType != null && resultType.isAssignableFrom(type);
         }
 
         @Override
+        public long sequence() {
+            return sequence;
+        }
+
+        @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof AsyncEventListenerWrapper<?, ?> wrapper)) return false;
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof AsyncEventListenerWrapper)) {
+                return false;
+            }
+            AsyncEventListenerWrapper<?, ?> other = (AsyncEventListenerWrapper<?, ?>) o;
             // Equality based on same event type and same listener instance
-            return eventClass.equals(wrapper.eventClass) && listener.equals(wrapper.listener);
+            return eventClass.equals(other.eventClass) && listener.equals(other.listener);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * eventClass.hashCode() + listener.hashCode();
         }
     }
 }
-
