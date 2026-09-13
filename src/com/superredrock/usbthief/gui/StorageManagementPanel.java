@@ -2,7 +2,7 @@ package com.superredrock.usbthief.gui;
 
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.configs.StorageConfig;
-import com.superredrock.usbthief.core.event.storage.StorageLevel;
+import com.superredrock.usbthief.worker.StorageLevel;
 import com.superredrock.usbthief.worker.StorageController;
 import com.superredrock.usbthief.worker.StorageController.StorageStatus;
 import com.superredrock.usbthief.core.SizeFormatter;

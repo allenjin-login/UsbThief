@@ -1,6 +1,6 @@
 package com.superredrock.usbthief.core.event.storage;
 
-import com.superredrock.usbthief.core.event.Event;
+import com.superredrock.usbthief.core.event.AbstractEvent;
 
 import java.nio.file.Path;
 
@@ -8,11 +8,10 @@ import java.nio.file.Path;
  * Event fired when storage recovers from a low state back to acceptable levels.
  * Provides information about the recovered storage status.
  */
-public class StorageRecoveredEvent implements Event {
+public class StorageRecoveredEvent extends AbstractEvent {
 
     private final Path workDir;
     private final long freeBytes;
-    private final long timestamp;
 
     public StorageRecoveredEvent(Path workDir, long freeBytes) {
         if (workDir == null) {
@@ -23,7 +22,6 @@ public class StorageRecoveredEvent implements Event {
         }
         this.workDir = workDir;
         this.freeBytes = freeBytes;
-        this.timestamp = System.currentTimeMillis();
     }
 
     /**
@@ -41,18 +39,9 @@ public class StorageRecoveredEvent implements Event {
     }
 
     @Override
-    public long timestamp() {
-        return timestamp;
-    }
-
-    @Override
     public String description() {
         return String.format("StorageRecoveredEvent: %s (free: %d bytes) at %s",
-                workDir, freeBytes, timestamp);
+                workDir, freeBytes, timestamp());
     }
 
-    @Override
-    public String toString() {
-        return description();
-    }
 }

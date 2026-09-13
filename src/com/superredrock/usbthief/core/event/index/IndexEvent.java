@@ -1,6 +1,6 @@
 package com.superredrock.usbthief.core.event.index;
 
-import com.superredrock.usbthief.core.event.Event;
+import com.superredrock.usbthief.core.event.AbstractEvent;
 import com.superredrock.usbthief.index.CheckSum;
 
 import java.nio.file.Path;
@@ -9,16 +9,14 @@ import java.nio.file.Path;
  * Base class for all index-related events.
  * Provides access to checksum and file path information.
  */
-public abstract class IndexEvent implements Event {
+public abstract class IndexEvent extends AbstractEvent {
 
     private final CheckSum checksum;
     private final Path filePath;
-    private final long timestamp;
 
     protected IndexEvent(CheckSum checksum, Path filePath) {
         this.checksum = checksum;
         this.filePath = filePath;
-        this.timestamp = System.currentTimeMillis();
     }
 
     protected IndexEvent(Path filePath) {
@@ -40,20 +38,11 @@ public abstract class IndexEvent implements Event {
     }
 
     @Override
-    public long timestamp() {
-        return timestamp;
-    }
-
-    @Override
     public String description() {
         return String.format("%s: %s at %s",
             getClass().getSimpleName(),
             filePath != null ? filePath : "(no file)",
-            timestamp);
+            timestamp());
     }
 
-    @Override
-    public String toString() {
-        return description();
-    }
 }
