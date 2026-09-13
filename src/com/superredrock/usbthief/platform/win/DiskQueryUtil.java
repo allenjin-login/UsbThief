@@ -306,7 +306,7 @@ public final class DiskQueryUtil {
 
             if (hVolume == null || WinBase.INVALID_HANDLE_VALUE.equals(hVolume)) {
                 int error = Kernel32.INSTANCE.GetLastError();
-                logger.debug("Failed to open volume {}, error: {}", volumePath, error);
+                logger.debug("Cannot open volume {}, error: {}", volumePath, error);
                 return -1;
             }
 
@@ -324,13 +324,13 @@ public final class DiskQueryUtil {
 
             if (!success) {
                 int error = Kernel32.INSTANCE.GetLastError();
-                logger.debug("Failed to get disk extents for {}, error: {}", driveLetter, error);
+                logger.debug("Cannot query disk extents for {}, error: {}", driveLetter, error);
                 return -1;
             }
 
             int numberOfExtents = extentsBuffer.getInt(0);
             if (numberOfExtents == 0) {
-                logger.debug("No disk extents returned for {}", driveLetter);
+                logger.debug("No disk extents found for {}", driveLetter);
                 return -1;
             }
 
@@ -444,7 +444,7 @@ public final class DiskQueryUtil {
             return "";
 
         } catch (Exception e) {
-            logger.debug("Exception finding disk device instance ID: {}", e);
+            logger.debug("Exception finding disk device instance ID", e);
             return "";
         } finally {
             if (hDevInfo != null) {
@@ -497,7 +497,7 @@ public final class DiskQueryUtil {
             return sdn.DeviceNumber;
 
         } catch (Exception e) {
-            logger.debug("Exception getting device disk number: {}", e);
+            logger.debug("Exception getting device disk number", e);
             return -1;
         } finally {
             if (hDevice != null) {
@@ -548,7 +548,7 @@ public final class DiskQueryUtil {
             return new String(buffer, 0, len);
 
         } catch (Exception e) {
-            logger.debug("Exception getting device instance ID: {}", e);
+            logger.debug("Exception getting device instance ID", e);
             return "";
         }
     }

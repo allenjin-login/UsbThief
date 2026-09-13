@@ -19,6 +19,7 @@ import com.superredrock.usbthief.gui.I18nManager;
 
 import javax.swing.tree.DefaultMutableTreeNode;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -104,9 +105,7 @@ final class ConfigCategories {
     static List<String> categoryKeys() {
         List<String> keys = new ArrayList<>();
         for (String[] group : GROUPS) {
-            for (int i = 1; i < group.length; i++) {
-                keys.add(group[i]);
-            }
+            keys.addAll(Arrays.asList(group).subList(1, group.length));
         }
         return keys;
     }

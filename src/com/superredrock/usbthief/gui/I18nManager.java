@@ -92,7 +92,7 @@ public class I18nManager {
             try {
                 listener.onLanguageListChanged(new ArrayList<>(availableLanguages));
             } catch (Exception e) {
-                logger.warn("Error notifying language list change listener: {}", e);
+                logger.warn("Error notifying language list change listener", e);
             }
         }
     }
@@ -113,7 +113,7 @@ public class I18nManager {
             resourceBundle = ResourceBundle.getBundle(BUNDLE_NAME, currentLocale);
             logger.debug("Loaded resource bundle for locale: {}", currentLocale);
         } catch (MissingResourceException e) {
-            logger.error("Failed to load resource bundle: {}", e);
+            logger.error("Failed to load resource bundle", e);
             resourceBundle = null;
         }
     }
@@ -143,7 +143,7 @@ public class I18nManager {
             try {
                 listener.onLocaleChanged(currentLocale);
             } catch (Exception e) {
-                logger.warn("Error notifying locale change listener: {}", e);
+                logger.warn("Error notifying locale change listener", e);
             }
         }
     }

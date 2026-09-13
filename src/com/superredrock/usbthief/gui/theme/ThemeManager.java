@@ -138,7 +138,7 @@ public class ThemeManager {
 
             logger.info("Applied theme: {}", theme.getDisplayName());
         } catch (Exception e) {
-            logger.error("Failed to apply theme: {}", e);
+            logger.error("Failed to apply theme", e);
         }
     }
 
@@ -258,7 +258,7 @@ public class ThemeManager {
             try {
                 listener.onThemeChanged(newTheme);
             } catch (Exception e) {
-                logger.warn("Error notifying theme change listener: {}", e);
+                logger.warn("Error notifying theme change listener", e);
             }
         }
     }

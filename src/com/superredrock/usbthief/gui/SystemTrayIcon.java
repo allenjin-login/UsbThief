@@ -132,7 +132,7 @@ public class SystemTrayIcon {
 
             return true;
         } catch (AWTException e) {
-            logger.error("Failed to add tray icon: {}", e);
+            logger.error("Failed to add tray icon", e);
             return false;
         }
     }

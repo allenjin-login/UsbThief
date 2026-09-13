@@ -53,7 +53,7 @@ public final class AutoStartManager {
             p.getInputStream().readAllBytes();
             return p.waitFor() == 0;
         } catch (IOException | InterruptedException e) {
-            logger.warn("Failed to check auto-start status: {}", e);
+            logger.warn("Failed to check auto-start status", e);
             Thread.currentThread().interrupt();
             return false;
         }
@@ -92,7 +92,7 @@ public final class AutoStartManager {
                 return false;
             }
         } catch (IOException | InterruptedException e) {
-            logger.error("Failed to enable auto-start: {}", e);
+            logger.error("Failed to enable auto-start", e);
             Thread.currentThread().interrupt();
             return false;
         }
@@ -124,7 +124,7 @@ public final class AutoStartManager {
                 return false;
             }
         } catch (IOException | InterruptedException e) {
-            logger.error("Failed to disable auto-start: {}", e);
+            logger.error("Failed to disable auto-start", e);
             Thread.currentThread().interrupt();
             return false;
         }

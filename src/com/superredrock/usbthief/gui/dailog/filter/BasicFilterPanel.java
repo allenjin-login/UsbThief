@@ -72,9 +72,7 @@ public class BasicFilterPanel extends JPanel {
         warningLabel = new FilterWarningBanner();
         gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 4;
         gbc.weightx = 1.0;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.anchor = GridBagConstraints.WEST;
-        add(warningLabel, gbc);
+        add(warningLabel, gbc);   // fill/anchor already set at panel init (Qodana DataFlowIssue)
 
         // === Max file size section ===
         row++;
