@@ -144,6 +144,17 @@ public class EmptyStatePanel extends JPanel {
     }
 
     /**
+     * Update the action button text (no-op when there is no button).
+     *
+     * @param text the new button text
+     */
+    public void setActionText(String text) {
+        if (actionButton != null) {
+            actionButton.setText(text);
+        }
+    }
+
+    /**
      * Create a builder for EmptyStatePanel.
      *
      * @return a new builder
