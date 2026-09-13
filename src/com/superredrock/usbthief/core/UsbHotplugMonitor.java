@@ -8,8 +8,9 @@ import com.sun.jna.platform.win32.WinDef.*;
 import com.sun.jna.platform.win32.WinNT.HANDLE;
 import com.sun.jna.platform.win32.WinUser.*;
 
-import javax.swing.SwingUtilities;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -21,7 +22,6 @@ public class UsbHotplugMonitor {
     private static final int DBT_DEVICEARRIVAL = 0x8000;
     private static final int DBT_DEVICEREMOVECOMPLETE = 0x8004;
     private static final int DBT_DEVICEQUERYREMOVE = 0x8001;
-    private static final int BROADCAST_QUERY_DENY = 0x424D5144;
     private static final int DBT_DEVTYP_VOLUME = 2;
     private static final int DBT_DEVTYP_DEVICEINTERFACE = 5;
     private static final int DBT_DEVTYP_HANDLE = 6;
@@ -34,24 +34,52 @@ public class UsbHotplugMonitor {
     private volatile boolean running;
     private volatile Thread messageThread;
 
-    private VolumeListener volumeListener;
-    private DeviceListener deviceListener;
+    private volatile VolumeListener volumeListener;
+    private volatile DeviceListener deviceListener;
     private HDEVNOTIFY hDeviceNotify;
 
     private final ConcurrentHashMap<String, VolumeHandleReg> volumeHandleRegs = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, String> handleToDriveLetter = new ConcurrentHashMap<>();
 
+    /**
+     * Dedicated single-threaded executor for hot-plug callbacks.
+     *
+     * <p>Callbacks stay ordered (one at a time, in arrival order) and run off both the Windows
+     * message pump and the Swing EDT, because the listeners perform IOCTL and file-system work.
+     * Only real UI updates should be forwarded to the EDT by the listener itself.</p>
+     *
+     * <p>Instance-scoped and daemon: a monitor lives as long as its owning DeviceManager, and
+     * repeated {@link #start()}/{@link #stop()} cycles reuse the same ordered executor.</p>
+     */
+    private final ExecutorService callbackExecutor = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "UsbHotplugMonitor-Callback");
+        thread.setDaemon(true);
+        return thread;
+    });
+
     public interface VolumeListener {
+        /** Called on the hot-plug callback thread, never on the EDT or the message pump. */
         void onVolumeArrival(String driveLetter);
+
+        /** Called on the hot-plug callback thread, never on the EDT or the message pump. */
         void onVolumeRemoval(String driveLetter);
 
+        /**
+         * Eject cleanup hook, called on the hot-plug callback thread after the eject has been
+         * allowed. Must not rely on blocking the Windows message pump.
+         *
+         * @return advisory result; the monitor always allows the eject
+         */
         default boolean onVolumeQueryRemove(String driveLetter) {
             return true;
         }
     }
 
     public interface DeviceListener {
+        /** Called on the hot-plug callback thread, never on the EDT or the message pump. */
         void onDeviceArrival(String dbccName);
+
+        /** Called on the hot-plug callback thread, never on the EDT or the message pump. */
         void onDeviceRemoval(String dbccName);
     }
 
@@ -145,7 +173,11 @@ public class UsbHotplugMonitor {
             return null;
         }
 
-        // Handle DBT_DEVICEQUERYREMOVE synchronously (must return value to Windows)
+        // DBT_DEVICEQUERYREMOVE: the allow/deny result must be returned to Windows, but the
+        // listener's cleanup involves task cancellation and file-system work. Answer the message
+        // pump immediately and run the cleanup on the callback executor instead of sleeping here.
+        // The listener always allowed the eject, so the pump answers "allow" right away; the
+        // boolean returned by onVolumeQueryRemove is advisory only.
         if (eventType == DBT_DEVICEQUERYREMOVE) {
             DEV_BROADCAST_HDR hdr = new DEV_BROADCAST_HDR(lParam);
             if (hdr.dbch_devicetype == DBT_DEVTYP_HANDLE) {
@@ -155,13 +187,18 @@ public class UsbHotplugMonitor {
                     driveLetter = handleToDriveLetter.get(Pointer.nativeValue(dbh.dbch_handle.getPointer()));
                 }
 
-                if (driveLetter != null && volumeListener != null) {
-                    boolean allow = volumeListener.onVolumeQueryRemove(driveLetter);
-                    logger.info("DBT_DEVICEQUERYREMOVE for {}: {}", driveLetter, allow ? "allowed" : "denied");
-                    if (allow) {
-                        cleanupVolumeHandle(driveLetter);
-                    }
-                    return allow ? new LRESULT(1) : new LRESULT(BROADCAST_QUERY_DENY);
+                VolumeListener listener = volumeListener;
+                if (driveLetter != null && listener != null) {
+                    logger.info("DBT_DEVICEQUERYREMOVE for {}: allowed, cleanup deferred", driveLetter);
+                    cleanupVolumeHandle(driveLetter);
+                    String ejectDriveLetter = driveLetter;
+                    callbackExecutor.execute(() -> {
+                        try {
+                            listener.onVolumeQueryRemove(ejectDriveLetter);
+                        } catch (Exception e) {
+                            logger.error("Eject cleanup failed for {}", ejectDriveLetter, e);
+                        }
+                    });
                 }
             }
             return new LRESULT(1);
@@ -178,15 +215,17 @@ public class UsbHotplugMonitor {
             String driveLetter = volume.getDriveLetter();
 
             if (driveLetter != null) {
-                SwingUtilities.invokeLater(() -> {
-                    if (volumeListener != null) {
-                        if (eventType == DBT_DEVICEARRIVAL) {
-                            logger.info("Volume arrived: {}", driveLetter);
-                            volumeListener.onVolumeArrival(driveLetter);
-                        } else {
-                            logger.info("Volume removed: {}", driveLetter);
-                            volumeListener.onVolumeRemoval(driveLetter);
-                        }
+                callbackExecutor.execute(() -> {
+                    VolumeListener listener = volumeListener;
+                    if (listener == null) {
+                        return;
+                    }
+                    if (eventType == DBT_DEVICEARRIVAL) {
+                        logger.info("Volume arrived: {}", driveLetter);
+                        listener.onVolumeArrival(driveLetter);
+                    } else {
+                        logger.info("Volume removed: {}", driveLetter);
+                        listener.onVolumeRemoval(driveLetter);
                     }
                 });
             }
@@ -195,15 +234,17 @@ public class UsbHotplugMonitor {
             String dbccName = device.getDeviceName();
 
             if (dbccName != null) {
-                SwingUtilities.invokeLater(() -> {
-                    if (deviceListener != null) {
-                        if (eventType == DBT_DEVICEARRIVAL) {
-                            logger.info("Device arrived: {}", dbccName);
-                            deviceListener.onDeviceArrival(dbccName);
-                        } else {
-                            logger.info("Device removed: {}", dbccName);
-                            deviceListener.onDeviceRemoval(dbccName);
-                        }
+                callbackExecutor.execute(() -> {
+                    DeviceListener listener = deviceListener;
+                    if (listener == null) {
+                        return;
+                    }
+                    if (eventType == DBT_DEVICEARRIVAL) {
+                        logger.info("Device arrived: {}", dbccName);
+                        listener.onDeviceArrival(dbccName);
+                    } else {
+                        logger.info("Device removed: {}", dbccName);
+                        listener.onDeviceRemoval(dbccName);
                     }
                 });
             }

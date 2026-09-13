@@ -6,9 +6,7 @@ import com.superredrock.usbthief.core.ServiceState;
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.configs.ThreadPoolConfig;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.concurrent.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -29,7 +27,15 @@ public class TaskScheduler extends Service {
     private final PriorityBlockingQueue<PriorityTask<?, ?>> priorityQueue;
     private final PriorityRule priorityRule;
     private final ConcurrentHashMap<String, CopyOnWriteArrayList<Future<?>>> futuresBySerial = new ConcurrentHashMap<>();
-    private volatile int dispatchBudget = Integer.MAX_VALUE;
+
+    /**
+     * Scheduler tick period in milliseconds.
+     *
+     * <p>Kept short so that a saturated pool resumes dispatching as soon as queue slots free up.
+     * Back-pressure comes from the bounded pool queue (see {@link #availableDispatchCapacity()}),
+     * not from the tick interval.</p>
+     */
+    private static final long DISPATCH_TICK_MILLIS = 20;
 
     private TaskScheduler() {
         this.priorityQueue = new PriorityBlockingQueue<>();
@@ -74,16 +80,51 @@ public ThreadPoolExecutor getPool() {
             return;
         }
 
-        List<PriorityTask<?, ?>> batch = new ArrayList<>();
-        priorityQueue.drainTo(batch, dispatchBudget);
-
-        if (!batch.isEmpty()) {
-            logger.debug("Dispatching {} tasks (budget: {})", batch.size(),
-                    dispatchBudget == Integer.MAX_VALUE ? "∞" : dispatchBudget);
-            dispatchTask(batch);
+        int dispatched = dispatchAvailable();
+        if (dispatched > 0) {
+            logger.debug("Dispatched {} tasks (queue depth: {})", dispatched, priorityQueue.size());
         }
 
         pruneCompletedFutures();
+    }
+
+    /**
+     * Dispatches tasks while the pool reports free capacity.
+     *
+     * <p>Tasks stay in the priority queue whenever the pool is saturated; nothing is dropped and
+     * no dispatch budget is shrunk, so throughput follows the pool's real capacity instead of
+     * collapsing to a couple of tasks per tick.</p>
+     *
+     * @return number of tasks handed to the pool in this call
+     */
+    private int dispatchAvailable() {
+        int capacity = availableDispatchCapacity();
+        int dispatched = 0;
+
+        for (int i = 0; i < capacity; i++) {
+            PriorityTask<?, ?> task = priorityQueue.poll();
+            if (task == null) {
+                break;
+            }
+            if (!submitToPool(task)) {
+                // The pool filled up mid-batch (capacity check raced with other submitters);
+                // keep the remaining tasks queued for the next tick.
+                break;
+            }
+            dispatched++;
+        }
+
+        return dispatched;
+    }
+
+    /**
+     * Number of tasks the pool can accept right now without rejecting.
+     *
+     * <p>Free queue slots plus idle worker threads that pick a task up immediately.</p>
+     */
+    int availableDispatchCapacity() {
+        int idleWorkers = Math.max(0, pool.getPoolSize() - pool.getActiveCount());
+        return pool.getQueue().remainingCapacity() + idleWorkers;
     }
 
     private void pruneCompletedFutures() {
@@ -97,7 +138,7 @@ public ThreadPoolExecutor getPool() {
 
     @Override
     protected long getTickInterval() {
-        return 500;
+        return DISPATCH_TICK_MILLIS;
     }
 
     @Override
@@ -112,7 +153,7 @@ public ThreadPoolExecutor getPool() {
 
     @Override
     public String getDescription() {
-        return "Adaptive priority scheduler with load-based task accumulation";
+        return "Priority scheduler with pool-capacity back-pressure";
     }
 
     public <R> PriorityTask<Callable<R>, R> submit(Callable<R> task) {
@@ -130,33 +171,21 @@ public ThreadPoolExecutor getPool() {
     }
 
     @SuppressWarnings("unchecked")
-    private void dispatchTask(List<PriorityTask<?, ?>> allTasks) {
-        int dispatched = 0;
-        for (int i = 0; i < allTasks.size(); i++) {
-            PriorityTask<?, ?> task = allTasks.get(i);
-            try {
-                Future<?> future = pool.submit((Callable<Object>) task.unwrap());
-                task.setFuture(future);
-                trackFuture(task.unwrap(), future);
-                dispatched++;
-            } catch (RejectedExecutionException e) {
-                int requeued = allTasks.size() - i;
-                priorityQueue.offer(task);
-                for (int j = i + 1; j < allTasks.size(); j++) {
-                    priorityQueue.offer(allTasks.get(j));
-                }
-                // Negative feedback: halve budget based on successful dispatch count
-                dispatchBudget = Math.max(1, dispatched / 2 + 1);
-                logger.debug("Pool saturated, {} tasks re-queued (budget → {})", requeued, dispatchBudget);
-                return;
-            } catch (Exception e) {
-                logger.error("Failed to submit task, dropping", e);
-            }
-        }
-
-        // Positive feedback: gradually double budget on full success
-        if (dispatchBudget < Integer.MAX_VALUE) {
-            dispatchBudget = (int) Math.min((long) dispatchBudget * 2, Integer.MAX_VALUE);
+    private boolean submitToPool(PriorityTask<?, ?> task) {
+        try {
+            Future<?> future = pool.submit((Callable<Object>) task.unwrap());
+            task.setFuture(future);
+            trackFuture(task.unwrap(), future);
+            return true;
+        } catch (RejectedExecutionException e) {
+            // The pool filled up between the capacity check and this submission: keep the task
+            // queued and try again on the next tick.
+            priorityQueue.offer(task);
+            logger.debug("Pool saturated, task re-queued (queue depth: {})", priorityQueue.size());
+            return false;
+        } catch (Exception e) {
+            logger.error("Failed to submit task, dropping", e);
+            return false;
         }
     }
 

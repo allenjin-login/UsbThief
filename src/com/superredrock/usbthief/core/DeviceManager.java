@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
@@ -33,6 +34,12 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
     private static final Logger logger = LogManager.getLogger(DeviceManager.class);
 
     private static volatile DeviceManager INSTANCE;
+
+    /**
+     * Grace period between an eject request and the physical removal. It is applied as a
+     * non-blocking scheduled continuation, never as a sleep on the Windows message pump.
+     */
+    private static final long EJECT_GRACE_PERIOD_SECONDS = 5;
 
     private final UsbHotplugMonitor monitor = new UsbHotplugMonitor();
 
@@ -285,11 +292,11 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
             logger.warn("Error during eject cleanup for {}: {}", serial, e.getMessage());
         }
         lastAddDevice = null;
-        try {
-            TimeUnit.SECONDS.sleep(5);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+        // This runs on the hot-plug callback executor, not on the Windows message pump or the EDT.
+        // The former 5 s sleep simply delayed the pump's reply; it is now a non-blocking scheduled
+        // continuation so that neither thread is stalled while the eject completes.
+        CompletableFuture.delayedExecutor(EJECT_GRACE_PERIOD_SECONDS, TimeUnit.SECONDS)
+                .execute(() -> logger.debug("Eject grace period elapsed for {} ({})", driveLetter, serial));
         return true;
     }
 

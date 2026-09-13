@@ -1,8 +1,6 @@
 package com.superredrock.usbthief.core;
 
 import com.superredrock.usbthief.index.Index;
-import com.superredrock.usbthief.worker.SnifferLifecycleManager;
-import com.superredrock.usbthief.worker.TaskScheduler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -11,7 +9,7 @@ import org.apache.logging.log4j.Logger;
  * Queue and thread pool manager
  * <p>
  * Manages task queue, copy thread pool, and disk scanner thread group.
- * Service lifecycle management has been moved to ServiceManager.
+ * Service lifecycle management has been moved to {@link ServiceRegistry}.
  */
 public class QueueManager {
 
@@ -44,32 +42,27 @@ public class QueueManager {
 
 
     /**
-     * Application exit cleanup
-     * <p>
-     * Clean up resources managed by QueueManager (thread pools, disk scanners, etc.).
+     * Releases the resources owned by QueueManager (the disk scanner thread group).
+     *
+     * <p>Service orchestration was deliberately removed from here: services are stopped
+     * exactly once by the unified shutdown path, in reverse registration order, via
+     * {@link ServiceRegistry#shutdownAll()}. Keeping a second stop list in this class is
+     * what previously caused {@code SnifferLifecycleManager}'s stop to be hidden and
+     * {@code TaskScheduler} to be stopped twice.
      */
     public static void quit() {
-        logger.info("Quitting application");
+        logger.info("Releasing QueueManager resources");
 
         try {
-            // 1. Stop sniffer lifecycle manager
-            SnifferLifecycleManager.getInstance().stopService();
-            logger.info("SnifferLifecycleManager stopped");
-
-            // 2. Interrupt all disk scanner threads
+            // Interrupt all disk scanner threads
             diskScanners.interrupt();
             logger.info("DiskScanners interrupted");
 
-            // 3. Gracefully shutdown thread pool
-            TaskScheduler.getInstance().close();
-
-            logger.info("Thread pool shutdown completed");
-
         } catch (Exception e) {
-            logger.error("Error during quit:", e);
+            logger.error("Error during QueueManager resource cleanup:", e);
         }
 
-        logger.info("Quit completed");
+        logger.info("QueueManager resource cleanup completed");
     }
 
 }

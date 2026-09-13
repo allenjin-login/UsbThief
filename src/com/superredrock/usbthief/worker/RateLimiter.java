@@ -2,6 +2,8 @@ package com.superredrock.usbthief.worker;
 
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Token bucket rate limiter with dynamic rate adjustment.
@@ -15,6 +17,18 @@ import java.util.concurrent.locks.ReentrantLock;
  * @since 2026-02-03
  */
 public class RateLimiter {
+
+    private static final Logger logger = LogManager.getLogger(RateLimiter.class);
+
+    /**
+     * Upper bound on the number of await/refill rounds spent on a single chunk.
+     *
+     * <p>A chunk never exceeds the burst size, so one or two rounds are enough in practice.
+     * The bound exists so that a future regression in token accounting can never make
+     * {@link #acquire(long)} wait forever.</p>
+     */
+    private static final int MAX_REFILL_ITERATIONS = 64;
+
     private volatile long rateLimitBytesPerSecond;
     private final long burstSize;
     private long tokens;
@@ -42,14 +56,35 @@ public class RateLimiter {
     }
 
     public void acquire(long bytes) throws InterruptedException {
-        if (rateLimitBytesPerSecond <= 0) return;
+        if (bytes <= 0 || rateLimitBytesPerSecond <= 0) return;
 
+        // A bucket can never hold more than burstSize tokens, so a request larger than the burst
+        // size is split into burst-sized chunks. Waiting for more tokens than the cap allows would
+        // otherwise never complete (the loop below could never see tokens >= bytes).
+        long chunkSize = burstSize > 0 ? burstSize : bytes;
+        long remaining = bytes;
+        while (remaining > 0) {
+            long chunk = Math.min(remaining, chunkSize);
+            acquireChunk(chunk);
+            remaining -= chunk;
+        }
+    }
+
+    private void acquireChunk(long bytes) throws InterruptedException {
         lock.lock();
         try {
             refillTokens();
             long waitNanos = calculateWaitTime(bytes);
+            int iterations = 0;
 
             while (waitNanos > 0) {
+                if (++iterations > MAX_REFILL_ITERATIONS) {
+                    // Safety valve: never spin indefinitely. Consume what we have and let future
+                    // refills repay the (possibly negative) token balance.
+                    logger.warn("RateLimiter gave up waiting after {} iterations (requested {} bytes, {} tokens available, burst {})",
+                            iterations, bytes, tokens, burstSize);
+                    break;
+                }
                 condition.awaitNanos(waitNanos);
                 refillTokens();
                 waitNanos = calculateWaitTime(bytes);
