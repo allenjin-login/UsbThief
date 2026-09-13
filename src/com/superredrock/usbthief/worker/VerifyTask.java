@@ -22,7 +22,7 @@ import com.superredrock.usbthief.statistics.Statistics;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class VerifyTask implements Callable<CopyResult> {
+public class VerifyTask implements Callable<CopyResult>, DeviceBoundTask {
 
     private static final Logger logger = LogManager.getLogger(VerifyTask.class);
     private static final ThreadLocal<ByteBuffer> bufferThreadLocal = ThreadLocal.withInitial(() -> ByteBuffer.allocate(ConfigManager.getInstance().get(FileCopyConfig.HASH_BUFFER_SIZE)));

@@ -7,7 +7,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.LinkedHashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class DeviceHistoryCollector implements MetricCollector {
@@ -80,41 +83,70 @@ public final class DeviceHistoryCollector implements MetricCollector {
 
     @Override
     public void save(MetricStore store) {
-        // Clear old keys
         try {
-            int oldCount = (int) store.getLong(KEY_COUNT).orElse(0);
-            for (int i = 0; i < oldCount; i++) {
-                String prefix = KEY_PREFIX + i + ".";
-                for (String key : store.keys()) {
-                    if (key.startsWith(prefix)) store.remove(key);
+            // One round trip for the old keys; the diff is then computed entirely in memory.
+            Set<String> existingKeys = store.keySet();
+            Map<String, List<String>> existingByPrefix =
+                    MetricKeyGroups.byEntryPrefix(existingKeys, KEY_PREFIX);
+
+            MetricWriteBatch batch = new MetricWriteBatch();
+            int idx = 0;
+            for (Map.Entry<String, DeviceHistoryEntry> entry : historyMap.entrySet()) {
+                String prefix = KEY_PREFIX + idx + ".";
+                Set<String> desiredKeys = new HashSet<>();
+                DeviceHistoryEntry dhe = entry.getValue();
+
+                batch.putString(prefix + "serial", entry.getKey());
+                desiredKeys.add(prefix + "serial");
+                batch.putString(prefix + "vid", dhe.getVid() != null ? dhe.getVid() : "");
+                desiredKeys.add(prefix + "vid");
+                batch.putString(prefix + "pid", dhe.getPid() != null ? dhe.getPid() : "");
+                desiredKeys.add(prefix + "pid");
+                batch.putLong(prefix + "insertionCount", dhe.getInsertionCount());
+                desiredKeys.add(prefix + "insertionCount");
+                batch.putLong(prefix + "firstSeenTime", dhe.getFirstSeenTime());
+                desiredKeys.add(prefix + "firstSeenTime");
+                batch.putLong(prefix + "lastSeenTime", dhe.getLastSeenTime());
+                desiredKeys.add(prefix + "lastSeenTime");
+
+                int tIdx = 0;
+                for (Map.Entry<Long, String> te : dhe.getTimelineLog().entrySet()) {
+                    if (tIdx >= 100) break;
+                    String tsKey = prefix + "timeline." + tIdx + ".ts";
+                    String eventKey = prefix + "timeline." + tIdx + ".event";
+                    batch.putLong(tsKey, te.getKey());
+                    desiredKeys.add(tsKey);
+                    batch.putString(eventKey, te.getValue());
+                    desiredKeys.add(eventKey);
+                    tIdx++;
+                }
+                batch.putLong(prefix + "timelineCount", tIdx);
+                desiredKeys.add(prefix + "timelineCount");
+
+                List<String> previousKeys = existingByPrefix.remove(prefix);
+                if (previousKeys != null) {
+                    for (String key : previousKeys) {
+                        if (!desiredKeys.contains(key)) {
+                            batch.remove(key);
+                        }
+                    }
+                }
+                idx++;
+            }
+
+            // Devices that disappeared leave their whole entry prefix behind.
+            for (List<String> staleKeys : existingByPrefix.values()) {
+                for (String key : staleKeys) {
+                    batch.remove(key);
                 }
             }
+
+            batch.putLong(KEY_COUNT, idx);
+            int applied = store.apply(batch);
+            logger.debug("Saved {} device history entries ({} key mutations applied)", idx, applied);
         } catch (Exception e) {
-            logger.warn("Failed to clear old device history keys: {}", e.getMessage());
+            logger.warn("Failed to save device history: {}", e.getMessage());
         }
-
-        int idx = 0;
-        for (var entry : historyMap.entrySet()) {
-            String prefix = KEY_PREFIX + idx + ".";
-            store.put(prefix + "serial", entry.getKey());
-            DeviceHistoryEntry dhe = entry.getValue();
-            store.put(prefix + "vid", dhe.getVid() != null ? dhe.getVid() : "");
-            store.put(prefix + "pid", dhe.getPid() != null ? dhe.getPid() : "");
-            store.put(prefix + "insertionCount", dhe.getInsertionCount());
-            store.put(prefix + "firstSeenTime", dhe.getFirstSeenTime());
-            store.put(prefix + "lastSeenTime", dhe.getLastSeenTime());
-
-            int tIdx = 0;
-            for (var te : dhe.getTimelineLog().entrySet()) {
-                if (tIdx >= 100) break;
-                store.put(prefix + "timeline." + tIdx + ".ts", te.getKey());
-                store.put(prefix + "timeline." + tIdx + ".event", te.getValue());
-                tIdx++;
-            }
-            store.put(prefix + "timelineCount", tIdx);
-            idx++;
-        }
-        store.put(KEY_COUNT, idx);
     }
 
     @Override
