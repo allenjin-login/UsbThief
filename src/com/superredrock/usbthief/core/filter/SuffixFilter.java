@@ -124,28 +124,18 @@ public class SuffixFilter implements FileFilter {
     }
 
     /**
-     * Get the effective set of extensions based on preset or direct configuration.
+     * Get the effective set of extensions from the active whitelist or blacklist.
+     *
+     * <p>Presets are a UI shortcut only: picking one writes the extension list into
+     * the regular whitelist, so whatever the user edited last (with or without a
+     * preset) is exactly what is applied here. The stored preset name is never
+     * consulted, which keeps a hand-tuned list from being silently overridden.</p>
      *
      * @return a set of lowercase extensions
      */
     protected Set<String> getEffectiveExtensions() {
         Set<String> extensions = new HashSet<>();
 
-        // Check if a preset is selected
-        String presetName = getPreset();
-        if (presetName != null && !presetName.isEmpty()) {
-            try {
-                FilterPreset preset = FilterPreset.valueOf(presetName.toUpperCase(Locale.ROOT));
-                for (String ext : preset.getExtensions()) {
-                    extensions.add(ext.toLowerCase(Locale.ROOT));
-                }
-                return extensions;
-            } catch (IllegalArgumentException e) {
-                logger.warn("Unknown preset: {}, falling back to direct config", presetName);
-            }
-        }
-
-        // Use direct whitelist or blacklist
         String mode = getFilterMode();
         List<String> configList;
         
@@ -192,7 +182,11 @@ public class SuffixFilter implements FileFilter {
     }
 
     /**
-     * Get the preset name from configuration.
+     * Get the stored preset name from configuration.
+     *
+     * <p>Exposed for diagnostics only - {@link #getEffectiveExtensions()} deliberately
+     * ignores it, because a preset is a UI shortcut and the whitelist / blacklist holds
+     * the effective selection.</p>
      *
      * @return the preset name, or empty string if none selected
      */
