@@ -98,7 +98,8 @@ class CopyHistoryRecorderTest {
 
         CopyHistoryEntry recorded = recorder.snapshot().getLast();
         assertEquals("holiday.jpg", recorded.sourceFileName());
-        assertEquals("/tmp/out/holiday.jpg", recorded.destinationPath());
+        assertEquals(Path.of("/tmp/out/holiday.jpg").toString(), recorded.destinationPath(),
+                "compare via Path so the separator matches the host platform");
         assertEquals(4096L, recorded.sizeBytes());
         assertEquals(250L, recorded.durationMillis(), "the duration drives the speed column");
         assertEquals(CopyResult.SUCCESS, recorded.result());
