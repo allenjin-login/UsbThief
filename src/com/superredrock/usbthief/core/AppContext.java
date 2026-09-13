@@ -3,6 +3,7 @@ package com.superredrock.usbthief.core;
 import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.statistics.Statistics;
+import com.superredrock.usbthief.worker.CopyHistoryRecorder;
 import com.superredrock.usbthief.worker.RecyclerService;
 import com.superredrock.usbthief.worker.SnifferLifecycleManager;
 import com.superredrock.usbthief.worker.TaskScheduler;
@@ -18,7 +19,8 @@ import org.apache.logging.log4j.Logger;
  * built depended on which class happened to be loaded first. {@link #initialize()} collects the
  * core objects once and performs the start-up side effects that used to hide inside constructors
  * ({@code Statistics}: load persisted metrics and bind the HTTP API; {@code SnifferLifecycleManager}:
- * register the global event listeners).
+ * register the global event listeners; {@code CopyHistoryRecorder}: subscribe to copy completion
+ * events so the exported report covers the whole session).
  *
  * <p><b>No side effects in the constructor.</b> The constructor only stores the references it is
  * handed; everything else happens in {@link #initialize()}.
@@ -44,6 +46,7 @@ public final class AppContext {
     private final SnifferLifecycleManager snifferLifecycleManager;
     private final RecyclerService recyclerService;
     private final Statistics statistics;
+    private final CopyHistoryRecorder copyHistoryRecorder;
 
     /**
      * Stores the assembled components. Deliberately free of side effects: no component is
@@ -57,7 +60,8 @@ public final class AppContext {
                        TaskScheduler taskScheduler,
                        SnifferLifecycleManager snifferLifecycleManager,
                        RecyclerService recyclerService,
-                       Statistics statistics) {
+                       Statistics statistics,
+                       CopyHistoryRecorder copyHistoryRecorder) {
         this.configManager = configManager;
         this.eventBus = eventBus;
         this.serviceRegistry = serviceRegistry;
@@ -66,6 +70,7 @@ public final class AppContext {
         this.snifferLifecycleManager = snifferLifecycleManager;
         this.recyclerService = recyclerService;
         this.statistics = statistics;
+        this.copyHistoryRecorder = copyHistoryRecorder;
     }
 
     /**
@@ -99,11 +104,17 @@ public final class AppContext {
                     TaskScheduler.getInstance(),
                     SnifferLifecycleManager.getInstance(),
                     RecyclerService.getInstance(),
-                    Statistics.getInstance());
+                    Statistics.getInstance(),
+                    CopyHistoryRecorder.getInstance());
 
             // Start-up side effects, moved out of the constructors above: collectors must be
             // registered (Statistics construction does that) and persisted metrics loaded before
             // the services start producing events; the sniffer listeners likewise.
+            //
+            // CopyHistoryRecorder carries its own start-up side effect: its constructor subscribes
+            // to CopyCompletedEvent. Assembling it here - rather than letting the GUI's export
+            // action create it on first use - is what makes the report cover the whole session
+            // instead of only the copies that happen after the user first opens the dialog.
             context.statistics.start();
             context.snifferLifecycleManager.initialize();
 
@@ -150,5 +161,12 @@ public final class AppContext {
 
     public Statistics getStatistics() {
         return statistics;
+    }
+
+    /**
+     * @return the session-wide copy history backing the "Export Report" menu action
+     */
+    public CopyHistoryRecorder getCopyHistoryRecorder() {
+        return copyHistoryRecorder;
     }
 }

@@ -17,9 +17,21 @@ public class CopyCompletedEvent extends AbstractEvent {
     private final long bytesCopied;
     private final CopyResult result;
     private final String deviceSerial;
+    private final long durationMillis;
 
     public CopyCompletedEvent(Path sourcePath, Path destinationPath,
                            long fileSize, long bytesCopied, CopyResult result, String deviceSerial) {
+        this(sourcePath, destinationPath, fileSize, bytesCopied, result, deviceSerial, 0L);
+    }
+
+    /**
+     * @param durationMillis wall-clock duration of the operation in milliseconds; {@code 0} when
+     *                       the reporting path does not measure time. Used by the copy report to
+     *                       compute an average throughput.
+     */
+    public CopyCompletedEvent(Path sourcePath, Path destinationPath,
+                           long fileSize, long bytesCopied, CopyResult result, String deviceSerial,
+                           long durationMillis) {
         if (sourcePath == null || result == null) {
             throw new IllegalArgumentException("sourcePath and result cannot be null");
         }
@@ -29,6 +41,7 @@ public class CopyCompletedEvent extends AbstractEvent {
         this.bytesCopied = bytesCopied;
         this.result = result;
         this.deviceSerial = deviceSerial != null ? deviceSerial : "";
+        this.durationMillis = Math.max(0L, durationMillis);
     }
 
     public String deviceSerial() {
@@ -68,6 +81,14 @@ public class CopyCompletedEvent extends AbstractEvent {
      */
     public CopyResult result() {
         return result;
+    }
+
+    /**
+     * @return the wall-clock duration of the operation in milliseconds, or {@code 0} when the
+     *         event was raised by a path that does not measure it
+     */
+    public long durationMillis() {
+        return durationMillis;
     }
 
     /**

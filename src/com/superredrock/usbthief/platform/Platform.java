@@ -1,6 +1,7 @@
 package com.superredrock.usbthief.platform;
 
 import com.superredrock.usbthief.core.HotplugSource;
+import com.superredrock.usbthief.core.TaskbarCustomizer;
 import com.superredrock.usbthief.core.NativeDiskQuery;
 import com.superredrock.usbthief.core.VolumeInfoProvider;
 
@@ -53,6 +54,13 @@ public final class Platform {
         return DiskQueryHolder.INSTANCE;
     }
 
+    /**
+     * @return the taskbar customiser for this platform (no-op off Windows)
+     */
+    public static TaskbarCustomizer taskbarCustomizer() {
+        return TaskbarCustomizerHolder.INSTANCE;
+    }
+
     private static boolean detectWindows() {
         String osName = System.getProperty("os.name");
         return osName != null && osName.toLowerCase().startsWith("windows");
@@ -70,5 +78,11 @@ public final class Platform {
         private static final NativeDiskQuery INSTANCE =
                 WINDOWS ? new com.superredrock.usbthief.platform.win.WindowsNativeDiskQuery()
                         : new com.superredrock.usbthief.platform.stub.NoopNativeDiskQuery();
+    }
+
+    private static final class TaskbarCustomizerHolder {
+        private static final TaskbarCustomizer INSTANCE =
+                WINDOWS ? new com.superredrock.usbthief.platform.win.WindowsTaskbarCustomizer()
+                        : new com.superredrock.usbthief.platform.stub.NoopTaskbarCustomizer();
     }
 }

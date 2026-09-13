@@ -9,6 +9,9 @@ public final class WindowConfig {
     public static final ConfigEntry<Boolean> AUTO_START_ENABLED =
             booleanEntry("gui.autoStartEnabled", "Start application automatically on Windows login", false, CATEGORY);
 
+    public static final ConfigEntry<Boolean> START_HIDDEN =
+            booleanEntry("gui.startHidden", "Start minimised to tray (window hidden at launch)", true, CATEGORY);
+
     public static final ConfigEntry<Boolean> SHOW_IN_TASKBAR =
             booleanEntry("gui.showInTaskbar", "Show window in taskbar", true, CATEGORY);
 

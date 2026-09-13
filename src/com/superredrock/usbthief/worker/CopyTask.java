@@ -24,6 +24,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.DosFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.superredrock.usbthief.statistics.SpeedProbe;
@@ -161,6 +162,9 @@ public class CopyTask implements Callable<CopyResult>, DeviceBoundTask {
 
     @Override
     public CopyResult call() {
+        // Batch 3-A: the report export needs a per-file duration to compute an average speed.
+        // Two nanoTime() calls per file are negligible next to the copy itself.
+        long startNanos = System.nanoTime();
         // PF-02: snapshot the copy-relevant configuration once per file. The hot loop below uses
         // these locals instead of re-reading Preferences four times per chunk.
         CopySettings settings = CopySettings.snapshot();
@@ -242,7 +246,8 @@ public class CopyTask implements Callable<CopyResult>, DeviceBoundTask {
                     size,
                     bytesCopied,
                     result,
-                    deviceSerial
+                    deviceSerial,
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos)
             ));
         }
         logger.info("Copied: {}",processingPath);
