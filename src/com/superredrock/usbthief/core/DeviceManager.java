@@ -174,7 +174,7 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
 
         DeviceUtils.DeviceIdentity identity = DeviceUtils.parseDeviceInstancePath(dbccName);
         if (identity == null) {
-            logger.warn("Could not parse device instance path: {}", dbccName);
+            logger.warn("Could not parse device instance path on arrival: {}", dbccName);
             return;
         }
 

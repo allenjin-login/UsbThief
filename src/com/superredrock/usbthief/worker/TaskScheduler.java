@@ -244,7 +244,7 @@ public ThreadPoolExecutor getPool() {
                 pool.submit(task.unwrap());
                 drained++;
             } catch (Exception e) {
-                logger.warn("Failed to submit task during cleanup: {}", e);
+                logger.warn("Failed to submit task during cleanup", e);
             }
         }
 

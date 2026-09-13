@@ -181,8 +181,7 @@ public class StorageManagementPanel extends JPanel implements I18nManager.Locale
         // Reserved Space (GB) with slider
         gbc.gridx = 0;
         gbc.gridy = row;
-        gbc.gridwidth = 1;
-        gbc.weightx = 0;
+        gbc.weightx = 0;   // gridwidth already 1 above (Qodana DataFlowIssue)
         JLabel reservedSpaceLabel = new JLabel("💾 " + i18n.getMessage("storage.reservedSpace") + ":");
         reservedSpaceLabel.setToolTipText(i18n.getMessage("storage.reservedSpace.tooltip"));
         add(reservedSpaceLabel, gbc);

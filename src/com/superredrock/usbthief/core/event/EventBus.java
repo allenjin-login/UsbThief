@@ -2,6 +2,7 @@ package com.superredrock.usbthief.core.event;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
@@ -64,9 +65,7 @@ public final class EventBus {
                     continue;
                 }
                 chain.add(current);
-                for (Class<?> iface : current.getInterfaces()) {
-                    pending.add(iface);
-                }
+                pending.addAll(Arrays.asList(current.getInterfaces()));
                 Class<?> superClass = current.getSuperclass();
                 if (superClass != null) {
                     pending.add(superClass);
@@ -243,7 +242,7 @@ public final class EventBus {
                 eventClass, listener, resultType, registrationSequence.incrementAndGet());
 
         if (addAsyncListener(eventClass, wrapper)) {
-            logger.debug("Registered async listener for event type: {}", eventClass.getName());
+            logger.debug("Registered result-collecting async listener for event type: {}", eventClass.getName());
         }
     }
 

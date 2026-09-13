@@ -35,7 +35,8 @@ public class SystemDirectoryFilter implements FileFilter {
         // Directory verdicts are memoized: during a scan, sibling files re-check
         // the same directories, turning O(depth) per file into O(1) amortized.
         Path parent = path.getParent();
-        if (parent != null && isBlockedOrUnder(parent)) {
+        // callee handles null (Qodana PointlessNullCheck)
+        if (isBlockedOrUnder(parent)) {
             return false;
         }
         return !isBlockedName(path);
