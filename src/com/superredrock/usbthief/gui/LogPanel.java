@@ -16,9 +16,20 @@ import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
+/**
+ * Log panel fed by EventBus events and by direct {@link #log(String, LogLevel)} calls.
+ *
+ * <p>Entries are buffered on the calling thread and drained into the table model by a
+ * Swing timer, so a flood of events (e.g. one {@code FileIndexedEvent} per scanned file)
+ * costs one table update per refresh interval instead of one {@code invokeLater} plus a
+ * full filter recomputation per entry. The row filter is only recomputed when the user
+ * changes a filter control.
+ */
 public class LogPanel extends JPanel {
 
     private final I18nManager i18n = I18nManager.getInstance();
@@ -40,6 +51,20 @@ public class LogPanel extends JPanel {
     private static final Color SUCCESS_COLOR = new Color(0, 128, 0);
 
     private static final int MAX_LOG_ENTRIES = 10000;
+
+    /** Refresh interval of the batched table update (milliseconds). */
+    private static final int REFRESH_INTERVAL_MS = 150;
+
+    /** Upper bound of the pending buffer, so a stalled EDT cannot grow it without limit. */
+    private static final int MAX_PENDING_ENTRIES = 2 * MAX_LOG_ENTRIES;
+
+    /** Entries waiting to be flushed into the table model. Guarded by itself. */
+    private final ArrayDeque<LogEntry> pendingEntries = new ArrayDeque<>();
+
+    /** Number of buffered entries dropped because the buffer was full. Guarded by pendingEntries. */
+    private int droppedEntries;
+
+    private final Timer refreshTimer;
 
     public LogPanel() {
         setLayout(new BorderLayout());
@@ -145,6 +170,11 @@ public class LogPanel extends JPanel {
 
         // Register event listeners
         registerEventListeners();
+
+        // Batched refresh: drain the pending buffer once per interval on the EDT
+        refreshTimer = new Timer(REFRESH_INTERVAL_MS, e -> flushPendingEntries());
+        refreshTimer.setRepeats(true);
+        refreshTimer.start();
     }
 
     private void registerEventListeners() {
@@ -163,9 +193,9 @@ public class LogPanel extends JPanel {
     // Index event handlers
     private void onFileIndexed(FileIndexedEvent event) {
         String message = i18n.getMessage("log.message.indexed",
-            event.filePath().getFileName(),
-            SizeFormatter.format(event.fileSize()),
-            event.totalIndexed());
+                event.filePath().getFileName(),
+                SizeFormatter.format(event.fileSize()),
+                event.totalIndexed());
         log(message, LogLevel.SUCCESS);
     }
 
@@ -190,18 +220,20 @@ public class LogPanel extends JPanel {
         log(message, LogLevel.INFO);
     }
 
+    /**
+     * Buffers a log entry. Safe to call from any thread: the entry is queued and the EDT
+     * picks it up on the next refresh, so callers are never blocked on the UI.
+     */
     public void log(String message, LogLevel level) {
-        SwingUtilities.invokeLater(() -> {
-            String timestamp = LocalDateTime.now().format(timeFormatter);
-            tableModel.addLogEntry(new LogEntry(timestamp, level, message));
+        LogEntry entry = new LogEntry(LocalDateTime.now().format(timeFormatter), level, message);
 
-            // Limit log entries to prevent memory issues
-            while (tableModel.getRowCount() > MAX_LOG_ENTRIES) {
-                tableModel.removeFirstEntry();
+        synchronized (pendingEntries) {
+            pendingEntries.addLast(entry);
+            while (pendingEntries.size() > MAX_PENDING_ENTRIES) {
+                pendingEntries.removeFirst();
+                droppedEntries++;
             }
-
-            applyFilter();
-        });
+        }
     }
 
     public void info(String message) {
@@ -216,26 +248,53 @@ public class LogPanel extends JPanel {
         log(message, LogLevel.ERROR);
     }
 
+    /**
+     * Drains the pending buffer into the table model in one batch. Runs on the EDT.
+     */
+    private void flushPendingEntries() {
+        List<LogEntry> batch;
+        synchronized (pendingEntries) {
+            if (pendingEntries.isEmpty() && droppedEntries == 0) {
+                return;
+            }
+            batch = new ArrayList<>(pendingEntries);
+            pendingEntries.clear();
+            droppedEntries = 0;
+        }
+
+        tableModel.addLogEntries(batch);
+        updateCountLabel();
+    }
+
     public void clear() {
         SwingUtilities.invokeLater(() -> {
+            synchronized (pendingEntries) {
+                pendingEntries.clear();
+                droppedEntries = 0;
+            }
             tableModel.clear();
             applyFilter();
         });
     }
 
+    /**
+     * Installs the row filter. Only called when the user changes a filter control, or when
+     * the table content is cleared - never from the event refresh path.
+     */
     private void applyFilter() {
         // Text filter
-        String searchText = searchField.getText().trim().toLowerCase();
+        String searchText = searchField.getText().trim();
 
         // Level filter
         List<RowFilter<LogTableModel, Integer>> filters = new ArrayList<>();
 
         if (!searchText.isEmpty()) {
-            filters.add(RowFilter.regexFilter("(?i)" + searchText, 2)); // Message column
+            // Pattern.quote keeps arbitrary user input from raising PatternSyntaxException
+            filters.add(RowFilter.regexFilter("(?i)" + Pattern.quote(searchText), 2)); // Message column
         }
 
         if (!infoCheckBox.isSelected() || !warningCheckBox.isSelected() ||
-            !errorCheckBox.isSelected() || !successCheckBox.isSelected()) {
+                !errorCheckBox.isSelected() || !successCheckBox.isSelected()) {
             List<LogLevel> allowedLevels = new ArrayList<>();
             if (infoCheckBox.isSelected()) allowedLevels.add(LogLevel.INFO);
             if (warningCheckBox.isSelected()) allowedLevels.add(LogLevel.WARNING);
@@ -275,21 +334,29 @@ public class LogPanel extends JPanel {
         private final List<LogEntry> logEntries = new ArrayList<>();
 
         private final String[] columnNames = {
-            I18nManager.getInstance().getMessage("log.table.time"),
-            I18nManager.getInstance().getMessage("log.table.level"),
-            I18nManager.getInstance().getMessage("log.table.message")
+                I18nManager.getInstance().getMessage("log.table.time"),
+                I18nManager.getInstance().getMessage("log.table.level"),
+                I18nManager.getInstance().getMessage("log.table.message")
         };
         private final Class<?>[] columnTypes = {String.class, LogLevel.class, String.class};
 
-        public void addLogEntry(LogEntry entry) {
-            logEntries.add(entry);
-            fireTableRowsInserted(logEntries.size() - 1, logEntries.size() - 1);
-        }
+        /**
+         * Appends a batch of entries with a single insert event, then trims the model back
+         * to {@link #MAX_LOG_ENTRIES} with a single delete event.
+         */
+        public void addLogEntries(List<LogEntry> entries) {
+            if (entries.isEmpty()) {
+                return;
+            }
 
-        public void removeFirstEntry() {
-            if (!logEntries.isEmpty()) {
-                logEntries.removeFirst();
-                fireTableRowsDeleted(0, 0);
+            int firstRow = logEntries.size();
+            logEntries.addAll(entries);
+            fireTableRowsInserted(firstRow, logEntries.size() - 1);
+
+            int excess = logEntries.size() - MAX_LOG_ENTRIES;
+            if (excess > 0) {
+                logEntries.subList(0, excess).clear();
+                fireTableRowsDeleted(0, excess - 1);
             }
         }
 
@@ -324,12 +391,14 @@ public class LogPanel extends JPanel {
         @Override
         public Object getValueAt(int rowIndex, int columnIndex) {
             LogEntry entry = logEntries.get(rowIndex);
-            return switch (columnIndex) {
-                case 0 -> entry.timestamp();
-                case 1 -> entry.level();
-                case 2 -> entry.message();
-                default -> null;
-            };
+            if (columnIndex == 0) {
+                return entry.timestamp();
+            } else if (columnIndex == 1) {
+                return entry.level();
+            } else if (columnIndex == 2) {
+                return entry.message();
+            }
+            return null;
         }
     }
 
@@ -340,7 +409,8 @@ public class LogPanel extends JPanel {
                                                        boolean isSelected, boolean hasFocus, int row, int column) {
             super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 
-            if (value instanceof LogLevel level) {
+            if (value instanceof LogLevel) {
+                LogLevel level = (LogLevel) value;
                 setText(level.name());
                 setForeground(getLevelColor(level));
                 setFont(getFont().deriveFont(Font.BOLD));
@@ -350,16 +420,41 @@ public class LogPanel extends JPanel {
         }
 
         private Color getLevelColor(LogLevel level) {
-            return switch (level) {
-                case INFO -> INFO_COLOR;
-                case WARNING -> WARNING_COLOR;
-                case ERROR -> ERROR_COLOR;
-                case SUCCESS -> SUCCESS_COLOR;
-            };
+            if (level == LogLevel.INFO) {
+                return INFO_COLOR;
+            } else if (level == LogLevel.WARNING) {
+                return WARNING_COLOR;
+            } else if (level == LogLevel.ERROR) {
+                return ERROR_COLOR;
+            }
+            return SUCCESS_COLOR;
         }
     }
 
-    private record LogEntry(String timestamp, LogLevel level, String message) {}
+    private static final class LogEntry {
+
+        private final String timestamp;
+        private final LogLevel level;
+        private final String message;
+
+        LogEntry(String timestamp, LogLevel level, String message) {
+            this.timestamp = timestamp;
+            this.level = level;
+            this.message = message;
+        }
+
+        String timestamp() {
+            return timestamp;
+        }
+
+        LogLevel level() {
+            return level;
+        }
+
+        String message() {
+            return message;
+        }
+    }
 
     public enum LogLevel {
         INFO, WARNING, ERROR, SUCCESS
