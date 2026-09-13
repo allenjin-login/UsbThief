@@ -11,6 +11,7 @@ import com.superredrock.usbthief.core.config.ConfigManager;
 import com.superredrock.usbthief.core.config.configs.PathConfig;
 import com.superredrock.usbthief.core.config.configs.WindowConfig;
 import com.superredrock.usbthief.gui.dailog.*;
+import com.superredrock.usbthief.gui.components.TaskActivityPanel;
 import com.superredrock.usbthief.gui.theme.ThemeChangeListener;
 import com.superredrock.usbthief.gui.theme.ThemeManager;
 import com.superredrock.usbthief.statistics.Statistics;
@@ -40,6 +41,7 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
     private final java.util.List<JPanel> statCards = new java.util.ArrayList<>();
 
     private final SpeedChartPanel speedChartPanel;
+    private final TaskActivityPanel taskActivityPanel;
     private final VolumeListPanel volumeListPanel;
     private final StatisticsPanel statisticsPanel;
     private LogWindow logWindow;
@@ -80,6 +82,7 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         createMenus();
 
         speedChartPanel = new SpeedChartPanel();
+        taskActivityPanel = new TaskActivityPanel();
         volumeListPanel = new VolumeListPanel();
         volumeListPanel.setParentFrame(this);
         volumeListPanel.setMainFrame(this);
@@ -148,6 +151,12 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         statsBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
         statsBar.setAlignmentX(Component.LEFT_ALIGNMENT);
         centerPanel.add(statsBar);
+
+        // "Multi-thread driver's license" - live task strip (batch 1)
+        taskActivityPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        taskActivityPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
+        centerPanel.add(Box.createVerticalStrut(6));
+        centerPanel.add(taskActivityPanel);
         centerPanel.add(Box.createVerticalStrut(8));
 
         // Device list at bottom (scrollable) with titled border
@@ -602,6 +611,8 @@ public class MainFrame extends JFrame implements I18nManager.LocaleChangeListene
         try {
             speedChartPanel.stop();
             logger.info("SpeedChartPanel stopped");
+
+            taskActivityPanel.stop();
 
             volumeListPanel.stop();
             logger.info("VolumeListPanel stopped");
