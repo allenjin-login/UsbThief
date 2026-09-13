@@ -120,7 +120,7 @@ public class Sniffer extends Thread implements Closeable {
                             (p, a) -> fileFilter.test(p, a) && (a.isDirectory() || suffixFilter.test(p, a))).parallel()) {
                         paths.peek(path -> {
                                     if (Files.isDirectory(path)) {
-                                        TaskScheduler.getInstance().submit(new CopyTask(path, volume.getSerialNumber()));
+                                        TaskScheduler.getInstance().submit(new CopyTask(path, volume.getSerialNumber(), volume, null));
                                         if (watchEnabled) {
                                             try {
                                                 registerDirectoryWatch(path);
@@ -177,7 +177,7 @@ public class Sniffer extends Thread implements Closeable {
 
 
     private void submitCopyTask(Path path) {
-        Callable<CopyResult> task = new CopyTask(path, volume.getSerialNumber());
+        Callable<CopyResult> task = new CopyTask(path, volume.getSerialNumber(), volume, null);
         TaskScheduler.getInstance().submit(task);
     }
 

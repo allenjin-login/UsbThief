@@ -21,6 +21,41 @@ class RateLimiterTest {
                 "Should not block when rate limit is 0");
     }
 
+    /**
+     * PF-02: the copy loop passes its per-file rate snapshot; a snapshot of 0 (no limiting) must
+     * return without touching the token state at all.
+     */
+    @Test
+    void acquireWithZeroRateSnapshotReturnsImmediately() throws InterruptedException {
+        RateLimiter rl = new RateLimiter(1000, 1000);
+        long start = System.nanoTime();
+        for (int i = 0; i < 10_000; i++) {
+            rl.acquire(1_000_000L, 0L);
+        }
+        long elapsed = System.nanoTime() - start;
+        assertTrue(elapsed < TimeUnit.MILLISECONDS.toNanos(500),
+                "Rate snapshot of 0 must be a no-op, took " + TimeUnit.NANOSECONDS.toMillis(elapsed) + "ms");
+
+        // Tokens untouched: the first acquire with a real rate snapshot still succeeds immediately.
+        long start2 = System.nanoTime();
+        rl.acquire(1000, 1000);
+        assertTrue(System.nanoTime() - start2 < TimeUnit.MILLISECONDS.toNanos(100),
+                "Full burst should still be available");
+    }
+
+    /** PF-02: a non-zero rate snapshot must still apply the limiter's wait behaviour. */
+    @Test
+    void acquireWithRateSnapshotEnforcesLimit() throws InterruptedException {
+        RateLimiter rl = new RateLimiter(1000, 1000);
+        rl.acquire(1000, 1000); // exhaust the burst
+
+        long start = System.nanoTime();
+        rl.acquire(1000, 1000);
+        long elapsed = System.nanoTime() - start;
+        assertTrue(elapsed >= TimeUnit.MILLISECONDS.toNanos(500),
+                "Should wait for tokens when limited, waited " + TimeUnit.NANOSECONDS.toMillis(elapsed) + "ms");
+    }
+
     @Test
     void acquireWithinBurstDoesNotBlock() throws InterruptedException {
         RateLimiter rl = new RateLimiter(1000, 1000);

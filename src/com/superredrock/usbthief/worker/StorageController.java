@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.LongSummaryStatistics;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,6 +41,19 @@ public class StorageController {
 
     protected LongSummaryStatistics workSize = new LongSummaryStatistics(0,0,0,0);
 
+    /**
+     * How long a {@link StorageStatus} snapshot may be served from cache.
+     *
+     * <p>Each refresh costs a {@code FileStore} lookup plus {@code getTotalSpace()/getUsableSpace()}
+     * (tens of microseconds per call). The copy hot path asks for the status once per file, so a
+     * one-second cache removes essentially all of that cost while keeping the status fresh enough
+     * for storage gating and GUI display.</p>
+     */
+    private static final long STATUS_CACHE_NANOS = TimeUnit.SECONDS.toNanos(1);
+
+    private volatile StorageStatus cachedStatus;
+    private volatile long cachedStatusNanos;
+
     private StorageController() {
         // Private constructor for singleton
     }
@@ -59,12 +73,45 @@ public class StorageController {
     /**
      * Get the current storage status including free/used/total space and storage level.
      * <p>
-     * This method queries the FileStore for fresh values on each call, so the returned
-     * information is always up-to-date.
+     * The status is cached for {@value #STATUS_CACHE_NANOS} nanoseconds (one second) so that the
+     * per-file copy hot path does not pay for {@code FileStore} queries on every file. Callers
+     * that need an immediate re-sample can use {@link #refreshStorageStatus()}.
      *
      * @return the current storage status
      */
     public StorageStatus getStorageStatus() {
+        StorageStatus snapshot = cachedStatus;
+        long now = System.nanoTime();
+        if (snapshot != null && now - cachedStatusNanos < STATUS_CACHE_NANOS) {
+            return snapshot;
+        }
+        return refreshStorageStatus();
+    }
+
+    /**
+     * Queries the filesystem for a fresh storage status and refreshes the cache.
+     *
+     * <p>Callers that must observe disk usage immediately (for example an explicit
+     * "refresh" action) can use this instead of the cached {@link #getStorageStatus()}.</p>
+     *
+     * @return a freshly sampled storage status
+     */
+    public StorageStatus refreshStorageStatus() {
+        StorageStatus status = queryStorageStatus();
+        cachedStatus = status;
+        cachedStatusNanos = System.nanoTime();
+        return status;
+    }
+
+    /**
+     * Drops the cached status so that the next {@link #getStorageStatus()} re-samples the
+     * filesystem.
+     */
+    public void invalidateStorageStatus() {
+        cachedStatus = null;
+    }
+
+    private StorageStatus queryStorageStatus() {
         try {
             FileStore fileStore = getFileStore();
             long totalBytes = fileStore.getTotalSpace();
@@ -86,14 +133,7 @@ public class StorageController {
      * @return the current storage level
      */
     public StorageLevel getStorageLevel() {
-        try {
-            long freeBytes = getFileStore().getUsableSpace();
-            return calculateStorageLevel(freeBytes);
-        } catch (IOException e) {
-            logger.error("Failed to get storage level", e);
-            // Return conservative value on error
-            return StorageLevel.CRITICAL;
-        }
+        return getStorageStatus().level();
     }
 
     /**
