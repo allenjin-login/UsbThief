@@ -43,6 +43,10 @@ public class BasicFileFilter implements FileFilter {
 
     private final ConfigManager configManager;
 
+    /** 1-second cache for the time-filter cutoff (hot path). */
+    private volatile Instant cachedCutoffTime;
+    private volatile long cachedCutoffAtMillis;
+
     /**
      * Creates a new BasicFileFilter with the default ConfigManager.
      */
@@ -67,14 +71,39 @@ public class BasicFileFilter implements FileFilter {
             return true;
         }
 
+        // Attribute-only checks first (no extra syscalls): max size, then time.
+        // Files failing these (a common case) never pay for the stat-based
+        // checks below.
+        if (isMaxSizeFilterEnabled()) {
+            long maxSize = getMaxFileSize();
+            long fileSize = attrs.size();
+            if (fileSize > maxSize) {
+                logger.debug("File exceeds max size ({} > {}): {}", fileSize, maxSize, path);
+                return false;
+            }
+        }
+
+        if (isTimeFilterEnabled()) {
+            Instant cutoffTime = calculateCutoffTime();
+            Instant lastModified = attrs.lastModifiedTime().toInstant();
+
+            if (lastModified.isBefore(cutoffTime)) {
+                logger.debug("File is too old (modified {}): {}", lastModified, path);
+                return false;
+            }
+        }
+
         try {
-            // Check symbolic links
-            if (shouldSkipSymlinks() && Files.isSymbolicLink(path)) {
+            // Check symbolic links. files.find() supplies NOFOLLOW_LINKS attributes,
+            // so attrs.isSymbolicLink() has the same semantics as Files.isSymbolicLink
+            // without an extra stat.
+            if (shouldSkipSymlinks() && attrs.isSymbolicLink()) {
                 logger.debug("Skipping symbolic link: {}", path);
                 return false;
             }
 
-            // Check hidden files
+            // Check hidden files (stat/DOS attributes on Windows; only reached when
+            // the cheap attribute checks above passed)
             if (!shouldIncludeHidden() && Files.isHidden(path)) {
                 logger.debug("Skipping hidden file: {}", path);
                 return false;
@@ -90,27 +119,6 @@ public class BasicFileFilter implements FileFilter {
             return false;
         }
 
-        // Check file size
-        if (isMaxSizeFilterEnabled()) {
-            long maxSize = getMaxFileSize();
-            long fileSize = attrs.size();
-            if (fileSize > maxSize) {
-                logger.debug("File exceeds max size ({} > {}): {}", fileSize, maxSize, path);
-                return false;
-            }
-        }
-
-        // Check time filter
-        if (isTimeFilterEnabled()) {
-            Instant cutoffTime = calculateCutoffTime();
-            Instant lastModified = attrs.lastModifiedTime().toInstant();
-
-            if (lastModified.isBefore(cutoffTime)) {
-                logger.debug("File is too old (modified {}): {}", lastModified, path);
-                return false;
-            }
-        }
-
         return true;
     }
 
@@ -119,7 +127,23 @@ public class BasicFileFilter implements FileFilter {
      *
      * @return the cutoff instant (files modified before this are filtered out)
      */
+    /**
+     * Cutoff for the time filter, cached for one second. The value is stable
+     * enough for batch scans, and recomputing {@code ZonedDateTime.now()} for
+     * every file is measurable on the hot path.
+     */
     protected Instant calculateCutoffTime() {
+        long now = System.currentTimeMillis();
+        Instant cached = cachedCutoffTime;
+        if (cached == null || now - cachedCutoffAtMillis > 1000L) {
+            cached = computeCutoffTime();
+            cachedCutoffTime = cached;
+            cachedCutoffAtMillis = now;
+        }
+        return cached;
+    }
+
+    private Instant computeCutoffTime() {
         long value = getTimeFilterValue();
         String unit = getTimeFilterUnit().toUpperCase(Locale.ROOT);
 
