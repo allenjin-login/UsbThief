@@ -144,4 +144,50 @@ class RateLimiterTest {
         // All should fit within burst
         assertTrue(elapsed < TimeUnit.MILLISECONDS.toNanos(100));
     }
+
+    /**
+     * PF-03 regression: tokens are capped at burstSize, so a request larger than the burst used to
+     * wait forever. acquire() must return within a bounded time.
+     */
+    @Test
+    void acquireLargerThanBurstReturns() throws InterruptedException {
+        RateLimiter rl = new RateLimiter(1_000_000, 1_000_000);
+
+        long start = System.nanoTime();
+        rl.acquire(2_000_000);
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+
+        assertTrue(elapsedMs < TimeUnit.SECONDS.toMillis(5),
+                "acquire(2x burst) must not wait forever, took " + elapsedMs + "ms");
+    }
+
+    /** The bytes above the burst are still throttled instead of being granted for free. */
+    @Test
+    void acquireLargerThanBurstIsStillThrottled() throws InterruptedException {
+        // 1 MB/s with a 1 MB burst: the initial burst covers the first MB, the remaining 2 MB
+        // must wait ~2 s.
+        RateLimiter rl = new RateLimiter(1_000_000, 1_000_000);
+
+        long start = System.nanoTime();
+        rl.acquire(3_000_000);
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+
+        assertTrue(elapsedMs >= 1500,
+                "Expected the excess bytes to be rate limited, took only " + elapsedMs + "ms");
+        assertTrue(elapsedMs < TimeUnit.SECONDS.toMillis(8),
+                "Expected acquire(3x burst) to finish in a bounded time, took " + elapsedMs + "ms");
+    }
+
+    /** Requests below or equal to the burst keep their previous behaviour. */
+    @Test
+    void acquireEqualToBurstUnchanged() throws InterruptedException {
+        RateLimiter rl = new RateLimiter(1000, 1000);
+
+        long start = System.nanoTime();
+        rl.acquire(1000);
+        long elapsed = System.nanoTime() - start;
+
+        assertTrue(elapsed < TimeUnit.MILLISECONDS.toNanos(100),
+                "Should use the initial burst without blocking");
+    }
 }
