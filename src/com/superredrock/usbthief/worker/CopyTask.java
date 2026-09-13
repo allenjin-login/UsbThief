@@ -5,6 +5,7 @@ import com.superredrock.usbthief.core.Volume;
 
 import com.superredrock.usbthief.core.QueueManager;
 import com.superredrock.usbthief.core.config.ConfigManager;
+import com.superredrock.usbthief.core.config.configs.CategoryConfig;
 import com.superredrock.usbthief.core.config.configs.FileCopyConfig;
 import com.superredrock.usbthief.core.config.configs.OverwriteConfig;
 import com.superredrock.usbthief.core.config.configs.PathConfig;
@@ -175,7 +176,11 @@ public class CopyTask implements Callable<CopyResult>, DeviceBoundTask {
             BasicFileAttributes attributes =
                     Files.readAttributes(processingPath, BasicFileAttributes.class);
             size = attributes.size();
-            destinationPath = getPath(processingPath);
+            // Batch 2-B: only regular files are categorised. Folder tasks (PF-06) keep the
+            // plain destination so an empty folder is still created where it was before.
+            String categoryDir = attributes.isDirectory()
+                    ? null : settings.categoryMode.categoryDirectory(processingPath);
+            destinationPath = getPath(processingPath, categoryDir);
 
             // PF-06: directories are a lightweight task - create the folder and stop. They skip
             // the storage gate, the space check and all speed probes. The completion event below
@@ -207,8 +212,9 @@ public class CopyTask implements Callable<CopyResult>, DeviceBoundTask {
                             } else {
                                 Path resolved = strategy.resolveTarget(destinationPath);
                                 if (resolved.equals(destinationPath)) {
-                                    // TIME_COMPARE: source is older — skip entirely
-                                    logger.info("Skipping older file: {}", processingPath);
+                                    // SKIP: user chose to keep the existing file.
+                                    // TIME_COMPARE: source is older than target — keep target.
+                                    logger.info("Skipping existing file ({}): {}", strategy.name(), processingPath);
                                     result = CopyResult.SKIPPED;
                                 } else {
                                     // RENAME: use new path with timestamp
@@ -365,11 +371,18 @@ public class CopyTask implements Callable<CopyResult>, DeviceBoundTask {
         }
     }
 
-    private Path getPath(Path target) throws IOException {
+    /**
+     * Destination path for a file, optionally with the category-folder layer applied.
+     *
+     * @param target the file being copied
+     * @param categoryDir folder to insert below the volume folder, or {@code null}
+     *                    for the uncategorised layout
+     */
+    private Path getPath(Path target, String categoryDir) throws IOException {
         Path workPath = AppPaths.resolve(ConfigManager.getInstance().get(PathConfig.WORK_PATH));
         // PF-05: the owning volume is injected by the submitter, so the destination folder comes
         // from the cached volume name instead of a per-file Files.getFileStore(target).name().
-        return DeviceUtils.getPath(workPath, target, volume);
+        return DeviceUtils.getPath(workPath, target, volume, categoryDir);
     }
 
     /**
@@ -399,12 +412,15 @@ public class CopyTask implements Callable<CopyResult>, DeviceBoundTask {
         final long readLimit;
         final long writeLimit;
         final long burstSize;
+        final CategoryMode categoryMode;
 
-        private CopySettings(int bufferSize, long readLimit, long writeLimit, long burstSize) {
+        private CopySettings(int bufferSize, long readLimit, long writeLimit, long burstSize,
+                             CategoryMode categoryMode) {
             this.bufferSize = bufferSize;
             this.readLimit = readLimit;
             this.writeLimit = writeLimit;
             this.burstSize = burstSize;
+            this.categoryMode = categoryMode;
         }
 
         /**
@@ -418,7 +434,8 @@ public class CopyTask implements Callable<CopyResult>, DeviceBoundTask {
                     clampBufferSize(config.get(FileCopyConfig.BUFFER_SIZE)),
                     config.get(RateLimitConfig.COPY_READ_RATE_LIMIT),
                     config.get(RateLimitConfig.COPY_WRITE_RATE_LIMIT),
-                    config.get(RateLimitConfig.COPY_RATE_BURST_SIZE));
+                    config.get(RateLimitConfig.COPY_RATE_BURST_SIZE),
+                    CategoryMode.safeValueOf(config.get(CategoryConfig.CATEGORY_MODE)));
         }
     }
 }

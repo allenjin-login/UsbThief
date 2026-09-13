@@ -79,6 +79,29 @@ public class DeviceUtils {
      * @throws IOException if an I/O error occurs while resolving the file store
      */
     public static Path getPath(Path workPath, Path target, Volume volume) throws IOException {
+        return getPath(workPath, target, volume, null);
+    }
+
+    /**
+     * Constructs a destination path for file copying, optionally inserting one
+     * category folder directly below the volume folder.
+     *
+     * <p>Without {@code categoryDir} this is exactly
+     * {@link #getPath(Path, Path, Volume)}: {@code workPath/(storeName_serial)/relative}.
+     * With a category folder the relative sub-tree is dropped and the file lands at
+     * {@code workPath/(storeName_serial)/<categoryDir>/<fileName>} - the file-level
+     * "category folder" layout (batch 2-B), in which the category sits
+     * directly below {@code (storeName_serial)} and only the file name is kept.</p>
+     *
+     * @param workPath the working path
+     * @param target the target file path
+     * @param volume the volume that owns {@code target}, or {@code null} to look it up
+     * @param categoryDir folder to insert below the volume folder, or {@code null}/empty
+     *                    to keep the uncategorised layout
+     * @return the destination path
+     * @throws IOException if an I/O error occurs while resolving the file store
+     */
+    public static Path getPath(Path workPath, Path target, Volume volume, String categoryDir) throws IOException {
         Path root = target.getRoot();
         Path relative = root.relativize(target);
 
@@ -94,7 +117,17 @@ public class DeviceUtils {
         }
 
         Volume owner = volume != null ? volume : QueueManager.getDeviceManager().getVolume(target);
-        return workPath.resolve(storeName + "_" + owner.getSerialNumber()).resolve(relative);
+        Path volumeDir = workPath.resolve(storeName + "_" + owner.getSerialNumber());
+
+        if (categoryDir == null || categoryDir.isEmpty()) {
+            return volumeDir.resolve(relative);
+        }
+        Path fileName = relative.getFileName();
+        if (fileName == null) {
+            // Degenerate target (e.g. a volume root): there is no file name to keep.
+            return volumeDir.resolve(categoryDir);
+        }
+        return volumeDir.resolve(categoryDir).resolve(fileName);
     }
 
     /**

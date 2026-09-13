@@ -2,6 +2,7 @@ package com.superredrock.usbthief.worker;
 
 import com.superredrock.usbthief.core.Volume;
 import com.superredrock.usbthief.core.config.ConfigManager;
+import com.superredrock.usbthief.core.config.configs.CategoryConfig;
 import com.superredrock.usbthief.core.config.configs.FileCopyConfig;
 import com.superredrock.usbthief.core.config.configs.PathConfig;
 import com.superredrock.usbthief.core.config.configs.RateLimitConfig;
@@ -15,6 +16,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -44,6 +47,7 @@ class CopyTaskTest {
         ConfigManager.getInstance().set(PathConfig.WORK_PATH, PathConfig.WORK_PATH.defaultValue());
         ConfigManager.getInstance().set(FileCopyConfig.BUFFER_SIZE, FileCopyConfig.BUFFER_SIZE.defaultValue());
         ConfigManager.getInstance().set(StorageConfig.STORAGE_ENABLED, StorageConfig.STORAGE_ENABLED.defaultValue());
+        ConfigManager.getInstance().set(CategoryConfig.CATEGORY_MODE, CategoryConfig.CATEGORY_MODE.defaultValue());
         StorageController.getInstance().invalidateStorageStatus();
     }
 
@@ -260,5 +264,100 @@ class CopyTaskTest {
         assertTrue(FileCopyConfig.BUFFER_SIZE.defaultValue() >= 512 * 1024,
                 "default copy chunk should be at least 512 KB, was "
                         + FileCopyConfig.BUFFER_SIZE.defaultValue());
+    }
+
+    /** Batch 2-B: BY_TYPE drops the relative sub-tree and sorts the file by extension. */
+    @Test
+    void categoryModeByTypeSortsCopiedFileIntoTypeFolder() throws Exception {
+        enableCopying();
+        ConfigManager.getInstance().set(CategoryConfig.CATEGORY_MODE, CategoryMode.BY_TYPE.name());
+
+        Path srcFile = sourceDir.resolve("holiday").resolve("photo.JPG");
+        Files.createDirectories(srcFile.getParent());
+        Files.writeString(srcFile, "jpegdata");
+
+        String serial = "CAT-SERIAL";
+        String volumeName = "catvol";
+        Volume volume = namedVolume(serial, volumeName);
+
+        CopyResult result = new CopyTask(srcFile, serial, volume, null).call();
+
+        Path expected = destDir.resolve(volumeName + "_" + serial)
+                .resolve(FileCategory.IMAGE.directoryName())
+                .resolve("photo.JPG");
+        assertEquals(CopyResult.SUCCESS, result);
+        assertTrue(Files.exists(expected), "categorised file should exist at " + expected);
+        assertEquals("jpegdata", Files.readString(expected));
+        Path uncategorised = destDir.resolve(volumeName + "_" + serial)
+                .resolve(srcFile.getRoot().relativize(srcFile));
+        assertFalse(Files.exists(uncategorised),
+                "the relative sub-tree must be dropped, but a file was found at " + uncategorised);
+    }
+
+    /** Batch 2-B: BY_DATE sorts the file into a yyyy-MM-dd folder of the copy date. */
+    @Test
+    void categoryModeByDateSortsCopiedFileIntoDateFolder() throws Exception {
+        enableCopying();
+        ConfigManager.getInstance().set(CategoryConfig.CATEGORY_MODE, CategoryMode.BY_DATE.name());
+
+        Path srcFile = sourceDir.resolve("payload.bin");
+        Files.writeString(srcFile, "bytes");
+
+        String serial = "DATE-SERIAL";
+        String volumeName = "datevol";
+        Volume volume = namedVolume(serial, volumeName);
+
+        CopyResult result = new CopyTask(srcFile, serial, volume, null).call();
+
+        String today = DateTimeFormatter.ofPattern("yyyy-MM-dd").format(LocalDate.now());
+        Path expected = destDir.resolve(volumeName + "_" + serial).resolve(today).resolve("payload.bin");
+        assertEquals(CopyResult.SUCCESS, result);
+        assertTrue(Files.exists(expected), "dated file should exist at " + expected);
+    }
+
+    /** Batch 2-B: the default (OFF) layout is unchanged. */
+    @Test
+    void categoryModeOffKeepsTheUncategorisedLayout() throws Exception {
+        enableCopying();
+        assertEquals(CategoryMode.OFF.name(),
+                ConfigManager.getInstance().get(CategoryConfig.CATEGORY_MODE));
+
+        Path srcFile = sourceDir.resolve("plain.txt");
+        Files.writeString(srcFile, "plain");
+
+        String serial = "OFF-SERIAL";
+        String volumeName = "offvol";
+        Volume volume = namedVolume(serial, volumeName);
+
+        CopyResult result = new CopyTask(srcFile, serial, volume, null).call();
+
+        Path expected = destDir.resolve(volumeName + "_" + serial)
+                .resolve(srcFile.getRoot().relativize(srcFile));
+        assertEquals(CopyResult.SUCCESS, result);
+        assertTrue(Files.exists(expected), "uncategorised file should exist at " + expected);
+    }
+
+    /** Batch 2-B: folder tasks are never sorted into a category folder (PF-06 still holds). */
+    @Test
+    void categoryModeByTypeLeavesDirectoryTasksUncategorised() throws Exception {
+        enableCopying();
+        ConfigManager.getInstance().set(CategoryConfig.CATEGORY_MODE, CategoryMode.BY_TYPE.name());
+
+        Path srcDir = sourceDir.resolve("nested").resolve("deeper");
+        Files.createDirectories(srcDir);
+
+        String serial = "DIRCAT-SERIAL";
+        String volumeName = "dircatvol";
+        Volume volume = namedVolume(serial, volumeName);
+
+        CopyResult result = new CopyTask(srcDir, serial, volume, null).call();
+
+        Path expected = destDir.resolve(volumeName + "_" + serial)
+                .resolve(srcDir.getRoot().relativize(srcDir));
+        assertEquals(CopyResult.SUCCESS, result);
+        assertTrue(Files.isDirectory(expected), "directory should have been created at " + expected);
+        assertFalse(Files.exists(destDir.resolve(volumeName + "_" + serial)
+                        .resolve(FileCategory.OTHER.directoryName()).resolve("deeper")),
+                "directories must not be routed through the category table");
     }
 }

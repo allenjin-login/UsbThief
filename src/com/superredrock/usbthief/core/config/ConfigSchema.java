@@ -20,6 +20,7 @@ public class ConfigSchema {
         registerClass(DeviceScannerConfig.class);
         registerClass(IndexConfig.class);
         registerClass(FileCopyConfig.class);
+        registerClass(DelayCopyConfig.class);
         registerClass(FileWatchConfig.class);
         registerClass(RateLimitConfig.class);
         registerClass(PathConfig.class);
@@ -31,6 +32,7 @@ public class ConfigSchema {
         registerClass(StorageConfig.class);
         registerClass(StatisticsApiConfig.class);
         registerClass(OverwriteConfig.class);
+        registerClass(CategoryConfig.class);
     }
 
     private ConfigSchema() {

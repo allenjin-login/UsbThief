@@ -4,6 +4,7 @@ import com.superredrock.usbthief.core.config.ConfigEntry;
 import com.superredrock.usbthief.core.config.ConfigSchema;
 import com.superredrock.usbthief.core.config.ConfigType;
 import com.superredrock.usbthief.core.config.configs.BlacklistConfig;
+import com.superredrock.usbthief.core.config.configs.CategoryConfig;
 import com.superredrock.usbthief.core.config.configs.FileWatchConfig;
 import com.superredrock.usbthief.core.config.configs.IndexConfig;
 import com.superredrock.usbthief.core.config.configs.RateLimitConfig;
@@ -102,6 +103,19 @@ class ConfigSchemaTest {
     void listEntries() {
         assertEquals(List.of(), BlacklistConfig.DEVICE_BLACKLIST_BY_SERIAL.defaultValue());
         assertEquals(ConfigType.STRING_LIST, BlacklistConfig.DEVICE_BLACKLIST_BY_SERIAL.type());
+    }
+
+    @Test
+    void categoryFolderEntries() {
+        assertEquals("OFF", CategoryConfig.CATEGORY_MODE.defaultValue(),
+                "category folders must stay off by default");
+        assertEquals(ConfigType.ENUM, CategoryConfig.CATEGORY_MODE.type());
+        assertEquals(List.of("OFF", "BY_TYPE", "BY_DATE"), CategoryConfig.CATEGORY_MODE.options());
+        assertTrue(ConfigSchema.getEntriesByCategory().containsKey(CategoryConfig.CATEGORY),
+                "the category folder page must be part of the schema");
+        assertTrue(ConfigSchema.getEntriesByCategory().get(CategoryConfig.CATEGORY)
+                        .contains(CategoryConfig.CATEGORY_MODE),
+                "categoryMode must be registered under its own category");
     }
 
     @Test

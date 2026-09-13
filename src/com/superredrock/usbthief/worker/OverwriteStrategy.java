@@ -39,6 +39,14 @@ public enum OverwriteStrategy {
         }
     },
 
+    SKIP {
+        @Override
+        public boolean shouldOverwrite(Path source, Path target) {
+            return false; // Never touch the existing file
+        }
+        // resolveTarget: default returns the target unchanged -> CopyTask treats it as "skip"
+    },
+
     TIME_COMPARE {
         @Override
         public boolean shouldOverwrite(Path source, Path target) {
@@ -91,8 +99,8 @@ public enum OverwriteStrategy {
         try {
             return valueOf(name);
         } catch (IllegalArgumentException | NullPointerException e) {
-            logger.warn("Invalid overwrite strategy '{}', falling back to ALWAYS_OVERWRITE", name);
-            return ALWAYS_OVERWRITE;
+            logger.warn("Invalid overwrite strategy '{}', falling back to RENAME (data-safe)", name);
+            return RENAME;
         }
     }
 }

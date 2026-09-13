@@ -34,6 +34,8 @@ public class Sniffer extends Thread implements Closeable {
     private final Path root;
     private final WatchService monitor;
     private final Volume volume;
+    /** Delayed copy: tasks submitted here wait for their file to settle on a scheduler worker. */
+    private final FileStabilityGate stabilityGate;
 
     private final FileFilter systemDirFilter = new SystemDirectoryFilter();
     private final ConcurrentHashMap<Path, WatchKey> watchKeys = new ConcurrentHashMap<>();
@@ -63,8 +65,19 @@ public class Sniffer extends Thread implements Closeable {
      * @param volume the volume to scan/monitor
      */
     public Sniffer(Volume volume) {
+        this(volume, new FileStabilityGate());
+    }
+
+    /**
+     * Creates a Sniffer with an explicit stability gate.
+     *
+     * @param volume        the volume to scan/monitor
+     * @param stabilityGate the delayed-copy gate every submitted task has to pass
+     */
+    Sniffer(Volume volume, FileStabilityGate stabilityGate) {
         super(QueueManager.getDiskScanners(), "DiskScanner: " + volume.getDriveLetter());
         this.volume = volume;
+        this.stabilityGate = Objects.requireNonNull(stabilityGate, "stabilityGate");
         this.root = volume.getRootPath();
         WatchService ws;
         try {
@@ -130,7 +143,7 @@ public class Sniffer extends Thread implements Closeable {
                             (p, a) -> fileFilter.test(p, a) && (a.isDirectory() || suffixFilter.test(p, a)))) {
                         paths.peek(path -> {
                                     if (Files.isDirectory(path)) {
-                                        TaskScheduler.getInstance().submit(new CopyTask(path, volume.getSerialNumber(), volume, null));
+                                        submitCopyTask(path);
                                         if (watchEnabled) {
                                             try {
                                                 registerDirectoryWatch(path);
@@ -186,8 +199,17 @@ public class Sniffer extends Thread implements Closeable {
     }
 
 
+    /**
+     * Queues a copy for {@code path}.
+     *
+     * <p>Delayed copy: the task waits for the file to settle before it reads anything, so a file
+     * that is still being written is never copied half-finished. The waiting happens inside the
+     * task - i.e. on a scheduler worker - and never on this sniffer's thread.</p>
+     *
+     * @param path the file or directory to copy
+     */
     private void submitCopyTask(Path path) {
-        Callable<CopyResult> task = new CopyTask(path, volume.getSerialNumber(), volume, null);
+        Callable<CopyResult> task = new GatedCopyTask(path, volume.getSerialNumber(), volume, stabilityGate);
         TaskScheduler.getInstance().submit(task);
     }
 
