@@ -1,5 +1,6 @@
-package com.superredrock.usbthief.core;
+package com.superredrock.usbthief.platform.win;
 
+import com.superredrock.usbthief.core.HotplugSource;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.platform.win32.*;
@@ -14,7 +15,16 @@ import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class UsbHotplugMonitor {
+/**
+ * Windows implementation of {@link HotplugSource}: a hidden message window that receives
+ * {@code WM_DEVICECHANGE} notifications for volumes and device interfaces.
+ *
+ * <p>This class is Windows-only, but constructing it is safe anywhere: the JNA {@code user32}
+ * library is resolved lazily on first actual use (inside {@link #start()}), never in a field
+ * initializer or static block. Callers should obtain instances through
+ * {@code com.superredrock.usbthief.platform.Platform#hotplugSource()}.</p>
+ */
+public class UsbHotplugMonitor implements HotplugSource {
 
     private static final Logger logger = LogManager.getLogger(UsbHotplugMonitor.class);
 
@@ -28,7 +38,28 @@ public class UsbHotplugMonitor {
 
     private static final GUID GUID_DEVINTERFACE_DISK = new GUID("53F56307-B6BF-11D0-94F2-00A0C91EFB8B");
 
-    private final User32 user32 = User32.INSTANCE;
+    /**
+     * Lazily resolved {@code user32} handle.
+     *
+     * <p>Resolved on first use instead of in a field initializer: {@code Native.load("user32")}
+     * fails on a non-Windows host, and resolving it while the instance is being constructed made
+     * every code path that merely touched a hot-plug monitor fail to load.</p>
+     */
+    private static volatile User32 user32Handle;
+
+    private static User32 user32() {
+        User32 handle = user32Handle;
+        if (handle == null) {
+            synchronized (UsbHotplugMonitor.class) {
+                handle = user32Handle;
+                if (handle == null) {
+                    handle = User32.INSTANCE;
+                    user32Handle = handle;
+                }
+            }
+        }
+        return handle;
+    }
 
     private volatile HWND hwnd;
     private volatile boolean running;
@@ -56,32 +87,6 @@ public class UsbHotplugMonitor {
         thread.setDaemon(true);
         return thread;
     });
-
-    public interface VolumeListener {
-        /** Called on the hot-plug callback thread, never on the EDT or the message pump. */
-        void onVolumeArrival(String driveLetter);
-
-        /** Called on the hot-plug callback thread, never on the EDT or the message pump. */
-        void onVolumeRemoval(String driveLetter);
-
-        /**
-         * Eject cleanup hook, called on the hot-plug callback thread after the eject has been
-         * allowed. Must not rely on blocking the Windows message pump.
-         *
-         * @return advisory result; the monitor always allows the eject
-         */
-        default boolean onVolumeQueryRemove(String driveLetter) {
-            return true;
-        }
-    }
-
-    public interface DeviceListener {
-        /** Called on the hot-plug callback thread, never on the EDT or the message pump. */
-        void onDeviceArrival(String dbccName);
-
-        /** Called on the hot-plug callback thread, never on the EDT or the message pump. */
-        void onDeviceRemoval(String dbccName);
-    }
 
     // ========== Broadcast structures ==========
 
@@ -162,7 +167,7 @@ public class UsbHotplugMonitor {
                 LRESULT result = handleDeviceChange(wParam, lParamPtr);
                 return result != null ? result : new LRESULT(1);
             }
-            return user32.DefWindowProc(hwnd, msg, wParam, lParam);
+            return user32().DefWindowProc(hwnd, msg, wParam, lParam);
         }
     };
 
@@ -254,6 +259,7 @@ public class UsbHotplugMonitor {
 
     // ========== Volume handle registration ==========
 
+    @Override
     public void registerVolumeHandle(String driveLetter) {
         if (hwnd == null) {
             logger.warn("Cannot register volume handle: window not created");
@@ -283,7 +289,7 @@ public class UsbHotplugMonitor {
         filter.dbch_handle = hFile;
         filter.write();
 
-        HDEVNOTIFY hNotify = user32.RegisterDeviceNotification(hwnd, filter, User32.DEVICE_NOTIFY_WINDOW_HANDLE);
+        HDEVNOTIFY hNotify = user32().RegisterDeviceNotification(hwnd, filter, User32.DEVICE_NOTIFY_WINDOW_HANDLE);
         if (hNotify == null) {
             logger.warn("Failed to register handle notification for {}: error {}", driveLetter, Kernel32.INSTANCE.GetLastError());
             Kernel32.INSTANCE.CloseHandle(hFile);
@@ -296,6 +302,7 @@ public class UsbHotplugMonitor {
         logger.info("Registered volume handle for eject detection: {} (handle=0x{})", driveLetter, Long.toHexString(handleValue));
     }
 
+    @Override
     public void unregisterVolumeHandle(String driveLetter) {
         cleanupVolumeHandle(driveLetter);
     }
@@ -305,7 +312,7 @@ public class UsbHotplugMonitor {
         if (reg != null) {
             long handleValue = Pointer.nativeValue(reg.volumeHandle.getPointer());
             handleToDriveLetter.remove(handleValue);
-            user32.UnregisterDeviceNotification(reg.notifyHandle);
+            user32().UnregisterDeviceNotification(reg.notifyHandle);
             Kernel32.INSTANCE.CloseHandle(reg.volumeHandle);
             logger.info("Unregistered volume handle: {}", driveLetter);
         }
@@ -313,14 +320,17 @@ public class UsbHotplugMonitor {
 
     // ========== Public API ==========
 
+    @Override
     public void setVolumeListener(VolumeListener listener) {
         this.volumeListener = listener;
     }
 
+    @Override
     public void setDeviceListener(DeviceListener listener) {
         this.deviceListener = listener;
     }
 
+    @Override
     public synchronized void start() {
         if (running) {
             throw new IllegalStateException("Monitor already running");
@@ -330,6 +340,7 @@ public class UsbHotplugMonitor {
                 .name("UsbHotplugMonitor-MsgThread")
                 .daemon(true)
                 .start(() -> {
+                    User32 user32 = user32();
                     String className = "UsbThiefMonitorClass";
                     WNDCLASSEX wndClass = new WNDCLASSEX();
                     wndClass.lpszClassName = className;
@@ -378,16 +389,22 @@ public class UsbHotplugMonitor {
                 });
     }
 
+    /**
+     * Legacy overload: the monitor owns its hidden window, so the handle argument is ignored.
+     *
+     * @param hwndValue ignored
+     */
     public synchronized void start(long hwndValue) {
         start();
     }
 
+    @Override
     public synchronized void stop() {
         if (!running || hwnd == null) {
             return;
         }
 
-        user32.PostMessage(hwnd, WinUser.WM_QUIT, null, null);
+        user32().PostMessage(hwnd, WinUser.WM_QUIT, null, null);
 
         if (messageThread != null) {
             try {
@@ -401,6 +418,7 @@ public class UsbHotplugMonitor {
         logger.info("USB hot-plug monitor stopped");
     }
 
+    @Override
     public boolean isRunning() {
         return running;
     }
@@ -415,7 +433,7 @@ public class UsbHotplugMonitor {
         filter.dbcc_classguid = GUID_DEVINTERFACE_DISK;
         filter.write();
 
-        HDEVNOTIFY result = user32.RegisterDeviceNotification(
+        HDEVNOTIFY result = user32().RegisterDeviceNotification(
                 hwnd, filter, User32.DEVICE_NOTIFY_WINDOW_HANDLE
         );
 

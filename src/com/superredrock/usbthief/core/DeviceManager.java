@@ -9,6 +9,7 @@ import com.superredrock.usbthief.core.event.device.NewDeviceJoinedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeInsertedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeRemovedEvent;
 import com.superredrock.usbthief.core.event.device.VolumeStateChangedEvent;
+import com.superredrock.usbthief.platform.Platform;
 import com.superredrock.usbthief.worker.SnifferLifecycleManager;
 import com.superredrock.usbthief.worker.TaskScheduler;
 
@@ -29,7 +30,7 @@ import org.apache.logging.log4j.Logger;
  * Device = pure info board (VID/PID/serial), Volume = operational entity (state/copy).
  * No parent-child relationship between them.
  */
-public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeListener, UsbHotplugMonitor.DeviceListener {
+public class DeviceManager extends Service implements HotplugSource.VolumeListener, HotplugSource.DeviceListener {
 
     private static final Logger logger = LogManager.getLogger(DeviceManager.class);
 
@@ -41,7 +42,11 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
      */
     private static final long EJECT_GRACE_PERIOD_SECONDS = 5;
 
-    private final UsbHotplugMonitor monitor = new UsbHotplugMonitor();
+    /**
+     * Platform-selected hot-plug source. The Windows implementation resolves its native library
+     * lazily inside {@code start()}, so constructing a DeviceManager is safe on every platform.
+     */
+    private final HotplugSource monitor = Platform.hotplugSource();
 
     // Independent maps — no cross-referencing
     private final ConcurrentHashMap<String, Device> devicesMap = new ConcurrentHashMap<>();
@@ -228,7 +233,7 @@ public class DeviceManager extends Service implements UsbHotplugMonitor.VolumeLi
         logger.info("Volume arrived: {}", driveLetter);
         Path rootPath = Path.of(driveLetter + "\\\\");
         String serial;
-        serial = DeviceUtils.getVolumeSN(driveLetter);
+        serial = Platform.volumeInfoProvider().getVolumeSerial(driveLetter);
         if (ConfigManager.getInstance().isDeviceBlacklistedBySerial(serial)) {
             logger.debug("Ignoring blacklisted volume: {}", serial);
             return;
