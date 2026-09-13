@@ -90,7 +90,7 @@ public class EventPanel extends JPanel {
         // Table model
         tableModel = new EventTableModel();
         eventTable = new JTable(tableModel);
-        eventTable.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        eventTable.setFont(ThemeManager.FONT_MONO);
         eventTable.setRowHeight(22);
 
         // Custom renderer for event type

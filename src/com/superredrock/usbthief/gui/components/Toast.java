@@ -84,14 +84,14 @@ public class Toast extends JPanel {
 
         // Icon label
         JLabel iconLabel = new JLabel(type.iconText);
-        iconLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
+        iconLabel.setFont(ThemeManager.FONT_BODY);
         iconLabel.setForeground(type.iconColor);
         iconLabel.setHorizontalAlignment(SwingConstants.CENTER);
         iconLabel.setPreferredSize(new Dimension(24, 24));
 
         // Message label
         JLabel messageLabel = new JLabel(message);
-        messageLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+        messageLabel.setFont(ThemeManager.FONT_BODY);
         messageLabel.setForeground(ThemeManager.TEXT_PRIMARY);
 
         // Layout

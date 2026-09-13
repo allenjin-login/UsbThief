@@ -85,7 +85,7 @@ public class StatisticsPanel extends JPanel implements I18nManager.LocaleChangeL
 
     private JLabel createStatLabel() {
         JLabel label = new JLabel();
-        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
+        label.setFont(ThemeManager.FONT_BODY);
         return label;
     }
 
@@ -116,15 +116,15 @@ public class StatisticsPanel extends JPanel implements I18nManager.LocaleChangeL
         ));
 
         discoveredSizeLabel = new JLabel();
-        discoveredSizeLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+        discoveredSizeLabel.setFont(ThemeManager.FONT_BODY);
         
         copiedSizeLabel = new JLabel();
-        copiedSizeLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+        copiedSizeLabel.setFont(ThemeManager.FONT_BODY);
 
         progressBar = new JProgressBar(0, 100);
         progressBar.setStringPainted(true);
         progressBar.setPreferredSize(new Dimension(0, 24));
-        progressBar.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+        progressBar.setFont(ThemeManager.FONT_SMALL);
 
         JPanel labelsPanel = new JPanel(new GridLayout(2, 1, 5, 5));
         labelsPanel.setOpaque(false);
@@ -150,7 +150,7 @@ public class StatisticsPanel extends JPanel implements I18nManager.LocaleChangeL
         JTable extensionTable = new JTable(extensionModel);
         extensionTable.setAutoCreateRowSorter(true);
         extensionTable.setRowHeight(24);
-        extensionTable.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+        extensionTable.setFont(ThemeManager.FONT_BODY);
 
         JScrollPane scrollPane = new JScrollPane(extensionTable);
         scrollPane.setPreferredSize(new Dimension(200, 150));

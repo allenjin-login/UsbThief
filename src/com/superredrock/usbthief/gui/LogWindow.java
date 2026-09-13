@@ -1,5 +1,7 @@
 package com.superredrock.usbthief.gui;
 
+import com.superredrock.usbthief.gui.theme.ThemeManager;
+
 import com.superredrock.usbthief.core.LoggingConfig;
 import com.superredrock.usbthief.core.LogBufferAppender;
 
@@ -47,7 +49,7 @@ public class LogWindow extends JDialog {
         // Initialize text pane
         logTextPane = new JTextPane();
         logTextPane.setEditable(false);
-        logTextPane.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
+        logTextPane.setFont(ThemeManager.FONT_MONO);
         logTextPane.setBackground(new Color(30, 30, 30));
         logTextPane.setForeground(Color.LIGHT_GRAY);
         doc = logTextPane.getStyledDocument();
