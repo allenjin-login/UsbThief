@@ -88,7 +88,7 @@ public class LanguageDiscovery {
                 return !languages.isEmpty();
             }
         } catch (IOException e) {
-            logger.debug("File system discovery failed (expected in JAR mode): {}", e);
+            logger.debug("File system discovery failed (expected in JAR mode)", e);
         }
         return false;
     }
@@ -144,7 +144,7 @@ public class LanguageDiscovery {
                 }
             }
         } catch (IOException e) {
-            logger.warn("Failed to discover languages from JAR: {}", e);
+            logger.warn("Failed to discover languages from JAR", e);
         }
     }
 

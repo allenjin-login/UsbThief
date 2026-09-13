@@ -78,6 +78,7 @@ public final class ThreadPools {
      *
      * @return the shared cooldown scheduler
      */
+    @SuppressWarnings("resource") // app-lifetime singleton, never closed by design
     public static ScheduledExecutorService cooldownScheduler() {
         ScheduledExecutorService local = cooldownScheduler;
         if (local == null) {

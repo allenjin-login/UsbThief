@@ -331,6 +331,7 @@ public class RecyclerService extends Service {
      * own single-threaded pool, without touching the common pool and without delaying the
      * rest of the tick. A second scan is skipped while one is still running.
      */
+    @SuppressWarnings("resource") // shared pools (ThreadPools) outlive this component
     private void scheduleWorkSizeScan() {
         if (!workSizeScanInFlight.compareAndSet(false, true)) {
             logger.debug("Work size scan still running, skipping this tick");
