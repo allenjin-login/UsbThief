@@ -2,6 +2,7 @@ package com.superredrock.usbthief.core;
 
 import java.io.Closeable;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,41 +16,94 @@ public abstract class Service extends Thread implements Closeable {
     protected volatile boolean paused = false;
     protected final ReentrantLock stateLock = new ReentrantLock();
 
+    /**
+     * Signalled by {@link #pause()}, {@link #resume()} and {@link #stopService()} so that the
+     * run loop can be woken immediately instead of sleeping through its tick interval.
+     */
+    private final Condition tickSignal = stateLock.newCondition();
+
     public Service() {
         super();
         setDaemon(true);
-        setName(getServiceName());
+        // getServiceName() is implemented by subclasses and may read a field that is not
+        // assigned yet while this constructor runs; fall back to the default thread name
+        // instead of failing construction with an NPE.
+        String serviceName = null;
+        try {
+            serviceName = getServiceName();
+        } catch (RuntimeException e) {
+            // subclass state not initialised yet - keep the default thread name
+        }
+        if (serviceName != null) {
+            setName(serviceName);
+        }
     }
 
     @Override
     public final void run() {
-        running = true;
-        state = ServiceState.RUNNING;
+        stateLock.lock();
+        try {
+            running = true;
+            state = ServiceState.RUNNING;
+        } finally {
+            stateLock.unlock();
+        }
         logger.info("{} service started", getServiceName());
 
-
-        while (running && !Thread.currentThread().isInterrupted()) {
+        // Tick and the inter-tick wait must never run while holding stateLock: pause()/resume()/
+        // stopService() take the same lock and would otherwise be starved by the loop.
+        boolean tickFailed = false;
+        while (true) {
+            boolean shouldTick;
             stateLock.lock();
             try {
-                if (!paused) {
+                if (!running || Thread.currentThread().isInterrupted()) {
+                    break;
+                }
+                shouldTick = (state == ServiceState.RUNNING);
+            } finally {
+                stateLock.unlock();
+            }
+
+            if (shouldTick) {
+                try {
                     tick();
+                } catch (Throwable t) {
+                    // A failed service must not keep ticking (no zombie loop), and the worker
+                    // thread must not die while "state" still claims RUNNING.
+                    logger.error("{} tick failed: {}", getServiceName(), t);
+                    tickFailed = true;
+                    break;
                 }
-                getTickUnit().sleep(getTickInterval());
+            }
+
+            stateLock.lock();
+            try {
+                if (!running || Thread.currentThread().isInterrupted()) {
+                    break;
+                }
+                // Wait outside the critical section; pause/resume/stop signal us awake.
+                tickSignal.await(getTickInterval(), getTickUnit());
             } catch (InterruptedException e) {
-                if (running) {
-                    logger.error("{} interrupted unexpectedly", getServiceName());
-                }
                 Thread.currentThread().interrupt();
-            } catch (Exception e) {
-                logger.error("{} tick failed: {}", getServiceName(), e);
-                state = ServiceState.FAILED;
-            }finally {
+                break;
+            } finally {
                 stateLock.unlock();
             }
         }
 
-        state = ServiceState.STOPPED;
-        logger.info(" service stopped{}", getServiceName());
+        stateLock.lock();
+        try {
+            running = false;
+            if (tickFailed) {
+                state = ServiceState.FAILED;
+            } else if (state != ServiceState.FAILED) {
+                state = ServiceState.STOPPED;
+            }
+        } finally {
+            stateLock.unlock();
+        }
+        logger.info("{} service stopped", getServiceName());
     }
 
     @Override
@@ -66,6 +120,13 @@ public abstract class Service extends Thread implements Closeable {
                 return;
             }
 
+            if (getState() == Thread.State.TERMINATED) {
+                // A Service owns its single worker thread; a terminated worker cannot be restarted.
+                logger.warn("{} thread already terminated, service cannot be restarted", getServiceName());
+                state = ServiceState.FAILED;
+                return;
+            }
+
             state = ServiceState.STARTING;
             super.start();
 
@@ -78,27 +139,41 @@ public abstract class Service extends Thread implements Closeable {
     }
 
     public void stopService() {
-        if (state == ServiceState.STOPPED) {
-            return;
+        stateLock.lock();
+        try {
+            if (state == ServiceState.STOPPED) {
+                return;
+            }
+
+            state = ServiceState.STOPPING;
+            running = false;
+            tickSignal.signalAll();
+        } finally {
+            stateLock.unlock();
         }
 
-        state = ServiceState.STOPPING;
-
         try {
-            running = false;
             interrupt();
 
             if (isAlive()) {
                 try {
                     join(5000);
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     logger.warn("{} stop interrupted while waiting for thread", getServiceName());
                 }
             }
 
             cleanup();
 
-            state = ServiceState.STOPPED;
+            stateLock.lock();
+            try {
+                if (state != ServiceState.FAILED) {
+                    state = ServiceState.STOPPED;
+                }
+            } finally {
+                stateLock.unlock();
+            }
         } catch (Exception e) {
             logger.error("{} stop failed: {}", getServiceName(), e);
             state = ServiceState.FAILED;
@@ -115,6 +190,7 @@ public abstract class Service extends Thread implements Closeable {
 
             paused = true;
             state = ServiceState.PAUSED;
+            tickSignal.signalAll();
             logger.info("{} service paused", getServiceName());
 
         } catch (Exception e) {
@@ -135,6 +211,7 @@ public abstract class Service extends Thread implements Closeable {
 
             paused = false;
             state = ServiceState.RUNNING;
+            tickSignal.signalAll();
             logger.info("{} service resumed", getServiceName());
 
         } catch (Exception e) {

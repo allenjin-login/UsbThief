@@ -4,6 +4,7 @@ package com.superredrock.usbthief;
 import com.superredrock.usbthief.core.DeviceManager;
 import com.superredrock.usbthief.core.LoggingConfig;
 import com.superredrock.usbthief.core.QueueManager;
+import com.superredrock.usbthief.core.ServiceRegistry;
 
 import com.superredrock.usbthief.core.event.EventBus;
 import com.superredrock.usbthief.worker.RecyclerService;
@@ -19,6 +20,7 @@ import com.superredrock.usbthief.statistics.Statistics;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.prefs.Preferences;
 
 public class Main {
@@ -26,6 +28,9 @@ public class Main {
     static final Preferences config = Preferences.userNodeForPackage(Main.class);
 
     static boolean hasLaunched = config.getBoolean("hasLaunched", false);
+
+    /** Guards the unified shutdown path so GUI exit + JVM shutdown hook cannot run it twice. */
+    private static final AtomicBoolean shutdownStarted = new AtomicBoolean(false);
 
     static void main() {
         // Initialize Log4j2
@@ -49,11 +54,20 @@ public class Main {
         // Register logging listeners for storage events
         registerStorageEventListeners();
 
-        // Start services
-        DeviceManager.getInstance().start();
-        TaskScheduler.getInstance().start();
-        SnifferLifecycleManager.getInstance().start();
-        RecyclerService.getInstance().start();
+        // Register services once, in startup order. shutdownAll() reverses that order,
+        // so the startup list and the shutdown list can no longer drift apart.
+        ServiceRegistry registry = ServiceRegistry.getInstance();
+        registry.register(DeviceManager.getInstance());
+        registry.register(TaskScheduler.getInstance());
+        registry.register(SnifferLifecycleManager.getInstance());
+        registry.register(RecyclerService.getInstance());
+
+        // Cleanup must also happen when the JVM goes down outside the GUI exit path
+        // (task manager kill, Windows logoff/shutdown, tray exit). Registered before the
+        // services start so a failure during startup is still cleaned up.
+        Runtime.getRuntime().addShutdownHook(new Thread(Main::quit, "usbthief-shutdown"));
+
+        registry.startAll();
 
         // 显示主窗口
         MainFrame.launch();
@@ -80,16 +94,36 @@ public class Main {
         eventBus.register(EmptyFoldersDeletedEvent.class, event -> logger.info("Empty folders deleted: {} folders", event.count()));
     }
 
+    /**
+     * Unified shutdown path for the whole application.
+     *
+     * <p>Called by {@code MainFrame.performShutdown()} and by the JVM shutdown hook
+     * installed in {@link #main()}. Idempotent: whichever entry point fires first wins,
+     * the other becomes a no-op.
+     *
+     * <p>Order matters: services stop first (so they publish no further events), non-service
+     * resources are released next, and the statistics snapshot is written last so that tail
+     * events produced during shutdown are still accounted for.
+     */
     public static void quit() {
+        if (!shutdownStarted.compareAndSet(false, true)) {
+            logger.info("Shutdown already in progress, ignoring duplicate quit()");
+            return;
+        }
+
         System.out.println("Quitting");
-        Statistics.getInstance().shutdown();
-        
-        // Stop services
-        DeviceManager.getInstance().stopService();
-        TaskScheduler.getInstance().stopService();
-        RecyclerService.getInstance().stopService();
-        
-        QueueManager.quit();
+
+        try {
+            // 1. Stop every service, in reverse registration order
+            //    (this is the single explicit stop path for SnifferLifecycleManager).
+            ServiceRegistry.getInstance().shutdownAll();
+
+            // 2. Release the remaining non-service resources (disk scanner threads).
+            QueueManager.quit();
+        } finally {
+            // 3. Persist statistics last, after event production has stopped.
+            Statistics.getInstance().shutdown();
+        }
     }
 
 }
