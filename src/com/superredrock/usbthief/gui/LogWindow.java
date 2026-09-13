@@ -1,6 +1,7 @@
 package com.superredrock.usbthief.gui;
 
 import com.superredrock.usbthief.core.LoggingConfig;
+import com.superredrock.usbthief.core.LogBufferAppender;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;

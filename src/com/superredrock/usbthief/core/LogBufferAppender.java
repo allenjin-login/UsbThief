@@ -1,4 +1,4 @@
-package com.superredrock.usbthief.gui;
+package com.superredrock.usbthief.core;
 
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.Core;
